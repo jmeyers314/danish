@@ -727,5 +727,5 @@ def _test2():
 
 
 if __name__ == "__main__":
-    # _test1()
+    _test1()
     _test2()
