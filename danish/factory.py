@@ -590,60 +590,6 @@ class DonutFactory:
         return img
 
 
-def _test1():
-    import time
-    rho = np.sqrt(np.random.uniform(0.3**2, 1.2**2, 10000))
-    phi = np.random.uniform(0, 2*np.pi, 10000)
-    u = rho*np.cos(phi)
-    v = rho*np.sin(phi)
-
-    # Prime the caches
-    zarr = np.zeros(67)
-    zarr[4] = 31e-6
-    zarr[5:] = 1e-8
-
-    Z = galsim.zernike.Zernike(
-        zarr,
-        R_inner=0.3, R_outer=1.2
-    )
-    x, y = pupil_to_focal(
-        u, v,
-        Z = Z,
-        focal_length=10.3
-    )
-
-    N = 100
-    t0 = time.time()
-    for _ in range(N):
-        zarr[4] = np.random.uniform(30e-6, 32e-6)
-        zarr[5:] = np.random.uniform(-1e-8, 1e-8, 62)
-        Z = galsim.zernike.Zernike(
-            zarr,
-            R_inner=0.3, R_outer=1.2
-        )
-        x, y = pupil_to_focal(
-            u, v,
-            Z = Z,
-            focal_length=10.3
-        )
-
-        # pupil_focal_jacobian(
-        #     u, v,
-        #     aberrations=[0]*31+[1e-4],
-        #     R_inner=0.3, R_outer=1.2,
-        #     focal_length=10.0
-        # )
-        # pupil_to_focal(
-        #     u, v,
-        #     aberrations=[0]*31+[1e-4],
-        #     R_inner=0.3, R_outer=1.2,
-        #     focal_length=10.0
-        # )
-        _focal_to_pupil(x, y, Z, focal_length=10.3)
-    t1 = time.time()
-    print(f"{(t1-t0)/N*1e3:.2f} ms")
-
-
 def _test2():
     import time
     obsc_radii = {
@@ -727,5 +673,4 @@ def _test2():
 
 
 if __name__ == "__main__":
-    _test1()
     _test2()
