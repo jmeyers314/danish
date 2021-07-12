@@ -1,4 +1,3 @@
-from danish.factory import focal_to_pupil
 import numpy as np
 
 import danish
@@ -179,9 +178,6 @@ def test_LSST_aberrated():
             nrad=20, naz=120, reference='chief',
             jmax=66, eps=0.61
         )
-
-        z22_aberration = np.zeros(22)
-        z22_aberration[4:] = rng.uniform(-0.1, 0.1, size=18)
 
         z = np.array(zref)
         z[4:22] += rng.uniform(-0.2, 0.2, size=18)
