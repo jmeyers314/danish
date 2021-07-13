@@ -1,8 +1,10 @@
 import numpy as np
 
 import danish
+from test_helpers import timer
 
 
+@timer
 def test_coord_roundtrip():
     """Check that pupil -> focal -> pupil -> focal round trips.
     """
@@ -48,6 +50,7 @@ def test_coord_roundtrip():
             np.testing.assert_allclose(y, y1, rtol=0, atol=1e-12)
 
 
+@timer
 def test_LSST():
     """ Check that we can draw donuts for fiducial LSST optics.
 
@@ -121,6 +124,7 @@ def test_LSST():
         # plt.show()
 
 
+@timer
 def test_LSST_aberrated():
     """ Check that we can draw donuts for fiducial LSST optics + additional
     Zernike aberrations.
