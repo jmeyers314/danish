@@ -5,4 +5,4 @@ from .factory import (
     focal_to_pupil, enclosed_fraction
 )
 
-from .fitter import SingleDonutModel
+from .fitter import SingleDonutModel, MultiDonutModel

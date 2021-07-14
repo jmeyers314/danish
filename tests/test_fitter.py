@@ -71,6 +71,34 @@ def plot_result(img, mod, z_fit, z_true, wavelength):
     plt.show()
 
 
+def plot_dz_results(imgs, mods, dz_fit, dz_true, dz_terms, wavelength):
+    import matplotlib.pyplot as plt
+    fig = plt.figure(constrained_layout=True, figsize=(10, 12))
+    gs = fig.add_gridspec(len(imgs)+3, 3)
+    for i, (img, mod) in enumerate(zip(imgs, mods)):
+        ax0 = fig.add_subplot(gs[i, 0])
+        ax1 = fig.add_subplot(gs[i, 1])
+        ax2 = fig.add_subplot(gs[i, 2])
+        ax0.imshow(img/np.sum(img))
+        ax1.imshow(mod/np.sum(mod))
+        ax2.imshow(img/np.sum(img) - mod/np.sum(mod))
+    ax3 = fig.add_subplot(gs[-3:, :])
+    ax3.axhline(0, c='k')
+    ax3.plot(dz_fit/wavelength, c='b', label='fit')
+    ax3.plot(dz_true/wavelength, c='k', label='truth')
+    ax3.plot(
+        (dz_fit-dz_true)/wavelength,
+        c='r', label='fit - truth'
+    )
+    ax3.set_ylim(-0.3, 0.3)
+    ax3.set_xlabel("Double Zernike index")
+    ax3.set_ylabel("Residual (Waves)")
+    ax3.set_xticks(range(len(dz_terms)))
+    ax3.set_xticklabels(dz_terms)
+    ax3.legend()
+    plt.show()
+
+
 @timer
 def test_fitter_LSST_fiducial():
     """ Roundtrip using danish model to produce a test image with fiducial LSST
@@ -482,9 +510,83 @@ def test_fitter_LSST_atm():
         assert rms < 0.15, "rms %9.3f > 0.15" % rms
 
 
+@timer
+def test_dz_fitter_LSST_fiducial():
+    """ Roundtrip using danish model to produce a test images with fiducial LSST
+    transverse Zernikes plus random double Zernike offsets.  Model and fitter
+    run through the same code.
+    """
+    telescope = batoid.Optic.fromYaml("LSST_i.yaml")
+    telescope = telescope.withGloballyShiftedOptic("Detector", [0, 0, 0.0015])
+
+    wavelength = 750e-9
+
+    rng = np.random.default_rng(2344)
+    nstar = 10
+    for _ in range(10):
+        thr = np.sqrt(rng.uniform(0, 1.8**2, nstar))
+        ph = rng.uniform(0, 2*np.pi, nstar)
+        thxs, thys = np.deg2rad(thr*np.cos(ph)), np.deg2rad(thr*np.sin(ph))
+        z_refs = np.empty((nstar, 67))
+        for i, (thx, thy) in enumerate(zip(thxs, thys)):
+            z_refs[i] = batoid.analysis.zernikeTransverseAberration(
+                telescope, thx, thy, wavelength,
+                nrad=20, naz=120, reference='chief',
+                jmax=66, eps=0.61
+            )
+        z_refs *= wavelength
+        dz_terms = (
+            (1, 4),                          # defocus
+            (2, 4), (3, 4),                  # field tilt
+            (2, 5), (3, 5), (2, 6), (3, 6),  # linear astigmatism
+            (1, 7), (1, 8)                   # constant coma
+        )
+        dz_true = rng.uniform(-0.3, 0.3, size=len(dz_terms))*wavelength
+
+        factory = danish.DonutFactory(
+            R_outer=4.18, R_inner=2.5498,
+            obsc_radii=LSST_obsc_radii, obsc_motion=LSST_obsc_motion,
+            focal_length=10.31, pixel_scale=10e-6
+        )
+
+        fitter = danish.MultiDonutModel(
+            factory,
+            z_refs=z_refs, dz_terms=dz_terms,
+            field_radius=np.deg2rad(1.8),
+            thxs=thxs, thys=thys
+        )
+
+        dxs = rng.uniform(-0.5, 0.5, nstar)
+        dys = rng.uniform(-0.5, 0.5, nstar)
+        fwhm = rng.uniform(0.5, 1.5)
+        sky_levels = [1000.0]*nstar
+        fluxes = [5e6]*nstar
+
+        imgs = fitter.model(
+            dxs, dys, fwhm, dz_true, sky_levels=sky_levels, fluxes=fluxes
+        )
+
+        guess = [0.0]*nstar + [0.0]*nstar + [0.7] + [0.0]*len(dz_terms)
+
+        result = least_squares(
+            fitter.chi, guess, jac=fitter.jac,
+            ftol=1e-3, xtol=1e-3, gtol=1e-3,
+            max_nfev=20, verbose=2,
+            args=(imgs, sky_levels)
+        )
+
+        # dxs_fit, dys_fit, fwhm_fit, dz_fit = fitter.unpack_params(result.x)
+        # mods = fitter.model(
+        #     dxs_fit, dys_fit, fwhm_fit, dz_fit
+        # )
+
+        # plot_dz_results(imgs, mods, dz_fit, dz_true, dz_terms, wavelength)
+
+
 if __name__ == "__main__":
     test_fitter_LSST_fiducial()
     test_fitter_LSST_rigid_perturbation()
     test_fitter_LSST_z_perturbation()
     test_fitter_LSST_kolm()
     test_fitter_LSST_atm()
+    test_dz_fitter_LSST_fiducial()
