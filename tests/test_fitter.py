@@ -90,7 +90,7 @@ def plot_dz_results(imgs, mods, dz_fit, dz_true, dz_terms, wavelength):
         (dz_fit-dz_true)/wavelength,
         c='r', label='fit - truth'
     )
-    ax3.set_ylim(-0.3, 0.3)
+    ax3.set_ylim(-0.6, 0.6)
     ax3.set_xlabel("Double Zernike index")
     ax3.set_ylabel("Residual (Waves)")
     ax3.set_xticks(range(len(dz_terms)))
@@ -512,7 +512,7 @@ def test_fitter_LSST_atm():
 
 @timer
 def test_dz_fitter_LSST_fiducial():
-    """ Roundtrip using danish model to produce a test images with fiducial LSST
+    """ Roundtrip using danish model to produce test images with fiducial LSST
     transverse Zernikes plus random double Zernike offsets.  Model and fitter
     run through the same code.
     """
@@ -523,7 +523,11 @@ def test_dz_fitter_LSST_fiducial():
 
     rng = np.random.default_rng(2344)
     nstar = 10
-    for _ in range(10):
+    if __name__ == "__main__":
+        niter = 10
+    else:
+        niter = 1
+    for _ in range(niter):
         thr = np.sqrt(rng.uniform(0, 1.8**2, nstar))
         ph = rng.uniform(0, 2*np.pi, nstar)
         thxs, thys = np.deg2rad(thr*np.cos(ph)), np.deg2rad(thr*np.sin(ph))
@@ -583,6 +587,129 @@ def test_dz_fitter_LSST_fiducial():
         # plot_dz_results(imgs, mods, dz_fit, dz_true, dz_terms, wavelength)
 
 
+def test_dz_fitter_LSST_rigid_perturbation():
+    """Roundtrip using danish model to produce a test images of rigid-body
+    perturbed LSST transverse Zernikes.  Model and fitter run through the same
+    code.
+    """
+    fiducial_telescope = batoid.Optic.fromYaml("LSST_i.yaml")
+    fiducial_telescope = fiducial_telescope.withGloballyShiftedOptic(
+        "Detector",
+        [0, 0, 0.0015]
+    )
+
+    wavelength = 750e-9
+
+    rng = np.random.default_rng(1234)
+    if __name__ == "__main__":
+        niter = 10
+    else:
+        niter = 1
+    for _ in range(niter):
+        M2_dx, M2_dy = rng.uniform(-2e-4, 2e-4, size=2)
+        M2_dz = rng.uniform(-2e-5, 2e-5)
+        M2_thx, M2_thy = rng.uniform(-2e-5, 2e-5, size=2)
+        cam_dx, cam_dy = rng.uniform(-2e-3, 2e-3, size=2)
+        cam_dz = rng.uniform(-2e-5, 2e-5)
+        cam_thx, cam_thy = rng.uniform(-2e-4, 2e-4, size=2)
+        telescope = (
+            fiducial_telescope
+            .withGloballyShiftedOptic("M2", [M2_dx, M2_dy, M2_dz])
+            .withLocallyRotatedOptic(
+                "M2", batoid.RotX(M2_thx)@batoid.RotY(M2_thy)
+            )
+            .withGloballyShiftedOptic("LSSTCamera", [cam_dx, cam_dy, cam_dz])
+            .withLocallyRotatedOptic(
+                "LSSTCamera", batoid.RotX(cam_thx)@batoid.RotY(cam_thy)
+            )
+        )
+        nstar = 10
+        thr = np.sqrt(rng.uniform(0, 1.8**2, nstar))
+        ph = rng.uniform(0, 2*np.pi, nstar)
+        thxs, thys = np.deg2rad(thr*np.cos(ph)), np.deg2rad(thr*np.sin(ph))
+        z_refs = np.empty((nstar, 67))
+        z_perturbs = np.empty((nstar, 67))
+        for i, (thx, thy) in enumerate(zip(thxs, thys)):
+            z_refs[i] = batoid.analysis.zernikeTransverseAberration(
+                fiducial_telescope, thx, thy, wavelength,
+                nrad=20, naz=120, reference='chief',
+                jmax=66, eps=0.61
+            )
+            z_perturbs[i] = batoid.analysis.zernikeTransverseAberration(
+                telescope, thx, thy, wavelength,
+                nrad=20, naz=120, reference='chief',
+                jmax=66, eps=0.61
+            )
+        z_refs *= wavelength
+        z_perturbs *= wavelength
+
+        dz_ref = batoid.analysis.doubleZernike(
+            fiducial_telescope, np.deg2rad(1.8), wavelength, rings=10,
+            kmax=10, jmax=66, eps=0.61
+        )
+        dz_perturb = batoid.analysis.doubleZernike(
+            telescope, np.deg2rad(1.8), wavelength, rings=10,
+            kmax=10, jmax=66, eps=0.61
+        )
+
+        dz_terms = (
+            (1, 4),                          # defocus
+            (2, 4), (3, 4),                  # field tilt
+            (2, 5), (3, 5), (2, 6), (3, 6),  # linear astigmatism
+            (1, 7), (1, 8)                   # constant coma
+        )
+        dz_true = np.empty(len(dz_terms))
+        for i, term in enumerate(dz_terms):
+            dz_true[i] = (dz_perturb[term] - dz_ref[term])
+        dz_true *= wavelength
+
+        factory = danish.DonutFactory(
+            R_outer=4.18, R_inner=2.5498,
+            obsc_radii=LSST_obsc_radii, obsc_motion=LSST_obsc_motion,
+            focal_length=10.31, pixel_scale=10e-6
+        )
+
+        # Toy zfitter to make test images
+        fitter0 = danish.MultiDonutModel(
+            factory, z_refs=z_perturbs, dz_terms=(),
+            field_radius=np.deg2rad(1.8),
+            thxs=thxs, thys=thys
+        )
+
+        dxs = rng.uniform(-0.5, 0.5, nstar)
+        dys = rng.uniform(-0.5, 0.5, nstar)
+        fwhm = rng.uniform(0.5, 1.5)
+        sky_levels = [1000.0]*nstar
+        fluxes = [5e6]*nstar
+
+        imgs = fitter0.model(
+            dxs, dys, fwhm, (), sky_levels=sky_levels, fluxes=fluxes
+        )
+
+        # Actual fitter with DOF to optimize...
+        fitter = danish.MultiDonutModel(
+            factory, z_refs=z_refs, dz_terms=dz_terms,
+            field_radius=np.deg2rad(1.8),
+            thxs=thxs, thys=thys
+        )
+
+        guess = [0.0]*nstar + [0.0]*nstar + [0.7] + [0.0]*len(dz_terms)
+
+        result = least_squares(
+            fitter.chi, guess, jac=fitter.jac,
+            ftol=1e-3, xtol=1e-3, gtol=1e-3,
+            max_nfev=20, verbose=2,
+            args=(imgs, sky_levels)
+        )
+
+        # dxs_fit, dys_fit, fwhm_fit, dz_fit = fitter.unpack_params(result.x)
+        # mods = fitter.model(
+        #     dxs_fit, dys_fit, fwhm_fit, dz_fit
+        # )
+
+        # plot_dz_results(imgs, mods, dz_fit, dz_true, dz_terms, wavelength)
+
+
 if __name__ == "__main__":
     test_fitter_LSST_fiducial()
     test_fitter_LSST_rigid_perturbation()
@@ -590,3 +717,4 @@ if __name__ == "__main__":
     test_fitter_LSST_kolm()
     test_fitter_LSST_atm()
     test_dz_fitter_LSST_fiducial()
+    test_dz_fitter_LSST_rigid_perturbation()

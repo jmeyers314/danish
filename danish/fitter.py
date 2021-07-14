@@ -266,8 +266,8 @@ class MultiDonutModel:
         self.N = N
         self.gsrng = galsim.BaseDeviate(seed)
         self.nstar = len(thxs)
-        self.jmax_fit = max(dz_term[1] for dz_term in dz_terms)
-        self.kmax_fit = max(dz_term[0] for dz_term in dz_terms)
+        self.jmax_fit = max((dz_term[1] for dz_term in dz_terms), default=0)
+        self.kmax_fit = max((dz_term[0] for dz_term in dz_terms), default=0)
         self.npix = 2*self.N+1
 
     @lru_cache(maxsize=1000)
