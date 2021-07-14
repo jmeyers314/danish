@@ -105,7 +105,7 @@ def test_fitter_LSST_fiducial():
         )
 
         fitter = danish.SingleDonutModel(
-            factory, z_ref=z_ref, z_terms=z_terms,
+            factory, z_ref=z_ref, z_terms=z_terms, thx=thx, thy=thy
         )
 
         dx, dy = rng.uniform(-0.5, 0.5, size=2)
@@ -114,7 +114,6 @@ def test_fitter_LSST_fiducial():
 
         img = fitter.model(
             dx, dy, fwhm, z_true,
-            thx=thx, thy=thy,
             sky_level=sky_level, flux=5e6
         )
 
@@ -123,7 +122,7 @@ def test_fitter_LSST_fiducial():
             fitter.chi, guess, jac=fitter.jac,
             ftol=1e-3, xtol=1e-3, gtol=1e-3,
             max_nfev=20, verbose=2,
-            args=(img, thx, thy, sky_level)
+            args=(img, sky_level)
         )
         for i in range(4, 23):
             out = f"{i:2d}  {result.x[i-1]/wavelength:9.3f}"
@@ -134,7 +133,7 @@ def test_fitter_LSST_fiducial():
         dx_fit, dy_fit, fwhm_fit, *z_fit = result.x
         z_fit = np.array(z_fit)
         # mod = fitter.model(
-        #     dx_fit, dy_fit, fwhm_fit, z_fit, thx, thy
+        #     dx_fit, dy_fit, fwhm_fit, z_fit
         # )
         # plot_result(img, mod, z_fit, z_true, wavelength)
 
@@ -206,7 +205,7 @@ def test_fitter_LSST_rigid_perturbation():
         )
 
         fitter = danish.SingleDonutModel(
-            factory, z_ref=z_ref, z_terms=z_terms,
+            factory, z_ref=z_ref, z_terms=z_terms, thx=thx, thy=thy
         )
 
         dx, dy = 0.0, 0.0
@@ -215,7 +214,6 @@ def test_fitter_LSST_rigid_perturbation():
 
         img = fitter.model(
             dx, dy, fwhm, z_true,
-            thx=thx, thy=thy,
             sky_level=sky_level, flux=5e6
         )
 
@@ -224,7 +222,7 @@ def test_fitter_LSST_rigid_perturbation():
             fitter.chi, guess, jac=fitter.jac,
             ftol=1e-3, xtol=1e-3, gtol=1e-3,
             max_nfev=20, verbose=2,
-            args=(img, thx, thy, sky_level)
+            args=(img, sky_level)
         )
         for i in range(4, 23):
             out = f"{i:2d}  {result.x[i-1]/wavelength:9.3f}"
@@ -235,7 +233,7 @@ def test_fitter_LSST_rigid_perturbation():
         dx_fit, dy_fit, fwhm_fit, *z_fit = result.x
         z_fit = np.array(z_fit)
         # mod = fitter.model(
-        #     dx_fit, dy_fit, fwhm_fit, z_fit, thx, thy
+        #     dx_fit, dy_fit, fwhm_fit, z_fit
         # )
         # plot_result(img, mod, z_fit, z_true, wavelength)
 
@@ -322,7 +320,7 @@ def test_fitter_LSST_z_perturbation():
         )
 
         fitter = danish.SingleDonutModel(
-            factory, z_ref=z_ref, z_terms=z_terms,
+            factory, z_ref=z_ref, z_terms=z_terms, thx=thx, thy=thy
         )
 
         dx, dy = 0.0, 0.0
@@ -331,7 +329,6 @@ def test_fitter_LSST_z_perturbation():
 
         img = fitter.model(
             dx, dy, fwhm, z_true,
-            thx=thx, thy=thy,
             sky_level=sky_level, flux=5e6
         )
 
@@ -340,7 +337,7 @@ def test_fitter_LSST_z_perturbation():
             fitter.chi, guess, jac=fitter.jac,
             ftol=1e-3, xtol=1e-3, gtol=1e-3,
             max_nfev=20, verbose=2,
-            args=(img, thx, thy, sky_level)
+            args=(img, sky_level)
         )
         for i in range(4, 23):
             out = f"{i:2d}  {result.x[i-1]/wavelength:9.3f}"
@@ -351,7 +348,7 @@ def test_fitter_LSST_z_perturbation():
         dx_fit, dy_fit, fwhm_fit, *z_fit = result.x
         z_fit = np.array(z_fit)
         # mod = fitter.model(
-        #     dx_fit, dy_fit, fwhm_fit, z_fit, thx, thy
+        #     dx_fit, dy_fit, fwhm_fit, z_fit
         # )
         # plot_result(img, mod, z_fit, z_true, wavelength)
 
@@ -392,7 +389,7 @@ def test_fitter_LSST_kolm():
 
         z_terms = np.arange(4, 23)
         fitter = danish.SingleDonutModel(
-            factory, z_ref=z_ref*wavelength, z_terms=z_terms
+            factory, z_ref=z_ref*wavelength, z_terms=z_terms, thx=thx, thy=thy
         )
         guess = [0.0, 0.0, 0.7] + [0.0]*19
 
@@ -400,7 +397,7 @@ def test_fitter_LSST_kolm():
             fitter.chi, guess, jac=fitter.jac,
             ftol=1e-3, xtol=1e-3, gtol=1e-3,
             max_nfev=20, verbose=2,
-            args=(img, thx, thy, sky_level)
+            args=(img, sky_level)
         )
 
         z_true = (z_actual-z_ref)[4:23]*wavelength
@@ -413,7 +410,7 @@ def test_fitter_LSST_kolm():
         dx_fit, dy_fit, fwhm_fit, *z_fit = result.x
         z_fit = np.array(z_fit)
         # mod = fitter.model(
-        #     dx_fit, dy_fit, fwhm_fit, z_fit, thx, thy
+        #     dx_fit, dy_fit, fwhm_fit, z_fit
         # )
         # plot_result(img, mod, z_fit, z_true, wavelength)
 
@@ -451,7 +448,7 @@ def test_fitter_LSST_atm():
 
         z_terms = np.arange(4, 23)
         fitter = danish.SingleDonutModel(
-            factory, z_ref=z_ref*wavelength, z_terms=z_terms
+            factory, z_ref=z_ref*wavelength, z_terms=z_terms, thx=thx, thy=thy
         )
         guess = [0.0, 0.0, 0.7] + [0.0]*19
 
@@ -459,7 +456,7 @@ def test_fitter_LSST_atm():
             fitter.chi, guess, jac=fitter.jac,
             ftol=1e-3, xtol=1e-3, gtol=1e-3,
             max_nfev=20, verbose=2,
-            args=(img, thx, thy, sky_level)
+            args=(img, sky_level)
         )
 
         z_true = (z_actual-z_ref)[4:23]*wavelength
@@ -472,7 +469,7 @@ def test_fitter_LSST_atm():
         dx_fit, dy_fit, fwhm_fit, *z_fit = result.x
         z_fit = np.array(z_fit)
         # mod = fitter.model(
-        #     dx_fit, dy_fit, fwhm_fit, z_fit, thx, thy
+        #     dx_fit, dy_fit, fwhm_fit, z_fit
         # )
         # plot_result(img, mod, z_fit, z_true, wavelength)
 
