@@ -1002,13 +1002,13 @@ def test_dz_fitter_LSST_kolm():
     print(f"rms = {rms:9.3f} waves")
     assert rms < 0.2, "rms %9.3f > 0.2" % rms
 
-    mods = fitter.model(
-        dxs_fit, dys_fit, fwhm_fit, dz_fit
-    )
+    # mods = fitter.model(
+    #     dxs_fit, dys_fit, fwhm_fit, dz_fit
+    # )
 
-    plot_dz_results(
-        imgs, mods, dz_fit/wavelength, dz_true/wavelength, dz_terms
-    )
+    # plot_dz_results(
+    #     imgs, mods, dz_fit/wavelength, dz_true/wavelength, dz_terms
+    # )
 
 
 @timer
