@@ -1,29 +1,30 @@
-import os
 import re
-import sys
-import subprocess
-
-from setuptools import setup, Extension
-from setuptools.command.build_ext import build_ext
-from distutils.version import LooseVersion
+from glob import glob
+from pybind11.setup_helpers import Pybind11Extension, build_ext
+from setuptools import setup
 
 VERSIONFILE="danish/_version.py"
 verstrline = open(VERSIONFILE, "rt").read()
 VSRE = r"^__version__ = ['\"]([^'\"]*)['\"]"
 mo = re.search(VSRE, verstrline, re.M)
 if mo:
-    version = mo.group(1)
+    __version__ = mo.group(1)
 else:
     raise RuntimeError("Unable to find version string in %s." % (VERSIONFILE,))
-
 
 with open("README.rst", 'r') as fh:
     long_description = fh.read()
 
+ext_modules = [
+    Pybind11Extension(
+        "danish._danish",
+        sorted(glob("src/*.cpp")),  # Sort source files for reproducibility
+    ),
+]
 
 setup(
     name='danish',
-    version=version,
+    version=__version__,
     author='Josh Meyers',
     author_email='jmeyers314@gmail.com',
     url='https://github.com/jmeyers314/danish',
@@ -44,4 +45,6 @@ setup(
         "Topic :: Scientific/Engineering :: Astronomy",
         "Topic :: Scientific/Engineering :: Physics",
     ],
+    cmdclass={"build_ext": build_ext},
+    ext_modules=ext_modules,
 )

@@ -19,7 +19,7 @@
 
 import numpy as np
 import galsim
-import batoid
+from ._danish import poly_grid_contains
 
 
 def pupil_to_focal(
@@ -532,9 +532,14 @@ class DonutFactory:
         xp = x/self.pixel_scale
         yp = y/self.pixel_scale
 
-        poly = batoid.ObscPolygon(xp, yp)
         xgrid = np.arange(-N-0.5, N+1.5)  # pixel corners
-        corners = poly.containsGrid(xgrid, xgrid)
+        corners = np.empty((len(xgrid), len(xgrid)), dtype=bool)
+        poly_grid_contains(
+            xp.ctypes.data, yp.ctypes.data, len(xp),
+            xgrid.ctypes.data, xgrid.ctypes.data, corners.ctypes.data,
+            len(xgrid), len(xgrid)
+        )
+
         contained = corners[1:,1:] | corners[:-1,1:] | corners[1:,:-1] | corners[:-1,:-1]
         ypix, xpix = np.nonzero(contained)
         x = (xpix.astype(float) - N)*self.pixel_scale # meters
