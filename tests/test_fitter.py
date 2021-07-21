@@ -1,5 +1,6 @@
 import os
 import pickle
+import time
 
 from scipy.optimize import least_squares
 import numpy as np
@@ -419,6 +420,11 @@ def test_fitter_LSST_kolm():
         obsc_radii=LSST_obsc_radii, obsc_motion=LSST_obsc_motion,
         focal_length=10.31, pixel_scale=10e-6
     )
+    binned_factory = danish.DonutFactory(
+        R_outer=4.18, R_inner=2.5498,
+        obsc_radii=LSST_obsc_radii, obsc_motion=LSST_obsc_motion,
+        focal_length=10.31, pixel_scale=20e-6
+    )
 
     if __name__ == "__main__":
         niter = 10
@@ -437,12 +443,15 @@ def test_fitter_LSST_kolm():
         )
         guess = [0.0, 0.0, 0.7] + [0.0]*19
 
+        t0 = time.time()
         result = least_squares(
             fitter.chi, guess, jac=fitter.jac,
             ftol=1e-3, xtol=1e-3, gtol=1e-3,
             max_nfev=20, verbose=2,
             args=(img, sky_level)
         )
+        t1 = time.time()
+        print(f"1x1 fit time: {t1-t0:.3f} sec")
 
         z_true = (z_actual-z_ref)[4:23]*wavelength
         for i in range(4, 23):
@@ -464,6 +473,35 @@ def test_fitter_LSST_kolm():
             tol = 0.7
         else:
             tol = 0.25
+
+        np.testing.assert_allclose(fwhm_fit, fwhm, rtol=0, atol=5e-2)
+        np.testing.assert_allclose(z_fit, z_true, rtol=0, atol=tol*wavelength)
+        rms = np.sqrt(np.sum(((z_true-z_fit)/wavelength)**2))
+        assert rms < 2*tol, "rms %9.3f > %9.3" % (rms, tol)
+
+        # Now try binning 2x2
+        binned_fitter = danish.SingleDonutModel(
+            binned_factory, z_ref=z_ref*wavelength, z_terms=z_terms,
+            thx=thx, thy=thy, N=44
+        )
+
+        binned_img = img[:-1,:-1].reshape(90,2,90,2).mean(-1).mean(1)[:-1,:-1]
+        t0 = time.time()
+        binned_result = least_squares(
+            binned_fitter.chi, guess, jac=binned_fitter.jac,
+            ftol=1e-3, xtol=1e-3, gtol=1e-3,
+            max_nfev=20, verbose=2,
+            args=(binned_img, 4*sky_level)
+        )
+        t1 = time.time()
+        print(f"2x2 fit time: {t1-t0:.3f} sec")
+
+        dx_fit, dy_fit, fwhm_fit, *z_fit = binned_result.x
+        z_fit = np.array(z_fit)
+        # mod = binned_fitter.model(
+        #     dx_fit, dy_fit, fwhm_fit, z_fit
+        # )
+        # plot_result(binned_img, mod, z_fit/wavelength, z_true/wavelength)
 
         np.testing.assert_allclose(fwhm_fit, fwhm, rtol=0, atol=5e-2)
         np.testing.assert_allclose(z_fit, z_true, rtol=0, atol=tol*wavelength)
