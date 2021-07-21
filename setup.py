@@ -33,7 +33,7 @@ setup(
     long_description_content_type="text/markdown",
     packages=['danish'],
     package_dir={'danish': 'danish'},
-    install_requires=['numpy'],
+    install_requires=['numpy', 'opencv-python'],
     python_requires='>=3.6',
     zip_safe=False,
     include_package_data=True,
