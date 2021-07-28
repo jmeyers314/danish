@@ -26,7 +26,7 @@ setup(
     name='danish',
     version=__version__,
     author='Josh Meyers',
-    author_email='jmeyers314@gmail.com',
+    author_email='meyers18@llnl.gov',
     url='https://github.com/jmeyers314/danish',
     description="Geometric donut engine",
     long_description=long_description,
