@@ -482,7 +482,7 @@ def test_fitter_LSST_kolm():
         # Now try binning 2x2
         binned_fitter = danish.SingleDonutModel(
             binned_factory, z_ref=z_ref*wavelength, z_terms=z_terms,
-            thx=thx, thy=thy, N=44
+            thx=thx, thy=thy, npix=89
         )
 
         binned_img = img[:-1,:-1].reshape(90,2,90,2).mean(-1).mean(1)[:-1,:-1]

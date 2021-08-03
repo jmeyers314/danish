@@ -20,8 +20,8 @@ class SingleDonutModel:
         [4,5,6,11] will fit defocus, astigmatism, and spherical.
     thx, thy : float
         Field angle in radians.
-    N : int
-        Size of image
+    npix : int
+        Number of pixels along image edge.  Must be odd.
     seed : int
         Random seed for use when creating noisy donut images with this class.
     """
@@ -31,7 +31,7 @@ class SingleDonutModel:
         z_ref=None,
         z_terms=(),
         thx=None, thy=None,
-        N=90,
+        npix=181,
         seed=57721
     ):
         self.factory = factory
@@ -45,13 +45,15 @@ class SingleDonutModel:
         self.z_terms = z_terms
         self.thx = thx
         self.thy = thy
-        self.N = N
+        self.npix = npix
+        self.no2 = (npix-1)//2
         self.gsrng = galsim.BaseDeviate(seed)
 
     @lru_cache(maxsize=1000)
     def _atmKernel(self, dx, dy, fwhm):
         obj = galsim.Kolmogorov(fwhm=fwhm).shift(dx, dy)
-        return obj.drawImage(nx=self.N, ny=self.N, scale=self.sky_scale).array
+        img = obj.drawImage(nx=self.no2, ny=self.no2, scale=self.sky_scale)
+        return img.array
 
     @lru_cache(maxsize=1000)
     def _optImage(self, z_fit):
@@ -59,7 +61,7 @@ class SingleDonutModel:
         for i, term in enumerate(self.z_terms):
             aberrations[term] += z_fit[i]
         return self.factory.image(
-            aberrations=aberrations, thx=self.thx, thy=self.thy, N=self.N
+            aberrations=aberrations, thx=self.thx, thy=self.thy, npix=self.npix
         )
 
     def model(
@@ -67,7 +69,8 @@ class SingleDonutModel:
         dx, dy, fwhm, z_fit,
         sky_level=None, flux=None
     ):
-        """
+        """Compute donut model image.
+
         Parameters
         ----------
         dx, dy : float
@@ -100,7 +103,10 @@ class SingleDonutModel:
     def chi(
         self, params, data, sky_level
     ):
-        """
+        """Compute chi = (data - model)/error.
+
+        The error is modeled as sqrt(model + sky_level).
+
         Parameters
         ----------
         params : sequence of float
@@ -124,7 +130,8 @@ class SingleDonutModel:
     def jac(
         self, params, data, sky_level
     ):
-        """
+        """Compute jacobian d(chi)/d(param).
+
         Parameters
         ----------
         params : sequence of float
@@ -137,11 +144,10 @@ class SingleDonutModel:
         Returns
         -------
         jac : array of float
-            Jacobian array d(chi)/d(param).  First index is chi, second index is
-            param.
+            Jacobian array d(chi)/d(param).  First dimenison is chi, second
+            dimension is param.
         """
-        NN = 2*self.N+1
-        out = np.zeros((NN**2, len(params)))
+        out = np.zeros((self.npix**2, len(params)))
         chi0 = self.chi(params, data, sky_level)
 
         step = [0.01, 0.01, 0.01]+[1e-8]*len(self.z_terms)
@@ -154,15 +160,17 @@ class SingleDonutModel:
 
 
 class DoubleZernike:
+    """Double Zernike model for including both pupil and field dependence of
+    wavefront.
+
+    Parameters
+    ----------
+    coefs : array of float
+        Double Zernike coefficients.
+    field_radius : float
+        Outer field radius to use to normalize coefficients.
+    """
     def __init__(self, coefs, field_radius=1.0):
-        """
-        Parameters
-        ----------
-        coefs : array of float
-            Double Zernike coefficients.
-        field_radius : float
-            Outer field radius to use to normalize coefficients.
-        """
         self.coefs = coefs
         self.field_radius = field_radius
 
@@ -196,10 +204,12 @@ class DoubleZernike:
 
     @property
     def jmax(self):
+        """Maximum Noll index for pupil dimension."""
         return self.coefs.shape[1]-1
 
     @property
     def kmax(self):
+        """Maximum Noll index for field dimension."""
         return self.coefs.shape[0]-1
 
 
@@ -215,16 +225,16 @@ class MultiDonutModel:
         reference coefficients to use for each modeled donut.  Either this kwarg
         or `z_refs` must be set.
     z_refs : array of float
-        Single Zernike reference coefficients for each donut.  First index is
-        donut, second index is pupil Zernike coefficient.
+        Single Zernike reference coefficients for each donut.  First dimension
+        is donut, second dimension is pupil Zernike coefficient.
     field_radius : float
         Field radius in radians.  Ignored if dz_ref is provided.
     dz_terms : sequence of (int, int)
         Which double Zernike coefficients to include in the fit.
     thxs, thys : float
         Field angle in radians.
-    N : int
-        Size of image
+    npix : int
+        Number of pixels along image edge.  Must be odd.
     seed : int
         Random seed for use when creating noisy donut images with this class.
     """
@@ -236,7 +246,7 @@ class MultiDonutModel:
         field_radius=None,
         dz_terms=(),
         thxs=None, thys=None,
-        N=90,
+        npix=181,
         seed=577215
     ):
         self.factory = factory
@@ -263,23 +273,24 @@ class MultiDonutModel:
         self.dz_terms = dz_terms
         self.thxs = thxs
         self.thys = thys
-        self.N = N
+        self.npix = npix
+        self.no2 = (npix-1)//2
         self.gsrng = galsim.BaseDeviate(seed)
         self.nstar = len(thxs)
         self.jmax_fit = max((dz_term[1] for dz_term in dz_terms), default=0)
         self.kmax_fit = max((dz_term[0] for dz_term in dz_terms), default=0)
-        self.npix = 2*self.N+1
 
     @lru_cache(maxsize=1000)
     def _atm1(self, dx, dy, fwhm):
-        fwhm = np.clip(fwhm, 0.1, 2.0)
+        fwhm = np.clip(fwhm, 0.1, 2.0)  # TODO: see if can remove this.
         obj = galsim.Kolmogorov(fwhm=fwhm).shift(dx, dy)
-        return obj.drawImage(nx=self.N, ny=self.N, scale=self.sky_scale).array
+        img = obj.drawImage(nx=self.no2, ny=self.no2, scale=self.sky_scale)
+        return img.array
 
     @lru_cache(maxsize=1000)
     def _opt1(self, aberrations, thx, thy):
         return self.factory.image(
-            aberrations=aberrations, thx=thx, thy=thy, N=self.N
+            aberrations=aberrations, thx=thx, thy=thy, npix=self.npix
         )
 
     def _model1(
@@ -309,6 +320,26 @@ class MultiDonutModel:
     def model(
         self, dxs, dys, fwhm, dz_fit, sky_levels=None, fluxes=None
     ):
+        """Compute model for all donuts.
+
+        Parameters
+        ----------
+        dxs, dys : float
+            Offsets in pixels(?)
+        fwhm : float
+            Full width half maximum of Kolmogorov kernel.
+        dz_fit : sequence of float
+            Double Zernike perturbations.
+        sky_levels : sequence of float
+            Sky levels to use when adding Poisson noise to images.
+        fluxes : sequence of float
+            Flux levels at which to set images.
+
+        Returns
+        -------
+        imgs : array of float.  Shape: (nstar, npix, npix)
+            Model images.
+        """
         nstar = self.nstar
         npix = self.npix
         if sky_levels is None:
@@ -333,6 +364,22 @@ class MultiDonutModel:
         return out
 
     def unpack_params(self, params):
+        """Utility method to unpack params list
+
+        Parameters
+        ----------
+        params : list
+            Parameter list to unpack
+
+        Returns
+        -------
+        dxs, dys : list
+            Model position offsets.
+        fwhm : float
+            Model FWHM.
+        dz_fit : list
+            Model double Zernike coefficients.
+        """
         dxs = params[:self.nstar]
         dys = params[self.nstar:2*self.nstar]
         fwhm = params[2*self.nstar]
@@ -342,6 +389,24 @@ class MultiDonutModel:
     def chi(
         self, params, data, sky_levels=None
     ):
+        """Compute chi = (data - model)/error.
+
+        The error is modeled as sqrt(model + sky_level) for each donut.
+
+        Parameters
+        ----------
+        params : sequence of float
+            Order is: (dx, dy, fwhm, *z_fit)
+        data : array of float.  Shape: (nstar, npix, npix)
+            Images against which to compute chi.
+        sky_levels : float
+            Sky levels to use when computing pixel errors.
+
+        Returns
+        -------
+        chi : array of float
+            Flattened array of chi residuals.
+        """
         dxs, dys, fwhm, dz_fit = self.unpack_params(params)
         mods = self.model(dxs, dys, fwhm, dz_fit)
         chis = np.empty((self.nstar, self.npix, self.npix))
@@ -358,6 +423,23 @@ class MultiDonutModel:
     def jac(
         self, params, data, sky_levels=None
     ):
+        """Compute jacobian d(chi)/d(param).
+
+        Parameters
+        ----------
+        params : sequence of float
+            Order is: (dx, dy, fwhm, *z_fit)
+        data : array of float.  Shape: (nstar, npix, npix)
+            Image against which to compute chi.
+        sky_levels : float
+            Sky levels to use when computing pixel errors.
+
+        Returns
+        -------
+        jac : array of float
+            Jacobian array d(chi)/d(param).  First dimenison is chi, second
+            dimension is param.
+        """
         nstar = self.nstar
         npix = self.npix
 
