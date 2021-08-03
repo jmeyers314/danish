@@ -582,7 +582,10 @@ class DonutFactory:
             len(xgrid), len(xgrid)
         )
 
-        contained = corners[1:,1:] | corners[:-1,1:] | corners[1:,:-1] | corners[:-1,:-1]
+        contained = corners[1:,1:]
+        contained |= corners[:-1,1:]
+        contained |= corners[1:,:-1]
+        contained |= corners[:-1,:-1]
         ypix, xpix = np.nonzero(contained)
         x = (xpix.astype(float) - no2)*self.pixel_scale # meters
         y = (ypix.astype(float) - no2)*self.pixel_scale

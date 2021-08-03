@@ -2,7 +2,20 @@ from functools import lru_cache
 
 import numpy as np
 import galsim
-import cv2
+
+try:
+    import cv2
+except ImportError:
+    try:
+        from scipy.signal import fftconvolve
+    except ImportError:
+        raise ValueError("Either python-opencv or scipy must be installed")
+    else:
+        def convolve(A, B):
+            return fftconvolve(A, B, mode='same')
+else:
+    def convolve(A, B):
+        return cv2.filter2D(A, -1, B[::-1,::-1], borderType=cv2.BORDER_CONSTANT)
 
 
 class SingleDonutModel:
@@ -91,7 +104,7 @@ class SingleDonutModel:
         """
         atm = self._atmKernel(dx, dy, fwhm)
         opt = self._optImage(tuple(z_fit))
-        arr = cv2.filter2D(opt, -1, atm, borderType=cv2.BORDER_CONSTANT)
+        arr = convolve(opt, atm)
         img = galsim.Image(arr)  # Does this make a copy?
         if flux is not None:
             img.array[:] *= flux/np.sum(img.array)
@@ -282,7 +295,6 @@ class MultiDonutModel:
 
     @lru_cache(maxsize=1000)
     def _atm1(self, dx, dy, fwhm):
-        fwhm = np.clip(fwhm, 0.1, 2.0)  # TODO: see if can remove this.
         obj = galsim.Kolmogorov(fwhm=fwhm).shift(dx, dy)
         img = obj.drawImage(nx=self.no2, ny=self.no2, scale=self.sky_scale)
         return img.array
@@ -301,7 +313,7 @@ class MultiDonutModel:
     ):
         atm = self._atm1(dx, dy, fwhm)
         opt = self._opt1(tuple(aberrations), thx, thy)
-        arr = cv2.filter2D(opt, -1, atm, borderType=cv2.BORDER_CONSTANT)
+        arr = convolve(opt, atm)
         img = galsim.Image(arr)  # Does this make a copy?
         if flux is not None:
             img.array[:] *= flux/np.sum(img.array)
