@@ -4,6 +4,39 @@ import danish
 from test_helpers import timer
 
 
+LSST_obsc_radii = {
+    'M1_inner': 2.5580033095346875,
+    'M2_outer': 4.502721059044802,
+    'M2_inner': 2.3698531889709487,
+    'M3_outer': 5.4353949343626216,
+    'M3_inner': 1.1919725733251365,
+    'L1_entrance': 7.692939426566589,
+    'L1_exit': 8.103064894823262,
+    'L2_entrance': 10.746925431763076,
+    'L2_exit': 11.548732622162085,
+    'Filter_entrance': 28.06952057721957,
+    'Filter_exit': 30.895257933242576,
+    'L3_entrance': 54.5631834759912,
+    'L3_exit': 114.76715786850136
+}
+
+LSST_obsc_motion = {
+    'M1_inner': 0.1517605552388959,
+    'M2_outer': 16.818667026561727,
+    'M2_inner': 16.818667026561727,
+    'M3_outer': 53.2113063872138,
+    'M3_inner': 53.2113063872138,
+    'L1_entrance': 131.69949884635324,
+    'L1_exit': 137.51151184228345,
+    'L2_entrance': 225.63931108752732,
+    'L2_exit': 236.8641351903567,
+    'Filter_entrance': 801.6598843836333,
+    'Filter_exit': 879.4647343264201,
+    'L3_entrance': 1594.7432961792515,
+    'L3_exit': 3328.637595923783
+}
+
+
 @timer
 def test_coord_roundtrip():
     """Check that pupil -> focal -> pupil -> focal round trips.
@@ -61,37 +94,6 @@ def test_LSST():
     telescope = batoid.Optic.fromYaml("LSST_i.yaml")
     telescope = telescope.withGloballyShiftedOptic("Detector", [0,0,0.0015])
 
-    obsc_radii = {
-        'M1_inner': 2.5498,
-        'M2_inner': 2.3698999752679404,
-        'M2_outer': 4.502809953009087,
-        'M3_inner': 1.1922312943631603,
-        'M3_outer': 5.436574702296011,
-        'L1_entrance': 7.697441260764198,
-        'L1_exit': 8.106852624652701,
-        'L2_entrance': 10.748915941599885,
-        'L2_exit': 11.5564127895276,
-        'Filter_entrance': 28.082220873785978,
-        'Filter_exit': 30.91023954045243,
-        'L3_entrance': 54.67312185149621,
-        'L3_exit': 114.58705556485711
-    }
-    obsc_motion = {
-        'M1_inner': 0.0,
-        'M2_inner': 16.8188788239707,
-        'M2_outer': 16.8188788239707,
-        'M3_inner': 53.22000661238318,
-        'M3_outer': 53.22000661238318,
-        'L1_entrance': 131.76650078100135,
-        'L1_exit': 137.57031952814913,
-        'L2_entrance': 225.6949885074127,
-        'L2_exit': 237.01739037674315,
-        'Filter_entrance': 802.0137451419788,
-        'Filter_exit': 879.8810309773828,
-        'L3_entrance': 1597.8959863335774,
-        'L3_exit': 3323.60145194633
-    }
-
     wavelength = 750e-9
 
     rng = np.random.default_rng(234)
@@ -110,7 +112,7 @@ def test_LSST():
 
         factory = danish.DonutFactory(
             R_outer=4.18, R_inner=2.5498,
-            obsc_radii=obsc_radii, obsc_motion=obsc_motion,
+            obsc_radii=LSST_obsc_radii, obsc_motion=LSST_obsc_motion,
             focal_length=10.31, pixel_scale=10e-6
         )
 
@@ -136,37 +138,6 @@ def test_LSST_aberrated():
     telescope = batoid.Optic.fromYaml("LSST_i.yaml")
     telescope = telescope.withGloballyShiftedOptic("Detector", [0,0,0.0015])
 
-    obsc_radii = {
-        'M1_inner': 2.5498,
-        'M2_inner': 2.3698999752679404,
-        'M2_outer': 4.502809953009087,
-        'M3_inner': 1.1922312943631603,
-        'M3_outer': 5.436574702296011,
-        'L1_entrance': 7.697441260764198,
-        'L1_exit': 8.106852624652701,
-        'L2_entrance': 10.748915941599885,
-        'L2_exit': 11.5564127895276,
-        'Filter_entrance': 28.082220873785978,
-        'Filter_exit': 30.91023954045243,
-        'L3_entrance': 54.67312185149621,
-        'L3_exit': 114.58705556485711
-    }
-    obsc_motion = {
-        'M1_inner': 0.0,
-        'M2_inner': 16.8188788239707,
-        'M2_outer': 16.8188788239707,
-        'M3_inner': 53.22000661238318,
-        'M3_outer': 53.22000661238318,
-        'L1_entrance': 131.76650078100135,
-        'L1_exit': 137.57031952814913,
-        'L2_entrance': 225.6949885074127,
-        'L2_exit': 237.01739037674315,
-        'Filter_entrance': 802.0137451419788,
-        'Filter_exit': 879.8810309773828,
-        'L3_entrance': 1597.8959863335774,
-        'L3_exit': 3323.60145194633
-    }
-
     wavelength = 750e-9
 
     rng = np.random.default_rng(234)
@@ -189,7 +160,7 @@ def test_LSST_aberrated():
 
         factory = danish.DonutFactory(
             R_outer=4.18, R_inner=2.5498,
-            obsc_radii=obsc_radii, obsc_motion=obsc_motion,
+            obsc_radii=LSST_obsc_radii, obsc_motion=LSST_obsc_motion,
             focal_length=10.31, pixel_scale=10e-6
         )
 

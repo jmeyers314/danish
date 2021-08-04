@@ -12,35 +12,35 @@ from test_helpers import timer
 directory = os.path.dirname(__file__)
 
 LSST_obsc_radii = {
-    'M1_inner': 2.5498,
-    'M2_inner': 2.3698999752679404,
-    'M2_outer': 4.502809953009087,
-    'M3_inner': 1.1922312943631603,
-    'M3_outer': 5.436574702296011,
-    'L1_entrance': 7.697441260764198,
-    'L1_exit': 8.106852624652701,
-    'L2_entrance': 10.748915941599885,
-    'L2_exit': 11.5564127895276,
-    'Filter_entrance': 28.082220873785978,
-    'Filter_exit': 30.91023954045243,
-    'L3_entrance': 54.67312185149621,
-    'L3_exit': 114.58705556485711
+    'M1_inner': 2.5580033095346875,
+    'M2_outer': 4.502721059044802,
+    'M2_inner': 2.3698531889709487,
+    'M3_outer': 5.4353949343626216,
+    'M3_inner': 1.1919725733251365,
+    'L1_entrance': 7.692939426566589,
+    'L1_exit': 8.103064894823262,
+    'L2_entrance': 10.746925431763076,
+    'L2_exit': 11.548732622162085,
+    'Filter_entrance': 28.06952057721957,
+    'Filter_exit': 30.895257933242576,
+    'L3_entrance': 54.5631834759912,
+    'L3_exit': 114.76715786850136
 }
 
 LSST_obsc_motion = {
-    'M1_inner': 0.0,
-    'M2_inner': 16.8188788239707,
-    'M2_outer': 16.8188788239707,
-    'M3_inner': 53.22000661238318,
-    'M3_outer': 53.22000661238318,
-    'L1_entrance': 131.76650078100135,
-    'L1_exit': 137.57031952814913,
-    'L2_entrance': 225.6949885074127,
-    'L2_exit': 237.01739037674315,
-    'Filter_entrance': 802.0137451419788,
-    'Filter_exit': 879.8810309773828,
-    'L3_entrance': 1597.8959863335774,
-    'L3_exit': 3323.60145194633
+    'M1_inner': 0.1517605552388959,
+    'M2_outer': 16.818667026561727,
+    'M2_inner': 16.818667026561727,
+    'M3_outer': 53.2113063872138,
+    'M3_inner': 53.2113063872138,
+    'L1_entrance': 131.69949884635324,
+    'L1_exit': 137.51151184228345,
+    'L2_entrance': 225.63931108752732,
+    'L2_exit': 236.8641351903567,
+    'Filter_entrance': 801.6598843836333,
+    'Filter_exit': 879.4647343264201,
+    'L3_entrance': 1594.7432961792515,
+    'L3_exit': 3328.637595923783
 }
 
 
@@ -451,7 +451,7 @@ def test_fitter_LSST_kolm():
             args=(img, sky_level)
         )
         t1 = time.time()
-        print(f"1x1 fit time: {t1-t0:.3f} sec")
+        t1x1 = t1 - t0
 
         z_true = (z_actual-z_ref)[4:23]*wavelength
         for i in range(4, 23):
@@ -476,10 +476,10 @@ def test_fitter_LSST_kolm():
 
         np.testing.assert_allclose(fwhm_fit, fwhm, rtol=0, atol=5e-2)
         np.testing.assert_allclose(z_fit, z_true, rtol=0, atol=tol*wavelength)
-        rms = np.sqrt(np.sum(((z_true-z_fit)/wavelength)**2))
-        assert rms < 2*tol, "rms %9.3f > %9.3" % (rms, tol)
+        rms1x1 = np.sqrt(np.sum(((z_true-z_fit)/wavelength)**2))
+        assert rms1x1 < 2*tol, "rms %9.3f > %9.3" % (rms1x1, tol)
 
-        # Now try binning 2x2
+        # Try binning 2x2
         binned_fitter = danish.SingleDonutModel(
             binned_factory, z_ref=z_ref*wavelength, z_terms=z_terms,
             thx=thx, thy=thy, npix=89
@@ -494,8 +494,7 @@ def test_fitter_LSST_kolm():
             args=(binned_img, 4*sky_level)
         )
         t1 = time.time()
-        print(f"2x2 fit time: {t1-t0:.3f} sec")
-
+        t2x2 = t1 - t0
         dx_fit, dy_fit, fwhm_fit, *z_fit = binned_result.x
         z_fit = np.array(z_fit)
         # mod = binned_fitter.model(
@@ -505,8 +504,16 @@ def test_fitter_LSST_kolm():
 
         np.testing.assert_allclose(fwhm_fit, fwhm, rtol=0, atol=5e-2)
         np.testing.assert_allclose(z_fit, z_true, rtol=0, atol=tol*wavelength)
-        rms = np.sqrt(np.sum(((z_true-z_fit)/wavelength)**2))
-        assert rms < 2*tol, "rms %9.3f > %9.3" % (rms, tol)
+        rms2x2 = np.sqrt(np.sum(((z_true-z_fit)/wavelength)**2))
+        assert rms2x2 < 2*tol, "rms %9.3f > %9.3" % (rms2x2, tol)
+
+        print("\n"*4)
+        print(f"1x1 fit time: {t1x1:.3f} sec")
+        print(f"2x2 fit time: {t2x2:.3f} sec")
+        print(f"1x1 rms: {rms1x1}")
+        print(f"2x2 rms: {rms2x2}")
+        print("\n"*4)
+
 
 
 @timer
@@ -525,6 +532,11 @@ def test_fitter_LSST_atm():
         R_outer=4.18, R_inner=2.5498,
         obsc_radii=LSST_obsc_radii, obsc_motion=LSST_obsc_motion,
         focal_length=10.31, pixel_scale=10e-6
+    )
+    binned_factory = danish.DonutFactory(
+        R_outer=4.18, R_inner=2.5498,
+        obsc_radii=LSST_obsc_radii, obsc_motion=LSST_obsc_motion,
+        focal_length=10.31, pixel_scale=20e-6
     )
 
     sky_level = data[0]['sky_level']
@@ -568,6 +580,39 @@ def test_fitter_LSST_atm():
 
         np.testing.assert_allclose(
             z_fit/wavelength, z_true/wavelength,
+            rtol=0, atol=0.5
+        )
+        rms = np.sqrt(np.sum(((z_true-z_fit)/wavelength)**2))
+        print(f"rms = {rms:9.3f} waves")
+        assert rms < 0.6, "rms %9.3f > 0.6" % rms
+
+        # Try binning 2x2
+        binned_fitter = danish.SingleDonutModel(
+            binned_factory, z_ref=z_ref*wavelength, z_terms=z_terms,
+            thx=thx, thy=thy, npix=89
+        )
+
+        binned_img = img[:-1,:-1].reshape(90,2,90,2).mean(-1).mean(1)[:-1,:-1]
+        t0 = time.time()
+        binned_result = least_squares(
+            binned_fitter.chi, guess, jac=binned_fitter.jac,
+            ftol=1e-3, xtol=1e-3, gtol=1e-3,
+            max_nfev=20, verbose=2,
+            args=(binned_img, 4*sky_level)
+        )
+        t1 = time.time()
+        print(f"2x2 fit time: {t1-t0:.3f} sec")
+
+        dx_fit, dy_fit, fwhm_fit, *z_fit = binned_result.x
+        z_fit = np.array(z_fit)
+        # mod = binned_fitter.model(
+        #     dx_fit, dy_fit, fwhm_fit, z_fit
+        # )
+        # plot_result(binned_img, mod, z_fit/wavelength, z_true/wavelength)
+
+        np.testing.assert_allclose(
+            z_fit/wavelength,
+            z_true/wavelength,
             rtol=0, atol=0.5
         )
         rms = np.sqrt(np.sum(((z_true-z_fit)/wavelength)**2))
