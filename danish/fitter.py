@@ -163,7 +163,7 @@ class SingleDonutModel:
         out = np.zeros((self.npix**2, len(params)))
         chi0 = self.chi(params, data, sky_level)
 
-        step = [0.01, 0.01, 0.01]+[1e-8]*len(self.z_terms)
+        step = [0.01, 0.01, 0.01]+[1e-9]*len(self.z_terms)
         for i in range(len(params)):
             params1 = np.array(params)
             params1[i] += step[i]
