@@ -43,8 +43,16 @@ LSST_obsc_motion = {
     'L3_exit': 3328.637595923783
 }
 
+AuxTel_obsc_radii = {
+    'Baffle_M2c_inner': 0.2115
+}
 
-def plot_result(img, mod, z_fit, z_true):
+AuxTel_obsc_motion = {
+    'Baffle_M2c_inner': -2.7000030360993734
+}
+
+def plot_result(img, mod, z_fit, z_true, ylim=None):
+    jmax = len(z_fit)+4
     import matplotlib.pyplot as plt
     fig = plt.figure(constrained_layout=True, figsize=(10, 7))
     gs = fig.add_gridspec(2, 3)
@@ -57,17 +65,19 @@ def plot_result(img, mod, z_fit, z_true):
     ax1.imshow(mod/np.sum(mod))
     ax2.imshow(img/np.sum(img) - mod/np.sum(mod))
     ax3.axhline(0, c='k')
-    ax3.plot(np.arange(4, 23), z_fit, c='b', label='fit')
-    ax3.plot(np.arange(4, 23), z_true, c='k', label='truth')
+    ax3.plot(np.arange(4, jmax), z_fit, c='b', label='fit')
+    ax3.plot(np.arange(4, jmax), z_true, c='k', label='truth')
     ax3.plot(
-        np.arange(4, 23),
+        np.arange(4, jmax),
         (z_fit-z_true),
         c='r', label='fit - truth'
     )
-    ax3.set_ylim(-0.6, 0.6)
+    if ylim is None:
+        ylim = -0.6, 0.6
+    ax3.set_ylim(*ylim)
     ax3.set_xlabel("Zernike index")
     ax3.set_ylabel("Residual (Waves)")
-    ax3.set_xticks(np.arange(4, 23, dtype=int))
+    ax3.set_xticks(np.arange(4, jmax, dtype=int))
     ax3.legend()
     plt.show()
 
@@ -618,6 +628,105 @@ def test_fitter_LSST_atm():
         rms = np.sqrt(np.sum(((z_true-z_fit)/wavelength)**2))
         print(f"rms = {rms:9.3f} waves")
         assert rms < 0.6, "rms %9.3f > 0.6" % rms
+
+
+@timer
+def test_fitter_AuxTel_rigid_perturbation():
+    """Roundtrip using danish model to produce a test image of rigid-body
+    perturbed AuxTel transverse Zernikes.  Model and fitter run through the same
+    code.
+    """
+    fiducial_telescope = batoid.Optic.fromYaml("AuxTel.yaml")
+    fiducial_telescope = fiducial_telescope.withLocallyShiftedOptic(
+        "M2",
+        [0, 0, 0.0008]
+    )
+
+    wavelength = 750e-9
+
+    rng = np.random.default_rng(234)
+    if __name__ == "__main__":
+        niter = 10
+    else:
+        niter = 2
+    for _ in range(niter):
+        M2_dx, M2_dy = rng.uniform(-3e-4, 3e-4, size=2)
+        M2_dz = rng.uniform(-3e-5, 3e-5)
+        M2_thx, M2_thy = rng.uniform(-3e-5, 3e-5, size=2)
+        telescope = (
+            fiducial_telescope
+            .withGloballyShiftedOptic("M2", [M2_dx, M2_dy, M2_dz])
+            .withLocallyRotatedOptic(
+                "M2", batoid.RotX(M2_thx)@batoid.RotY(M2_thy)
+            )
+        )
+        thr = np.sqrt(rng.uniform(0, 0.05**2))
+        ph = rng.uniform(0, 2*np.pi)
+        thx, thy = np.deg2rad(thr*np.cos(ph)), np.deg2rad(thr*np.sin(ph))
+        z_ref = batoid.analysis.zernikeTransverseAberration(
+            fiducial_telescope, thx, thy, wavelength,
+            nrad=20, naz=120, reference='chief',
+            jmax=11, eps=0.2115/0.6
+        )
+        z_ref *= wavelength
+
+        z_perturb = batoid.analysis.zernikeTransverseAberration(
+            telescope, thx, thy, wavelength,
+            nrad=20, naz=120, reference='chief',
+            jmax=11, eps=0.2115/0.6
+        )
+        z_perturb *= wavelength
+
+        z_terms = np.arange(4, 12)
+        z_true = (z_perturb - z_ref)[4:12]
+
+        factory = danish.DonutFactory(
+            R_outer=0.6, R_inner=0.2115,
+            obsc_radii=AuxTel_obsc_radii, obsc_motion=AuxTel_obsc_motion,
+            focal_length=20.8, pixel_scale=10e-6
+        )
+
+        fitter = danish.SingleDonutModel(
+            factory, z_ref=z_ref, z_terms=z_terms, thx=thx, thy=thy, npix=255
+        )
+
+        dx, dy = 0.0, 0.0
+        fwhm = 0.7
+        sky_level = 1000.0
+
+        img = fitter.model(
+            dx, dy, fwhm, z_true,
+            sky_level=sky_level, flux=5e6
+        )
+
+        guess = [0.0, 0.0, 0.7]+[0.0]*8
+        result = least_squares(
+            fitter.chi, guess, jac=fitter.jac,
+            ftol=1e-3, xtol=1e-3, gtol=1e-3,
+            max_nfev=20, verbose=2,
+            args=(img, sky_level)
+        )
+        for i in range(4, 12):
+            out = f"{i:2d}  {result.x[i-1]/wavelength:9.3f}"
+            out += f"  {z_true[i-4]/wavelength:9.3f}"
+            out += f"  {(result.x[i-1]-z_true[i-4])/wavelength:9.3f}"
+            print(out)
+
+        dx_fit, dy_fit, fwhm_fit, *z_fit = result.x
+        z_fit = np.array(z_fit)
+
+        # mod = fitter.model(
+        #     dx_fit, dy_fit, fwhm_fit, z_fit
+        # )
+
+        # plot_result(img, mod, z_fit/wavelength, z_true/wavelength, ylim=(-0.2, 0.2))
+
+        np.testing.assert_allclose(dx_fit, dx, rtol=0, atol=1e-2)
+        np.testing.assert_allclose(dy_fit, dy, rtol=0, atol=1e-2)
+        np.testing.assert_allclose(fwhm_fit, fwhm, rtol=0, atol=5e-2)
+        np.testing.assert_allclose(z_fit, z_true, rtol=0, atol=0.005*wavelength)
+        rms = np.sqrt(np.sum(((z_true-z_fit)/wavelength)**2))
+        assert rms < 0.1, "rms %9.3f > 0.1" % rms
 
 
 @timer
@@ -1184,6 +1293,8 @@ if __name__ == "__main__":
     test_fitter_LSST_z_perturbation()
     test_fitter_LSST_kolm()
     test_fitter_LSST_atm()
+
+    test_fitter_AuxTel_rigid_perturbation()
 
     test_dz_fitter_LSST_fiducial()
     test_dz_fitter_LSST_rigid_perturbation()
