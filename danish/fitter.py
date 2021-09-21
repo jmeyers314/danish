@@ -114,20 +114,21 @@ class SingleDonutModel:
         return img.array
 
     def chi(
-        self, params, data, sky_level
+        self, params, data, var
     ):
         """Compute chi = (data - model)/error.
 
-        The error is modeled as sqrt(model + sky_level).
+        The error is modeled as sqrt(model + var).
 
         Parameters
         ----------
         params : sequence of float
             Order is: (dx, dy, fwhm, *z_fit)
-        data : array of float
+        data : array of float (npix, npix)
             Image against which to compute chi.
-        sky_level : float
-            Sky level to use when computing pixel errors.
+        var : float or array of float (npix, npix)
+            Variance of the sky only.  Do not include Poisson contribution of
+            the signal, as this will be added from the current model.
 
         Returns
         -------
@@ -137,11 +138,11 @@ class SingleDonutModel:
         dx, dy, fwhm, *z_fit = params
         mod = self.model(dx, dy, fwhm, z_fit)
         mod *= np.sum(data)/np.sum(mod)
-        _chi = ((data-mod)/np.sqrt(sky_level + mod)).ravel()
+        _chi = ((data-mod)/np.sqrt(var + mod)).ravel()
         return _chi
 
     def jac(
-        self, params, data, sky_level
+        self, params, data, var
     ):
         """Compute jacobian d(chi)/d(param).
 
@@ -151,8 +152,9 @@ class SingleDonutModel:
             Order is: (dx, dy, fwhm, *z_fit)
         data : array of float
             Image against which to compute chi.
-        sky_level : float
-            Sky level to use when computing pixel errors.
+        var : float or array of float (npix, npix)
+            Variance of the sky only.  Do not include Poisson contribution of
+            the signal, as this will be added from the current model.
 
         Returns
         -------
@@ -161,13 +163,13 @@ class SingleDonutModel:
             dimension is param.
         """
         out = np.zeros((self.npix**2, len(params)))
-        chi0 = self.chi(params, data, sky_level)
+        chi0 = self.chi(params, data, var)
 
         step = [0.01, 0.01, 0.01]+[1e-9]*len(self.z_terms)
         for i in range(len(params)):
             params1 = np.array(params)
             params1[i] += step[i]
-            chi1 = self.chi(params1, data, sky_level)
+            chi1 = self.chi(params1, data, var)
             out[:, i] = (chi1-chi0)/step[i]
         return out
 
@@ -399,11 +401,11 @@ class MultiDonutModel:
         return dxs, dys, fwhm, dz_fit
 
     def chi(
-        self, params, data, sky_levels=None
+        self, params, data, vars
     ):
         """Compute chi = (data - model)/error.
 
-        The error is modeled as sqrt(model + sky_level) for each donut.
+        The error is modeled as sqrt(model + var) for each donut.
 
         Parameters
         ----------
@@ -411,8 +413,9 @@ class MultiDonutModel:
             Order is: (dx, dy, fwhm, *z_fit)
         data : array of float.  Shape: (nstar, npix, npix)
             Images against which to compute chi.
-        sky_levels : float
-            Sky levels to use when computing pixel errors.
+        vars : sequence of array (npix, npix) or sequence of float
+            Variances of the sky only.  Do not include Poisson contribution of
+            the signal, as this will be added from the current model.
 
         Returns
         -------
@@ -424,16 +427,16 @@ class MultiDonutModel:
         chis = np.empty((self.nstar, self.npix, self.npix))
         for i, (mod, datum) in enumerate(zip(mods, data)):
             mod *= np.sum(datum)/np.sum(mod)
-            chis[i] = (datum-mod)/np.sqrt(sky_levels[i] + mod)
+            chis[i] = (datum-mod)/np.sqrt(vars[i] + mod)
         return chis.ravel()
 
-    def _chi1(self, dx, dy, fwhm, aberrations, thx, thy, datum, sky_level):
+    def _chi1(self, dx, dy, fwhm, aberrations, thx, thy, datum, var):
         mod1 = self._model1(dx, dy, fwhm, aberrations, thx, thy)
         mod1 *= np.sum(datum)/np.sum(mod1)
-        return ((datum-mod1)/np.sqrt(sky_level+mod1)).ravel()
+        return ((datum-mod1)/np.sqrt(var+mod1)).ravel()
 
     def jac(
-        self, params, data, sky_levels=None
+        self, params, data, vars
     ):
         """Compute jacobian d(chi)/d(param).
 
@@ -443,8 +446,9 @@ class MultiDonutModel:
             Order is: (dx, dy, fwhm, *z_fit)
         data : array of float.  Shape: (nstar, npix, npix)
             Image against which to compute chi.
-        sky_levels : float
-            Sky levels to use when computing pixel errors.
+        vars : sequence of array (npix, npix) or sequence of float
+            Variances of the sky only.  Do not include Poisson contribution of
+            the signal, as this will be added from the current model.
 
         Returns
         -------
@@ -472,17 +476,17 @@ class MultiDonutModel:
             c0 = self._chi1(
                 dxs[i], dys[i], fwhm,
                 aberrations,
-                thx, thy, data[i], sky_levels[i]
+                thx, thy, data[i], vars[i]
             )
             cx = self._chi1(
                 dxs[i]+0.01, dys[i], fwhm,
                 aberrations,
-                thx, thy, data[i], sky_levels[i]
+                thx, thy, data[i], vars[i]
             )
             cy = self._chi1(
                 dxs[i], dys[i]+0.01, fwhm,
                 aberrations,
-                thx, thy, data[i], sky_levels[i]
+                thx, thy, data[i], vars[i]
             )
 
             out[s, i] = (cx-c0)/0.01
@@ -492,14 +496,14 @@ class MultiDonutModel:
         # FWHM
         params1 = np.array(params)
         params1[2*nstar] += 0.001
-        chi1 = self.chi(params1, data, sky_levels)
+        chi1 = self.chi(params1, data, vars)
         out[:, 2*nstar] = (chi1-chi0)/0.001
 
         # DZ terms
         for i in range(2*nstar+1, len(params)):
             params1 = np.array(params)
             params1[i] += 1e-8
-            chi1 = self.chi(params1, data, sky_levels)
+            chi1 = self.chi(params1, data, vars)
             out[:, i] = (chi1-chi0)/1e-8
 
         return out
