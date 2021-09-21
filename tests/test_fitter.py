@@ -636,6 +636,7 @@ def test_fitter_AuxTel_rigid_perturbation():
     perturbed AuxTel transverse Zernikes.  Model and fitter run through the same
     code.
     """
+    # Nominal donut mode for AuxTel is to despace M2 by 0.8 mm
     fiducial_telescope = batoid.Optic.fromYaml("AuxTel.yaml")
     fiducial_telescope = fiducial_telescope.withLocallyShiftedOptic(
         "M2",
@@ -650,6 +651,7 @@ def test_fitter_AuxTel_rigid_perturbation():
     else:
         niter = 2
     for _ in range(niter):
+        # Randomly perturb M2 alignment
         M2_dx, M2_dy = rng.uniform(-3e-4, 3e-4, size=2)
         M2_dz = rng.uniform(-3e-5, 3e-5)
         M2_thx, M2_thy = rng.uniform(-3e-5, 3e-5, size=2)
@@ -660,9 +662,12 @@ def test_fitter_AuxTel_rigid_perturbation():
                 "M2", batoid.RotX(M2_thx)@batoid.RotY(M2_thy)
             )
         )
+        # Random point inside 0.05 degree radius field-of-view
         thr = np.sqrt(rng.uniform(0, 0.05**2))
         ph = rng.uniform(0, 2*np.pi)
         thx, thy = np.deg2rad(thr*np.cos(ph)), np.deg2rad(thr*np.sin(ph))
+        # Determine reference "design" zernikes.  Use the transverse aberration
+        # zernikes since danish uses a transverse aberration ray-hit model.
         z_ref = batoid.analysis.zernikeTransverseAberration(
             fiducial_telescope, thx, thy, wavelength,
             nrad=20, naz=120, reference='chief',
@@ -670,6 +675,7 @@ def test_fitter_AuxTel_rigid_perturbation():
         )
         z_ref *= wavelength
 
+        # The zernikes of the perturbed telescope.  I.e., the "truth".
         z_perturb = batoid.analysis.zernikeTransverseAberration(
             telescope, thx, thy, wavelength,
             nrad=20, naz=120, reference='chief',
@@ -680,6 +686,8 @@ def test_fitter_AuxTel_rigid_perturbation():
         z_terms = np.arange(4, 12)
         z_true = (z_perturb - z_ref)[4:12]
 
+        # NOTE: The R_inner and focal_length here don't quite match what I've
+        # seen elsewhere.  Possible location for future improvement.
         factory = danish.DonutFactory(
             R_outer=0.6, R_inner=0.2115,
             obsc_radii=AuxTel_obsc_radii, obsc_motion=AuxTel_obsc_motion,
@@ -691,21 +699,25 @@ def test_fitter_AuxTel_rigid_perturbation():
         )
 
         dx, dy = 0.0, 0.0
-        fwhm = 0.7
-        sky_level = 1000.0
+        fwhm = 0.7  # Arcsec for Kolmogorov profile
+        sky_level = 1000.0  # counts per pixel
 
+        # Make a test image using true aberrations
         img = fitter.model(
             dx, dy, fwhm, z_true,
             sky_level=sky_level, flux=5e6
         )
 
+        # Now guess aberrations are 0.0, and try to recover truth.
         guess = [0.0, 0.0, 0.7]+[0.0]*8
+        # We don't ship a custom fitting algorithm; just use scipy.least_squares
         result = least_squares(
             fitter.chi, guess, jac=fitter.jac,
             ftol=1e-3, xtol=1e-3, gtol=1e-3,
             max_nfev=20, verbose=2,
             args=(img, sky_level)
         )
+
         for i in range(4, 12):
             out = f"{i:2d}  {result.x[i-1]/wavelength:9.3f}"
             out += f"  {z_true[i-4]/wavelength:9.3f}"
@@ -715,6 +727,7 @@ def test_fitter_AuxTel_rigid_perturbation():
         dx_fit, dy_fit, fwhm_fit, *z_fit = result.x
         z_fit = np.array(z_fit)
 
+        # Optional visualization
         # mod = fitter.model(
         #     dx_fit, dy_fit, fwhm_fit, z_fit
         # )
