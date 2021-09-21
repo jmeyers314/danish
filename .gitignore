@@ -130,3 +130,7 @@ dmypy.json
 
 # VSCode
 .vscode/
+
+.DS_Store
+.coveragerc
+tests/coverage_html_report/
