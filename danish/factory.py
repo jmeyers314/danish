@@ -243,7 +243,8 @@ def _enclosed_fraction(
     du = u - u0  # pupil displacement from circle center
     dv = v - v0
 
-    # Transform slope/intercept into focal coords
+    # First determine "obvious" points either far inside or far outside circle
+    # of interest.
     if _jac is None:
         dxdu, dxdv, dydu, dydv = _pupil_focal_jacobian(u, v, Z1)
         det = dxdu*dydv - dxdv*dydu
@@ -292,6 +293,7 @@ def _enclosed_fraction(
     # Adjust for circle center
     bp += v0 - mp*u0
 
+    # Transform slope/intercept to focal coords
     alpha = dvdy - mp*dudy
     beta = mp*dudx - dvdx
     gamma = mp*u + bp - v
@@ -361,7 +363,7 @@ def _enclosed_fraction_debug(
     focal_length=None,
     pixel_scale=1.0,
     axes=None
-):
+):  # pragma: no cover
     if axes:
         ax0, ax1 = axes
 
