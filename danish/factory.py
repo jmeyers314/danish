@@ -113,7 +113,8 @@ def _pupil_focal_jacobian(u, v, Z, focal_length=None):
 def focal_to_pupil(
     x, y,
     Z=None, aberrations=None, R_outer=1.0, R_inner=0.0,
-    focal_length=None, maxiter=10, tol=1e-8
+    focal_length=None,
+    prefit_order=2, maxiter=20, tol=1e-5
 ):
     """Transform focal coordinates to pupil coordinates.
 
@@ -142,10 +143,16 @@ def focal_to_pupil(
     if focal_length is None:
         raise ValueError("Missing focal length")
 
-    return _focal_to_pupil(x, y, Z, focal_length, maxiter, tol)
+    return _focal_to_pupil(
+        x, y, Z,
+        prefit_order=prefit_order,
+        focal_length=focal_length,
+        maxiter=maxiter,
+        tol=tol
+    )
 
 
-def _focal_to_pupil(x, y, Z, focal_length=None, maxiter=20, tol=1e-5):
+def _focal_to_pupil(x, y, Z, focal_length=None, prefit_order=2, maxiter=20, tol=1e-5):
     Z1 = Z * focal_length if focal_length else Z
     utest = np.linspace(-Z1.R_outer, Z1.R_outer, 10)
     utest, vtest = np.meshgrid(utest, utest)
@@ -157,8 +164,7 @@ def _focal_to_pupil(x, y, Z, focal_length=None, maxiter=20, tol=1e-5):
     xtest, ytest = _pupil_to_focal(utest, vtest, Z1)
 
     # Prefit
-    order = 1
-    jmax = (order+1)*(order+2)//2
+    jmax = (prefit_order+1)*(prefit_order+2)//2
     R_outer = np.max(np.hypot(xtest, ytest))
     a = galsim.zernike.zernikeBasis(jmax, xtest, ytest, R_outer=R_outer).T
     b = np.array([utest, vtest]).T
