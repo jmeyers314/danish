@@ -145,7 +145,7 @@ def focal_to_pupil(
     return _focal_to_pupil(x, y, Z, focal_length, maxiter, tol)
 
 
-def _focal_to_pupil(x, y, Z, focal_length=None, maxiter=10, tol=1e-8):
+def _focal_to_pupil(x, y, Z, focal_length=None, maxiter=20, tol=1e-5):
     Z1 = Z * focal_length if focal_length else Z
     utest = np.linspace(-Z1.R_outer, Z1.R_outer, 10)
     utest, vtest = np.meshgrid(utest, utest)
@@ -168,10 +168,11 @@ def _focal_to_pupil(x, y, Z, focal_length=None, maxiter=10, tol=1e-8):
     v = galsim.zernike.Zernike(r[:,1], R_outer=R_outer)(x, y)
 
     # Newton-Raphson iterations to invert pupil_to_focal
+    x_current, y_current = _pupil_to_focal(u, v, Z1)
+    dx = x_current - x
+    dy = y_current - y
+    dr2 = dx**2 + dy**2
     for i in range(maxiter):
-        x_current, y_current = _pupil_to_focal(u, v, Z1)
-        dx = x_current - x
-        dy = y_current - y
         if i >= 1:
             if np.max(np.abs(dx)) < tol and np.max(np.abs(dy)) < tol:
                 break
@@ -181,9 +182,31 @@ def _focal_to_pupil(x, y, Z, focal_length=None, maxiter=10, tol=1e-8):
         det = (dW2du2*dW2dv2 - dW2dudv**2)
         du = -(dW2dv2*dx - dW2dudv*dy)/det
         dv = -(-dW2dudv*dx + dW2du2*dy)/det
-        u += du
-        v += dv
+        # If xy miss distance increased, then decrease duv by sqrt(distance ratio)
+        uc = u + du
+        vc = v + dv
+        xc, yc = _pupil_to_focal(uc, vc, Z1)
+        dxc = xc - x
+        dyc = yc - y
+        drc2 = dxc**2 + dyc**2
+        w = drc2 > dr2  # places where we're worse
+        if np.any(w):
+            alpha = np.maximum(0.001, (dr2[w]/drc2[w])**0.25)
+            uc[w] = u[w] + alpha*du[w]
+            vc[w] = v[w] + alpha*dv[w]
+            xc[w], yc[w] = _pupil_to_focal(uc[w], vc[w], Z1)
+            dxc[w] = xc[w] - x[w]
+            dyc[w] = yc[w] - y[w]
+            drc2[w] = dxc[w]**2 + dyc[w]**2
+        u, v, dr2 = uc, vc, drc2
+        x_current, y_current = xc, yc
+        dx, dy = dxc, dyc
     else:
+        # Diagnostic information
+        wfail = np.nonzero((np.abs(dx) > tol) | (np.abs(dy) > tol))[0]
+        print(Z1)
+        for idx in wfail:
+            print(x[idx], y[idx])
         raise RuntimeError("Cannot invert")
     return u, v
 
