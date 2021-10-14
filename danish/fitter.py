@@ -69,7 +69,7 @@ class SingleDonutModel:
     """
     def __init__(
         self,
-        factory,
+        factory, *,
         z_ref=None,
         z_terms=(),
         thx=None, thy=None,
@@ -108,7 +108,7 @@ class SingleDonutModel:
 
     def model(
         self,
-        dx, dy, fwhm, z_fit,
+        dx, dy, fwhm, z_fit, *,
         sky_level=None, flux=None
     ):
         """Compute donut model image.
@@ -214,7 +214,7 @@ class DoubleZernike:
     field_radius : float
         Outer field radius to use to normalize coefficients.
     """
-    def __init__(self, coefs, field_radius=1.0):
+    def __init__(self, coefs, *, field_radius=1.0):
         self.coefs = coefs
         self.field_radius = field_radius
 
@@ -284,7 +284,7 @@ class MultiDonutModel:
     """
     def __init__(
         self,
-        factory,
+        factory, *,
         dz_ref=None,
         z_refs=None,
         field_radius=None,
@@ -339,7 +339,7 @@ class MultiDonutModel:
     def _model1(
         self,
         dx, dy, fwhm, aberrations,
-        thx, thy,
+        thx, thy, *,
         sky_level=None, flux=None
     ):
         atm = self._atm1(dx, dy, fwhm)
@@ -361,7 +361,7 @@ class MultiDonutModel:
         return dz
 
     def model(
-        self, dxs, dys, fwhm, dz_fit, sky_levels=None, fluxes=None
+        self, dxs, dys, fwhm, dz_fit, *, sky_levels=None, fluxes=None
     ):
         """Compute model for all donuts.
 
@@ -402,7 +402,7 @@ class MultiDonutModel:
                 fwhm,
                 aberrations,
                 thx, thy,
-                sky_levels[i], fluxes[i]
+                sky_level=sky_levels[i], flux=fluxes[i]
             )
         return out
 

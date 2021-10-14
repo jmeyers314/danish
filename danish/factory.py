@@ -33,7 +33,7 @@ from ._danish import poly_grid_contains
 
 
 def pupil_to_focal(
-    u, v,
+    u, v, *,
     Z=None, aberrations=None, R_outer=1.0, R_inner=0.0,
     focal_length=None
 ):
@@ -59,10 +59,10 @@ def pupil_to_focal(
     if focal_length is None:
         raise ValueError("Missing focal length")
 
-    return _pupil_to_focal(u, v, Z, focal_length)
+    return _pupil_to_focal(u, v, Z, focal_length=focal_length)
 
 
-def _pupil_to_focal(u, v, Z, focal_length=None):
+def _pupil_to_focal(u, v, Z, *, focal_length=None):
     Z1 = Z * focal_length if focal_length else Z
     return (
         Z1.gradX(u, v),
@@ -71,7 +71,7 @@ def _pupil_to_focal(u, v, Z, focal_length=None):
 
 
 def pupil_focal_jacobian(
-    u, v,
+    u, v, *,
     Z=None, aberrations=None, R_outer=1.0, R_inner=0.0,
     focal_length=None
 ):
@@ -100,7 +100,7 @@ def pupil_focal_jacobian(
     return _pupil_focal_jacobian(u, v, Z, focal_length)
 
 
-def _pupil_focal_jacobian(u, v, Z, focal_length=None):
+def _pupil_focal_jacobian(u, v, Z, *, focal_length=None):
     Z1 = Z * focal_length if focal_length else Z
     dxdu = Z1.gradX.gradX(u, v)
     dxdv = Z1.gradX.gradY(u, v)
@@ -111,7 +111,7 @@ def _pupil_focal_jacobian(u, v, Z, focal_length=None):
 
 
 def focal_to_pupil(
-    x, y,
+    x, y, *,
     Z=None, aberrations=None, R_outer=1.0, R_inner=0.0,
     focal_length=None,
     prefit_order=2, maxiter=20, tol=1e-5
@@ -152,7 +152,7 @@ def focal_to_pupil(
     )
 
 
-def _focal_to_pupil(x, y, Z, focal_length=None, prefit_order=2, maxiter=20, tol=1e-5):
+def _focal_to_pupil(x, y, Z, *, focal_length=None, prefit_order=2, maxiter=20, tol=1e-5):
     Z1 = Z * focal_length if focal_length else Z
     utest = np.linspace(-Z1.R_outer, Z1.R_outer, 10)
     utest, vtest = np.meshgrid(utest, utest)
@@ -220,7 +220,7 @@ def _focal_to_pupil(x, y, Z, focal_length=None, prefit_order=2, maxiter=20, tol=
 def enclosed_fraction(
     x, y,
     u, v,
-    u0, v0, radius,
+    u0, v0, radius, *,
     Z=None, aberrations=None, R_outer=1.0, R_inner=0.0,
     focal_length=None, pixel_scale=None,
 ):
@@ -272,7 +272,7 @@ def _enclosed_fraction(
     x, y,
     u, v,
     u0, v0, radius,
-    Z,
+    Z, *,
     focal_length=None,
     pixel_scale=1.0,
     _jac=None,
@@ -398,7 +398,7 @@ def _enclosed_fraction_debug(
     x, y,
     u, v,
     u0, v0, radius,
-    Z,
+    Z, *,
     focal_length=None,
     pixel_scale=1.0,
     axes=None
@@ -557,7 +557,7 @@ class DonutFactory:
         Pixel scale in meters.
     """
     def __init__(
-        self,
+        self, *,
         R_outer=4.18, R_inner=2.5498,
         obsc_radii=None, obsc_motion=None,
         focal_length=10.31, pixel_scale=10e-6
@@ -574,7 +574,7 @@ class DonutFactory:
 
     # @profile
     def image(
-        self,
+        self, *,
         Z=None, aberrations=None,
         thx=0, thy=0, npix=181,
     ):
