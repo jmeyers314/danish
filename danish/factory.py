@@ -597,7 +597,7 @@ class DonutFactory:
             Donut image.
         """
         if npix%2 == 0:
-            raise ValueError(f"Argument {npix=} must be odd.")
+            raise ValueError(f"Argument npix={npix} must be odd.")
         no2 = (npix-1)//2
         if Z is None:
             Z = galsim.zernike.Zernike(
