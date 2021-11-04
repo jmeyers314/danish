@@ -1,5 +1,6 @@
 #include <pybind11/pybind11.h>
 #include <vector>
+#include <algorithm>
 
 namespace py = pybind11;
 
