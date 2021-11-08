@@ -114,7 +114,7 @@ def focal_to_pupil(
     x, y, *,
     Z=None, aberrations=None, R_outer=1.0, R_inner=0.0,
     focal_length=None,
-    prefit_order=2, maxiter=20, tol=1e-5
+    prefit_order=2, maxiter=20, tol=1e-5, strict=False
 ):
     """Transform focal coordinates to pupil coordinates.
 
@@ -130,6 +130,17 @@ def focal_to_pupil(
         Annulus outer and inner radii in meters.
     focal_length : float
         Focal length in meters.
+    prefit_order : int
+        Order of prefit used to get good initial guesses for coordinate
+        transformation.
+    maxiter : int
+        Number of Newton iterations to attempt before failing.
+    tol : float
+        Tolerance for successful coordinate transformation.
+    strict: bool
+        If True, then raise a RuntimeError if any coordinates could not be
+        mapped.
+        If False, then return NaN for unmappable coordinates.
 
     Returns
     -------
@@ -148,11 +159,15 @@ def focal_to_pupil(
         prefit_order=prefit_order,
         focal_length=focal_length,
         maxiter=maxiter,
-        tol=tol
+        tol=tol, strict=strict
     )
 
 
-def _focal_to_pupil(x, y, Z, *, focal_length=None, prefit_order=2, maxiter=20, tol=1e-5):
+def _focal_to_pupil(
+    x, y, Z, *,
+    focal_length=None, prefit_order=2, maxiter=20, tol=1e-5,
+    strict=False
+):
     Z1 = Z * focal_length if focal_length else Z
     utest = np.linspace(-Z1.R_outer, Z1.R_outer, 10)
     utest, vtest = np.meshgrid(utest, utest)
@@ -188,7 +203,8 @@ def _focal_to_pupil(x, y, Z, *, focal_length=None, prefit_order=2, maxiter=20, t
         det = (dW2du2*dW2dv2 - dW2dudv**2)
         du = -(dW2dv2*dx - dW2dudv*dy)/det
         dv = -(-dW2dudv*dx + dW2du2*dy)/det
-        # If xy miss distance increased, then decrease duv by sqrt(distance ratio)
+        # If xy miss distance increased, then decrease duv by
+        # sqrt(distance ratio)
         uc = u + du
         vc = v + dv
         xc, yc = _pupil_to_focal(uc, vc, Z1)
@@ -208,12 +224,17 @@ def _focal_to_pupil(x, y, Z, *, focal_length=None, prefit_order=2, maxiter=20, t
         x_current, y_current = xc, yc
         dx, dy = dxc, dyc
     else:
+        # If we failed to reach the desired tolerance, mark coordinate with a
+        # NaN or if `strict`, raise a RuntimeError.
         # Diagnostic information
         wfail = np.nonzero((np.abs(dx) > tol) | (np.abs(dy) > tol))[0]
-        print(Z1)
-        for idx in wfail:
-            print(x[idx], y[idx])
-        raise RuntimeError("Cannot invert")
+        if strict:
+            print(Z1)
+            for idx in wfail:
+                print(x[idx], y[idx])
+            raise RuntimeError("Cannot invert")
+        u[wfail] = np.nan
+        v[wfail] = np.nan
     return u, v
 
 
@@ -267,7 +288,6 @@ def enclosed_fraction(
     )
 
 
-# @profile
 def _enclosed_fraction(
     x, y,
     u, v,
@@ -572,11 +592,11 @@ class DonutFactory:
         self.focal_length = focal_length
         self.pixel_scale = pixel_scale
 
-    # @profile
     def image(
         self, *,
         Z=None, aberrations=None,
         thx=0, thy=0, npix=181,
+        prefit_order=2, maxiter=20, tol=1e-5, strict=False
     ):
         """Compute aberrated donut image.
 
@@ -590,6 +610,18 @@ class DonutFactory:
             Field angles in radians.
         npix : int
             Number of pixels along image edge.  Must be odd.
+        prefit_order : int
+            Order of prefit used to get good initial guesses for focal-to-pupil
+            coordinate transformation.
+        maxiter : int
+            Number of Newton iterations to attempt for focal-to-pupil
+            coordinate transformation before failing.
+        tol : float
+            Tolerance for successful focal-to-pupil coordinate transformation.
+        strict: bool
+            If True, then raise a RuntimeError if any failed focal-to-pupil
+            transformations occurred.
+            If False, then set image to zero at failed coordinates.
 
         Returns
         -------
@@ -632,7 +664,20 @@ class DonutFactory:
         y = (ypix.astype(float) - no2)*self.pixel_scale
 
         # Now invert to get pixel centers projected on pupil
-        u, v = _focal_to_pupil(x, y, Z1)
+        u, v = _focal_to_pupil(
+            x, y, Z1,
+            prefit_order=prefit_order, maxiter=maxiter, tol=tol, strict=strict
+        )
+
+        # Any pixels where we failed to find the pupil coordinate we'll just
+        # leave as zero.
+        wgood = ~np.isnan(u)
+        u = u[wgood]
+        v = v[wgood]
+        x = x[wgood]
+        y = y[wgood]
+        xpix = xpix[wgood]
+        ypix = ypix[wgood]
 
         img = np.zeros((npix, npix))
 
@@ -645,6 +690,7 @@ class DonutFactory:
         dvdy = dxdu/det
         jac = np.array([dxdu, dxdv, dydu, dydv, dudx, dudy, dvdx, dvdy])
 
+        # Always clip out the primary mirror outer diameter
         f = _enclosed_fraction(
             x, y, u, v,
             0.0, 0.0, self.R_outer,
@@ -653,6 +699,7 @@ class DonutFactory:
             _jac=jac,
         )
 
+        # Clip out other obscurations as requested
         w = np.nonzero(f)[0]
         if self.obsc_radii is not None:
             for k in self.obsc_radii:
@@ -674,7 +721,12 @@ class DonutFactory:
                 w = np.nonzero(f)[0]
 
         # pixel pupil-to-focal area ratio
-        f[w] /= Z1.hessian(u[w], v[w])
+        # Negative hessian almost certainly means there's a caustic, but we'll
+        # leave that analysis to a separate function.  Using the absolute value
+        # of the Hessian means at least one ray path to an affected pixel gets
+        # to contribute to the illumination, which is the behavior we want when
+        # we're being sloppy.
+        f[w] /= np.abs(Z1.hessian(u[w], v[w]))
         f[w] /= np.max(f[w])
 
         img[ypix, xpix] = f
