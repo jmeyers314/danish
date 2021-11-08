@@ -731,3 +731,63 @@ class DonutFactory:
 
         img[ypix, xpix] = f
         return img
+
+    def is_caustic(
+        self, *,
+        Z=None, aberrations=None,
+        nrad=50, naz=100
+    ):
+        """Check if given aberration introduces a caustic.
+
+        This method is approximate.  It checks for the presence of a caustic by
+        projecting concentric circles from the pupil to focal plane and then
+        looking for intersections of the circles.  That ought to be sufficient
+        in the limit of infinite sample radii and azimuths, but will be somewhat
+        imperfect for finite values.  It also checks the entire annular pupil,
+        including any bits that are vignetted.
+
+        Parameters
+        ----------
+        Z : galsim.zernike.Zernike, optional
+            Aberrations in meters.
+        aberrations : array of float, optional
+            Aberrations in meters.
+        nrad : int
+            Number of radii to check between R_inner and R_outer.
+        naz : int
+            Number of points around each test circle.
+
+        Returns
+        -------
+        is_caustic : bool
+            True if any projected circles intersect.
+        """
+        from batoid import ObscPolygon
+        if Z is None:
+            Z = galsim.zernike.Zernike(
+                aberrations, R_outer=self.R_outer, R_inner=self.R_inner
+            )
+        Z1 = Z*self.focal_length
+
+        # Project concentric circles from pupil to focal, and then see if any
+        # of them intersect.  Outer radii are more likely to have a caustic, so
+        # start with them and short-circuit if a caustic is found.
+        radii = np.linspace(self.R_outer, self.R_inner, nrad)
+        th = np.linspace(0, 2*np.pi, naz)
+        uu, vv = np.cos(th), np.sin(th)
+
+        u0 = uu * radii[0]
+        v0 = vv * radii[0]
+        x0, y0 = _pupil_to_focal(u0, v0, Z1)
+
+        for radius in radii[1:]:
+            u1 = uu * radius
+            v1 = vv * radius
+            x1, y1 = _pupil_to_focal(u1, v1, Z1)
+            # Check that inner circle is contained in outer circle
+            circle = ObscPolygon(x0, y0)
+            if np.any(~circle.contains(x1, y1)):
+                return True
+            x0, y0 = x1, y1
+        else:
+            return False
