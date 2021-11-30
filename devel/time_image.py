@@ -41,7 +41,7 @@ def time_image():
 
     telescope = batoid.Optic.fromYaml("LSST_r.yaml")
     telescope = telescope.withGloballyShiftedOptic("Detector", (0,0,0.0015))
-    zref = batoid.analysis.zernikeTransverseAberration(
+    zref = batoid.zernikeTA(
         telescope, np.deg2rad(1.67), 0.0, 620e-9,
         jmax=66, nrad=20, naz=120, reference='chief', eps=0.61
     )

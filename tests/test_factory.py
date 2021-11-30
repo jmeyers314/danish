@@ -101,7 +101,7 @@ def test_LSST():
         thr = np.sqrt(rng.uniform(0, 1.8**2))
         ph = rng.uniform(0, 2*np.pi)
         thx, thy = thr*np.cos(ph), thr*np.sin(ph)
-        zref = batoid.analysis.zernikeTransverseAberration(
+        zref = batoid.zernikeTA(
             telescope,
             np.deg2rad(thx),
             np.deg2rad(thy),
@@ -145,7 +145,7 @@ def test_LSST_aberrated():
         thr = np.sqrt(rng.uniform(0, 1.8**2))
         ph = rng.uniform(0, 2*np.pi)
         thx, thy = thr*np.cos(ph), thr*np.sin(ph)
-        zref = batoid.analysis.zernikeTransverseAberration(
+        zref = batoid.zernikeTA(
             telescope,
             np.deg2rad(thx),
             np.deg2rad(thy),

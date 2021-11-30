@@ -130,7 +130,7 @@ def test_fitter_LSST_fiducial():
         thr = np.sqrt(rng.uniform(0, 1.8**2))
         ph = rng.uniform(0, 2*np.pi)
         thx, thy = np.deg2rad(thr*np.cos(ph)), np.deg2rad(thr*np.sin(ph))
-        z_ref = batoid.analysis.zernikeTransverseAberration(
+        z_ref = batoid.zernikeTA(
             telescope, thx, thy, wavelength,
             nrad=20, naz=120, reference='chief',
             jmax=66, eps=0.61
@@ -228,14 +228,14 @@ def test_fitter_LSST_rigid_perturbation():
         thr = np.sqrt(rng.uniform(0, 1.8**2))
         ph = rng.uniform(0, 2*np.pi)
         thx, thy = np.deg2rad(thr*np.cos(ph)), np.deg2rad(thr*np.sin(ph))
-        z_ref = batoid.analysis.zernikeTransverseAberration(
+        z_ref = batoid.zernikeTA(
             fiducial_telescope, thx, thy, wavelength,
             nrad=20, naz=120, reference='chief',
             jmax=66, eps=0.61
         )
         z_ref *= wavelength
 
-        z_perturb = batoid.analysis.zernikeTransverseAberration(
+        z_perturb = batoid.zernikeTA(
             telescope, thx, thy, wavelength,
             nrad=20, naz=120, reference='chief',
             jmax=66, eps=0.61
@@ -347,14 +347,14 @@ def test_fitter_LSST_z_perturbation():
         thr = np.sqrt(rng.uniform(0, 1.8**2))
         ph = rng.uniform(0, 2*np.pi)
         thx, thy = np.deg2rad(thr*np.cos(ph)), np.deg2rad(thr*np.sin(ph))
-        z_ref = batoid.analysis.zernikeTransverseAberration(
+        z_ref = batoid.zernikeTA(
             fiducial_telescope, thx, thy, wavelength,
             nrad=20, naz=120, reference='chief',
             jmax=66, eps=0.61
         )
         z_ref *= wavelength
 
-        z_perturb = batoid.analysis.zernikeTransverseAberration(
+        z_perturb = batoid.zernikeTA(
             telescope, thx, thy, wavelength,
             nrad=20, naz=120, reference='chief',
             jmax=66, eps=0.61
@@ -668,7 +668,7 @@ def test_fitter_AuxTel_rigid_perturbation():
         thx, thy = np.deg2rad(thr*np.cos(ph)), np.deg2rad(thr*np.sin(ph))
         # Determine reference "design" zernikes.  Use the transverse aberration
         # zernikes since danish uses a transverse aberration ray-hit model.
-        z_ref = batoid.analysis.zernikeTransverseAberration(
+        z_ref = batoid.zernikeTA(
             fiducial_telescope, thx, thy, wavelength,
             nrad=20, naz=120, reference='chief',
             jmax=11, eps=0.2115/0.6
@@ -676,7 +676,7 @@ def test_fitter_AuxTel_rigid_perturbation():
         z_ref *= wavelength
 
         # The zernikes of the perturbed telescope.  I.e., the "truth".
-        z_perturb = batoid.analysis.zernikeTransverseAberration(
+        z_perturb = batoid.zernikeTA(
             telescope, thx, thy, wavelength,
             nrad=20, naz=120, reference='chief',
             jmax=11, eps=0.2115/0.6
@@ -765,7 +765,7 @@ def test_dz_fitter_LSST_fiducial():
         thxs, thys = np.deg2rad(thr*np.cos(ph)), np.deg2rad(thr*np.sin(ph))
         z_refs = np.empty((nstar, 67))
         for i, (thx, thy) in enumerate(zip(thxs, thys)):
-            z_refs[i] = batoid.analysis.zernikeTransverseAberration(
+            z_refs[i] = batoid.zernikeTA(
                 telescope, thx, thy, wavelength,
                 nrad=20, naz=120, reference='chief',
                 jmax=66, eps=0.61
@@ -879,12 +879,12 @@ def test_dz_fitter_LSST_rigid_perturbation():
         z_refs = np.empty((nstar, 67))
         z_perturbs = np.empty((nstar, 67))
         for i, (thx, thy) in enumerate(zip(thxs, thys)):
-            z_refs[i] = batoid.analysis.zernikeTransverseAberration(
+            z_refs[i] = batoid.zernikeTA(
                 fiducial_telescope, thx, thy, wavelength,
                 nrad=20, naz=120, reference='chief',
                 jmax=66, eps=0.61
             )
-            z_perturbs[i] = batoid.analysis.zernikeTransverseAberration(
+            z_perturbs[i] = batoid.zernikeTA(
                 telescope, thx, thy, wavelength,
                 nrad=20, naz=120, reference='chief',
                 jmax=66, eps=0.61
@@ -1033,12 +1033,12 @@ def test_dz_fitter_LSST_z_perturbation():
         z_refs = np.empty((nstar, 67))
         z_perturbs = np.empty((nstar, 67))
         for i, (thx, thy) in enumerate(zip(thxs, thys)):
-            z_refs[i] = batoid.analysis.zernikeTransverseAberration(
+            z_refs[i] = batoid.zernikeTA(
                 fiducial_telescope, thx, thy, wavelength,
                 nrad=20, naz=120, reference='chief',
                 jmax=66, eps=0.61
             )
-            z_perturbs[i] = batoid.analysis.zernikeTransverseAberration(
+            z_perturbs[i] = batoid.zernikeTA(
                 telescope, thx, thy, wavelength,
                 nrad=20, naz=120, reference='chief',
                 jmax=66, eps=0.61
