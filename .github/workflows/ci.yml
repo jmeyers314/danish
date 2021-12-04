@@ -104,6 +104,12 @@ jobs:
         run: |
           pip install -U batoid
 
+      - name: Test requirements
+        run: |
+          pip install -U pytest
+          pip install -U pytest-cov
+          pip install -U pytest-xdist
+
       - name: List all installed packages for reference
         run: pip list
 
