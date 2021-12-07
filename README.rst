@@ -1,6 +1,10 @@
 danish
 ======
 
+
+.. image:: https://codecov.io/gh/jmeyers314/danish/branch/main/graph/badge.svg?token=MW3K14XI9T
+:target: https://codecov.io/gh/jmeyers314/danish
+
 Geometric donut engine
 
 Based on
