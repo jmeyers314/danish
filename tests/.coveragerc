@@ -1,0 +1,27 @@
+[run]
+branch = True
+
+include = *danish/*
+
+omit =
+    # This is a utility for tracking down OSErrors.  Don't include in coverage.
+    *_version.py
+
+# Without this, coverage misses anything that is only run in multiprocessing mode.
+concurrency = multiprocessing
+
+[report]
+# Regexes for lines to exclude from consideration
+exclude_lines =
+    # If you put this in a comment, you can manually exclude code from being covered.
+    pragma: no cover
+
+    # Don't complain if non-runnable code isn't run:
+    if False:
+    if 0:
+    if __name__ == .__main__.:
+
+    # Don't complain about exceptional circumstances not under control of the test suite
+    except .*KeyboardInterrupt
+    except .*OSError
+
