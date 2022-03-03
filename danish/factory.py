@@ -227,7 +227,8 @@ def _focal_to_pupil(
         # If we failed to reach the desired tolerance, mark coordinate with a
         # NaN or if `strict`, raise a RuntimeError.
         # Diagnostic information
-        wfail = np.nonzero((np.abs(dx) > tol) | (np.abs(dy) > tol))[0]
+        intolerable = (np.abs(dx) > tol) | (np.abs(dy) > tol)
+        wfail = np.nonzero(intolerable)
         if strict:
             print(Z1)
             for idx in wfail:
