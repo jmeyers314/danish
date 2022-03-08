@@ -568,10 +568,12 @@ class DonutFactory:
         Also assumed to be Zernike normalization radius.
     R_inner : float
         Entrance pupil inner radius.  Used for defining annular Zernikes.
-    obsc_radii : array of float
-        Obscuration radii projected onto pupil in meters.
-    obsc_motion : array of float
-        Obscuration motion with field angle in meters/radian.
+    obsc_radii : dict of str -> float
+        Obscuration radii projected onto pupil in meters, indexed by surface
+        name.
+    obsc_motion : dict of str -> float
+        Obscuration motion with field angle in meters/radian, indexed by
+        surface name.
     focal_length : float
         Focal length in meters.
     pixel_scale : float

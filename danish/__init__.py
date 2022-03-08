@@ -6,3 +6,6 @@ from .factory import (
 )
 
 from .fitter import SingleDonutModel, MultiDonutModel
+
+import os
+datadir = os.path.join(os.path.dirname(__file__), "data")

@@ -1,40 +1,11 @@
+import os
+import yaml
 import numpy as np
 
 import danish
 from test_helpers import timer
 
-
-LSST_obsc_radii = {
-    'M1_inner': 2.5580033095346875,
-    'M2_outer': 4.502721059044802,
-    'M2_inner': 2.3698531889709487,
-    'M3_outer': 5.4353949343626216,
-    'M3_inner': 1.1919725733251365,
-    'L1_entrance': 7.692939426566589,
-    'L1_exit': 8.103064894823262,
-    'L2_entrance': 10.746925431763076,
-    'L2_exit': 11.548732622162085,
-    'Filter_entrance': 28.06952057721957,
-    'Filter_exit': 30.895257933242576,
-    'L3_entrance': 54.5631834759912,
-    'L3_exit': 114.76715786850136
-}
-
-LSST_obsc_motion = {
-    'M1_inner': 0.1517605552388959,
-    'M2_outer': 16.818667026561727,
-    'M2_inner': 16.818667026561727,
-    'M3_outer': 53.2113063872138,
-    'M3_inner': 53.2113063872138,
-    'L1_entrance': 131.69949884635324,
-    'L1_exit': 137.51151184228345,
-    'L2_entrance': 225.63931108752732,
-    'L2_exit': 236.8641351903567,
-    'Filter_entrance': 801.6598843836333,
-    'Filter_exit': 879.4647343264201,
-    'L3_entrance': 1594.7432961792515,
-    'L3_exit': 3328.637595923783
-}
+Rubin_obsc = yaml.safe_load(open(os.path.join(danish.datadir, 'RubinObsc.yaml')))
 
 
 @timer
@@ -112,7 +83,7 @@ def test_LSST():
 
         factory = danish.DonutFactory(
             R_outer=4.18, R_inner=2.5498,
-            obsc_radii=LSST_obsc_radii, obsc_motion=LSST_obsc_motion,
+            obsc_radii=Rubin_obsc['radii'], obsc_motion=Rubin_obsc['motion'],
             focal_length=10.31, pixel_scale=10e-6
         )
 
@@ -160,7 +131,7 @@ def test_LSST_aberrated():
 
         factory = danish.DonutFactory(
             R_outer=4.18, R_inner=2.5498,
-            obsc_radii=LSST_obsc_radii, obsc_motion=LSST_obsc_motion,
+            obsc_radii=Rubin_obsc['radii'], obsc_motion=Rubin_obsc['motion'],
             focal_length=10.31, pixel_scale=10e-6
         )
 
