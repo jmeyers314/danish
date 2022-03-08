@@ -32,6 +32,9 @@ setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     packages=['danish'],
+    package_data={
+        "danish": ["data/*"],
+    },
     package_dir={'danish': 'danish'},
     install_requires=['numpy'],
     python_requires='>=3.6',
