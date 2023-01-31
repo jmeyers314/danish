@@ -243,7 +243,7 @@ class DoubleZernike:
     def __mul__(self, rhs):
         return DoubleZernike(
             self.coefs*rhs,
-            fiefield_radiusldRad=self.field_radius
+            field_radius=self.field_radius
         )
 
     @property
