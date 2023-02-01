@@ -36,7 +36,7 @@ setup(
         "danish": ["data/*"],
     },
     package_dir={'danish': 'danish'},
-    install_requires=['numpy', 'yaml', 'galsim'],
+    install_requires=['numpy', 'pyyaml', 'galsim'],
     python_requires='>=3.6',
     zip_safe=False,
     include_package_data=True,
