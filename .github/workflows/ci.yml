@@ -32,10 +32,7 @@ jobs:
             CC: clang
             CXX: clang++
     steps:
-      - uses: actions/checkout@v2
-        with:
-          submodules: recursive
-          fetch-depth: 2
+      - uses: actions/checkout@v3
 
       - name: Print github context properties
         run: |
@@ -48,12 +45,12 @@ jobs:
           echo 'event.after: ${{ github.event.after }}'
 
       - name: Set up Python ${{ matrix.py }}
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.py }}
 
       - name: Cache pip
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           path: |
             ~/.cache/pip
@@ -74,47 +71,26 @@ jobs:
       - name: Install libfftw, etc. on MacOS
         if: matrix.os == 'macos-latest'
         run: |
-          echo ${{ matrix.os }}
-          brew update
-          brew install fftw eigen
-          brew link fftw eigen
+          # brew update takes forever to run.  Hopefully won't need to enable this too often.
+          # Note: The || true bit here is because brew returns an error code if everything is
+          #       already installed, which is goofy.  So || true means these always give
+          #       non-error values.  If there really is an error, we should notice later
+          #       when trying to use whatever package failed to install.
+          #brew update || true
+          brew install fftw || true
+          brew link --overwrite fftw || true
+          brew install eigen || true
+          brew link --overwrite eigen || true
 
-      - name: Install dependencies
+      - name: Install test requirements
         run: |
-          python -m pip install -U pip
-          pip install -U numpy
-          pip install -U astropy
-          pip install -U future
-          pip install -U pyyaml
-          pip install -U LSSTDESC.Coord
-          pip install -U pybind11
-          pip install -U pandas
-          pip install -U "starlink-pyast>3.9.0,<=3.12"
-          pip install -U matplotlib
-          pip install -U scipy
-
-      - name: Install GalSim
-        # Without --no-deps, GalSim tries and fails to install eigency.
-        # I don't think it's actually required though, since eigen is either
-        # apt-get'd or brew'd above.
-        run: |
-          pip install --no-deps "galsim>=2.2.4"
-
-      - name: Install batoid
-        run: |
-          pip install -U batoid
-
-      - name: Test requirements
-        run: |
-          pip install -U pytest
-          pip install -U pytest-cov
-          pip install -U pytest-xdist
+          pip install -U pytest pytest-xdist pytest-cov
 
       - name: List all installed packages for reference
         run: pip list
 
       - name: Build danish
-        run: CMAKE_VERBOSE_MAKEFILE=1 python setup.py develop
+        run: pip install .
 
       - name: Run unit tests
         run: pytest --cov=danish --cov-report=xml --cov-config tests/.coveragerc
