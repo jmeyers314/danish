@@ -17,10 +17,10 @@ jobs:
         uses: pypa/cibuildwheel@v2.11.3
         env:
           CIBW_BUILD: "*manylinux*"
-          CIBW_SKIP: cp36* cp37* pp*
+          CIBW_SKIP: cp36* cp37* cp38* cp39* cp310* pp*
           CIBW_BUILD_VERBOSITY: 3
           CIBW_BEFORE_BUILD: >
-            pip install -U pybind11-global &&
+            pip install -U pybind11-global>2.10 &&
             pip list
           CIBW_BEFORE_TEST: pip install -U pytest pytest-xdist pytest-cov
           CIBW_TEST_COMMAND: pytest {package}/tests
@@ -41,10 +41,10 @@ jobs:
         uses: pypa/cibuildwheel@v2.11.3
         env:
           CIBW_BUILD: "*musllinux*"
-          CIBW_SKIP: cp36* cp37* pp*
+          CIBW_SKIP: cp36* cp37* cp38* cp39* cp310* pp*
           CIBW_BUILD_VERBOSITY: 3
           CIBW_BEFORE_BUILD: >
-            pip install -U pybind11-global &&
+            pip install -U pybind11-global>2.10 &&
             pip list
           CIBW_BEFORE_TEST: pip install -U pytest pytest-xdist pytest-cov
           CIBW_TEST_COMMAND: pytest {package}/tests
@@ -66,10 +66,10 @@ jobs:
         uses: pypa/cibuildwheel@v2.11.3
         env:
           CIBW_BUILD: "*macosx*"
-          CIBW_SKIP: cp36* cp37* pp*
+          CIBW_SKIP: cp36* cp37* cp38* cp39* cp310* pp*
           CIBW_BUILD_VERBOSITY: 3
           CIBW_BEFORE_BUILD: >
-            pip install -U pybind11-global &&
+            pip install -U pybind11-global>2.10 &&
             pip list
           CIBW_BEFORE_TEST: pip install -U pytest pytest-xdist pytest-cov
           CIBW_TEST_COMMAND: pytest {package}/tests
