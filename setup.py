@@ -36,7 +36,7 @@ setup(
         "danish": ["data/*"],
     },
     package_dir={'danish': 'danish'},
-    install_requires=['pybind11==2.10.3', 'numpy', 'pyyaml', 'galsim', 'opencv-python==4.6.0.66', 'batoid', 'scipy'],
+    install_requires=['pybind11>2.10', 'numpy', 'pyyaml', 'galsim', 'opencv-python==4.6.0.66', 'batoid', 'scipy'],
     python_requires='>=3.8',
     zip_safe=False,
     include_package_data=True,
