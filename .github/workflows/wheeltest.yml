@@ -17,7 +17,7 @@ jobs:
         uses: pypa/cibuildwheel@v2.11.3
         env:
           CIBW_BUILD: "*manylinux*"
-          CIBW_SKIP: cp36* cp37* cp38* cp39* cp310* pp*
+          CIBW_SKIP: cp36* cp37* pp* *i686*
           CIBW_BUILD_VERBOSITY: 3
           CIBW_BEFORE_BUILD: >
             pip install -U pybind11-global>2.10 &&
@@ -41,7 +41,7 @@ jobs:
         uses: pypa/cibuildwheel@v2.11.3
         env:
           CIBW_BUILD: "*musllinux*"
-          CIBW_SKIP: cp36* cp37* cp38* cp39* cp310* pp*
+          CIBW_SKIP: cp36* cp37* pp* *i686*
           CIBW_BUILD_VERBOSITY: 3
           CIBW_BEFORE_BUILD: >
             pip install -U pybind11-global>2.10 &&
@@ -66,7 +66,7 @@ jobs:
         uses: pypa/cibuildwheel@v2.11.3
         env:
           CIBW_BUILD: "*macosx*"
-          CIBW_SKIP: cp36* cp37* cp38* cp39* cp310* pp*
+          CIBW_SKIP: cp36* cp37* pp* *i686*
           CIBW_BUILD_VERBOSITY: 3
           CIBW_BEFORE_BUILD: >
             pip install -U pybind11-global>2.10 &&
