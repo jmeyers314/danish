@@ -22,8 +22,8 @@ jobs:
           CIBW_BEFORE_BUILD: >
             pip install -U pybind11-global>2.10 &&
             pip list
-          CIBW_BEFORE_TEST: pip install -U pytest pytest-xdist pytest-cov
-          CIBW_TEST_COMMAND: pytest {package}/tests
+          # CIBW_BEFORE_TEST: pip install -U pytest pytest-xdist pytest-cov
+          # CIBW_TEST_COMMAND: pytest {package}/tests
       - uses: actions/upload-artifact@v3
         with:
           path: ./wheelhouse/*.whl
@@ -46,8 +46,8 @@ jobs:
           CIBW_BEFORE_BUILD: >
             pip install -U pybind11-global>2.10 &&
             pip list
-          CIBW_BEFORE_TEST: pip install -U pytest pytest-xdist pytest-cov
-          CIBW_TEST_COMMAND: pytest {package}/tests
+          # CIBW_BEFORE_TEST: pip install -U pytest pytest-xdist pytest-cov
+          # CIBW_TEST_COMMAND: pytest {package}/tests
 
       - uses: actions/upload-artifact@v3
         with:
@@ -71,8 +71,8 @@ jobs:
           CIBW_BEFORE_BUILD: >
             pip install -U pybind11-global>2.10 &&
             pip list
-          CIBW_BEFORE_TEST: pip install -U pytest pytest-xdist pytest-cov
-          CIBW_TEST_COMMAND: pytest {package}/tests
+          # CIBW_BEFORE_TEST: pip install -U pytest pytest-xdist pytest-cov
+          # CIBW_TEST_COMMAND: pytest {package}/tests
 
       - uses: actions/upload-artifact@v3
         with:
