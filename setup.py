@@ -37,7 +37,7 @@ setup(
     },
     package_dir={'danish': 'danish'},
     install_requires=['numpy', 'pyyaml', 'galsim', 'opencv-python==4.6.0.66', 'batoid', 'scipy'],
-    python_requires='>=3.6',
+    python_requires='>=3.8',
     zip_safe=False,
     include_package_data=True,
     classifiers=[
