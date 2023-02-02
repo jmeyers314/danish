@@ -79,6 +79,7 @@ jobs:
           python -m pip install -U pip
           pip install -U numpy setuptools
           pip install -U pybind11-global
+          pip install -U build
 
       - name: Download wheels
         uses: actions/download-artifact@v3
@@ -87,9 +88,9 @@ jobs:
 
       - name: Build sdist
         run: |
-          python setup.py sdist
+          python -m build --sdist .
           ls -l dist
-          tar tvfz dist/batoid-*.tar.gz
+          tar tvfz dist/danish-*.tar.gz
 
       - name: Copy wheels
         run: |
