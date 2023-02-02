@@ -102,11 +102,11 @@ jobs:
           echo ls -l dist
           ls -l dist
 
-      # - name: Publish package to TestPyPI
-      #   uses: pypa/gh-action-pypi-publish@release/v1
-      #   with:
-      #     password: ${{ secrets.TESTPYPI_PASSWORD }}
-      #     repository_url: https://test.pypi.org/legacy/
+      - name: Publish package to TestPyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          password: ${{ secrets.TEST_PYPI_TOKEN }}
+          repository_url: https://test.pypi.org/legacy/
 
       # - name: Publish to PyPI
       #   uses: pypa/gh-action-pypi-publish@release/v1
