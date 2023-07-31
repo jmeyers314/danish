@@ -64,11 +64,11 @@ for k in scales:
     if isinstance(obsc, batoid.ObscAnnulus):
         pupil_radii[k+'_outer'] = obsc.outer / np.mean(scales[k])
         pupil_radii[k+'_inner'] = obsc.inner / np.mean(scales[k])
-        pupil_motion[k+'_outer'] = motion
-        pupil_motion[k+'_inner'] = motion
+        pupil_motion[k+'_outer'] = np.deg2rad(motion)
+        pupil_motion[k+'_inner'] = np.deg2rad(motion)
     elif isinstance(obsc, batoid.ObscCircle):
         pupil_radii[k] = obsc.radius / np.mean(scales[k])
-        pupil_motion[k] = motion
+        pupil_motion[k] = np.deg2rad(motion)
 
 print("radii")
 for k, v in pupil_radii.items():
