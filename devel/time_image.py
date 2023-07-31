@@ -1,43 +1,20 @@
+import os
 import time
+import yaml
 
 import numpy as np
 import batoid
+import danish
+from danish import DonutFactory
 
 
 def time_image():
-    from danish import DonutFactory
-
-    obsc_radii = {
-        'M1_inner': 2.5498,
-        'M2_inner': 2.3698999752679404,
-        'M2_outer': 4.502809953009087,
-        'M3_inner': 1.1922312943631603,
-        'M3_outer': 5.436574702296011,
-        'L1_entrance': 7.697441260764198,
-        'L1_exit': 8.106852624652701,
-        'L2_entrance': 10.748915941599885,
-        'L2_exit': 11.5564127895276,
-        'Filter_entrance': 28.082220873785978,
-        'Filter_exit': 30.91023954045243,
-        'L3_entrance': 54.67312185149621,
-        'L3_exit': 114.58705556485711
-    }
-    obsc_motion = {
-        'M1_inner': 0.0,
-        'M2_inner': 16.8188788239707,
-        'M2_outer': 16.8188788239707,
-        'M3_inner': 53.22000661238318,
-        'M3_outer': 53.22000661238318,
-        'L1_entrance': 131.76650078100135,
-        'L1_exit': 137.57031952814913,
-        'L2_entrance': 225.6949885074127,
-        'L2_exit': 237.01739037674315,
-        'Filter_entrance': 802.0137451419788,
-        'Filter_exit': 879.8810309773828,
-        'L3_entrance': 1597.8959863335774,
-        'L3_exit': 3323.60145194633
-    }
-    factory = DonutFactory(obsc_radii=obsc_radii, obsc_motion=obsc_motion)
+    obsc = yaml.safe_load(open(os.path.join(danish.datadir, 'RubinObsc.yaml')))
+    factory = DonutFactory(
+        obsc_radii=obsc['radii'],
+        obsc_centers=obsc['centers'],
+        obsc_th_mins=obsc['th_mins'],
+    )
 
     telescope = batoid.Optic.fromYaml("LSST_r.yaml")
     telescope = telescope.withGloballyShiftedOptic("Detector", (0,0,0.0015))

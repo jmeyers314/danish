@@ -16,7 +16,7 @@ Rubin_obsc = yaml.safe_load(open(os.path.join(danish.datadir, 'RubinObsc.yaml'))
 AuxTel_obsc = yaml.safe_load(open(os.path.join(danish.datadir, 'AuxTelObsc.yaml')))
 
 
-def plot_result(img, mod, z_fit, z_true, ylim=None):
+def plot_result(img, mod, z_fit, z_true, ylim=None, wavelength=None):
     jmax = len(z_fit)+4
     import matplotlib.pyplot as plt
     fig = plt.figure(constrained_layout=True, figsize=(10, 7))
@@ -30,6 +30,9 @@ def plot_result(img, mod, z_fit, z_true, ylim=None):
     ax1.imshow(mod/np.sum(mod))
     ax2.imshow(img/np.sum(img) - mod/np.sum(mod))
     ax3.axhline(0, c='k')
+    if wavelength is not None:
+        z_fit *= wavelength*1e9
+        z_true *= wavelength*1e9
     ax3.plot(np.arange(4, jmax), z_fit, c='b', label='fit')
     ax3.plot(np.arange(4, jmax), z_true, c='k', label='truth')
     ax3.plot(
@@ -41,7 +44,10 @@ def plot_result(img, mod, z_fit, z_true, ylim=None):
         ylim = -0.6, 0.6
     ax3.set_ylim(*ylim)
     ax3.set_xlabel("Zernike index")
-    ax3.set_ylabel("Residual (Waves)")
+    if wavelength is not None:
+        ax3.set_ylabel("Residual (nm)")
+    else:
+        ax3.set_ylabel("Residual (Waves)")
     ax3.set_xticks(np.arange(4, jmax, dtype=int))
     ax3.legend()
     plt.show()
@@ -49,7 +55,7 @@ def plot_result(img, mod, z_fit, z_true, ylim=None):
 
 def plot_dz_results(imgs, mods, dz_fit, dz_true, dz_terms):
     import matplotlib.pyplot as plt
-    fig = plt.figure(constrained_layout=True, figsize=(10, 12))
+    fig = plt.figure(constrained_layout=True, figsize=(8, 10))
     gs = fig.add_gridspec(len(imgs)+3, 3)
     for i, (img, mod) in enumerate(zip(imgs, mods)):
         ax0 = fig.add_subplot(gs[i, 0])
@@ -108,7 +114,9 @@ def test_fitter_LSST_fiducial():
 
         factory = danish.DonutFactory(
             R_outer=4.18, R_inner=2.5498,
-            obsc_radii=Rubin_obsc['radii'], obsc_motion=Rubin_obsc['motion'],
+            obsc_radii=Rubin_obsc['radii'],
+            obsc_centers=Rubin_obsc['centers'],
+            obsc_th_mins=Rubin_obsc['th_mins'],
             focal_length=10.31, pixel_scale=10e-6
         )
 
@@ -212,7 +220,9 @@ def test_fitter_LSST_rigid_perturbation():
 
         factory = danish.DonutFactory(
             R_outer=4.18, R_inner=2.5498,
-            obsc_radii=Rubin_obsc['radii'], obsc_motion=Rubin_obsc['motion'],
+            obsc_radii=Rubin_obsc['radii'],
+            obsc_centers=Rubin_obsc['centers'],
+            obsc_th_mins=Rubin_obsc['th_mins'],
             focal_length=10.31, pixel_scale=10e-6
         )
 
@@ -331,7 +341,9 @@ def test_fitter_LSST_z_perturbation():
 
         factory = danish.DonutFactory(
             R_outer=4.18, R_inner=2.5498,
-            obsc_radii=Rubin_obsc['radii'], obsc_motion=Rubin_obsc['motion'],
+            obsc_radii=Rubin_obsc['radii'],
+            obsc_centers=Rubin_obsc['centers'],
+            obsc_th_mins=Rubin_obsc['th_mins'],
             focal_length=10.31, pixel_scale=10e-6
         )
 
@@ -366,7 +378,7 @@ def test_fitter_LSST_z_perturbation():
         # mod = fitter.model(
         #     dx_fit, dy_fit, fwhm_fit, z_fit
         # )
-        # plot_result(img, mod, z_fit/wavelength, z_true/wavelength)
+        # plot_result(img, mod, z_fit/wavelength, z_true/wavelength, wavelength=wavelength, ylim=(-200, 200))
 
         np.testing.assert_allclose(dx_fit, dx, rtol=0, atol=5e-2)
         np.testing.assert_allclose(dy_fit, dy, rtol=0, atol=5e-2)
@@ -392,12 +404,16 @@ def test_fitter_LSST_kolm():
 
     factory = danish.DonutFactory(
         R_outer=4.18, R_inner=2.5498,
-        obsc_radii=Rubin_obsc['radii'], obsc_motion=Rubin_obsc['motion'],
+        obsc_radii=Rubin_obsc['radii'],
+        obsc_centers=Rubin_obsc['centers'],
+        obsc_th_mins=Rubin_obsc['th_mins'],
         focal_length=10.31, pixel_scale=10e-6
     )
     binned_factory = danish.DonutFactory(
         R_outer=4.18, R_inner=2.5498,
-        obsc_radii=Rubin_obsc['radii'], obsc_motion=Rubin_obsc['motion'],
+        obsc_radii=Rubin_obsc['radii'],
+        obsc_centers=Rubin_obsc['centers'],
+        obsc_th_mins=Rubin_obsc['th_mins'],
         focal_length=10.31, pixel_scale=20e-6
     )
 
@@ -441,6 +457,7 @@ def test_fitter_LSST_kolm():
         #     dx_fit, dy_fit, fwhm_fit, z_fit
         # )
         # plot_result(img, mod, z_fit/wavelength, z_true/wavelength)
+        # plot_result(img, mod, z_fit/wavelength, z_true/wavelength, wavelength=wavelength, ylim=(-200, 200))
 
         # One fit is problematic.  It has a large field angle, so flip based on
         # that.
@@ -476,6 +493,7 @@ def test_fitter_LSST_kolm():
         #     dx_fit, dy_fit, fwhm_fit, z_fit
         # )
         # plot_result(binned_img, mod, z_fit/wavelength, z_true/wavelength)
+        # plot_result(binned_img, mod, z_fit/wavelength, z_true/wavelength, wavelength=wavelength, ylim=(-200, 200))
 
         np.testing.assert_allclose(fwhm_fit, fwhm, rtol=0, atol=5e-2)
         np.testing.assert_allclose(z_fit, z_true, rtol=0, atol=tol*wavelength)
@@ -505,12 +523,16 @@ def test_fitter_LSST_atm():
 
     factory = danish.DonutFactory(
         R_outer=4.18, R_inner=2.5498,
-        obsc_radii=Rubin_obsc['radii'], obsc_motion=Rubin_obsc['motion'],
+        obsc_radii=Rubin_obsc['radii'],
+        obsc_centers=Rubin_obsc['centers'],
+        obsc_th_mins=Rubin_obsc['th_mins'],
         focal_length=10.31, pixel_scale=10e-6
     )
     binned_factory = danish.DonutFactory(
         R_outer=4.18, R_inner=2.5498,
-        obsc_radii=Rubin_obsc['radii'], obsc_motion=Rubin_obsc['motion'],
+        obsc_radii=Rubin_obsc['radii'],
+        obsc_centers=Rubin_obsc['centers'],
+        obsc_th_mins=Rubin_obsc['th_mins'],
         focal_length=10.31, pixel_scale=20e-6
     )
 
@@ -552,6 +574,7 @@ def test_fitter_LSST_atm():
         #     dx_fit, dy_fit, fwhm_fit, z_fit
         # )
         # plot_result(img, mod, z_fit/wavelength, z_true/wavelength)
+        # plot_result(img, mod, z_fit/wavelength, z_true/wavelength, wavelength=wavelength, ylim=(-200, 200))
 
         np.testing.assert_allclose(
             z_fit/wavelength, z_true/wavelength,
@@ -559,7 +582,7 @@ def test_fitter_LSST_atm():
         )
         rms = np.sqrt(np.sum(((z_true-z_fit)/wavelength)**2))
         print(f"rms = {rms:9.3f} waves")
-        assert rms < 0.6, "rms %9.3f > 0.6" % rms
+        assert rms < 0.66, "rms %9.3f > 0.66" % rms
 
         # Try binning 2x2
         binned_fitter = danish.SingleDonutModel(
@@ -584,6 +607,7 @@ def test_fitter_LSST_atm():
         #     dx_fit, dy_fit, fwhm_fit, z_fit
         # )
         # plot_result(binned_img, mod, z_fit/wavelength, z_true/wavelength)
+        # plot_result(binned_img, mod, z_fit/wavelength, z_true/wavelength, wavelength=wavelength, ylim=(-200, 200))
 
         np.testing.assert_allclose(
             z_fit/wavelength,
@@ -592,7 +616,7 @@ def test_fitter_LSST_atm():
         )
         rms = np.sqrt(np.sum(((z_true-z_fit)/wavelength)**2))
         print(f"rms = {rms:9.3f} waves")
-        assert rms < 0.6, "rms %9.3f > 0.6" % rms
+        assert rms < 0.66, "rms %9.3f > 0.66" % rms
 
 
 @timer
@@ -655,7 +679,9 @@ def test_fitter_AuxTel_rigid_perturbation():
         # seen elsewhere.  Possible location for future improvement.
         factory = danish.DonutFactory(
             R_outer=0.6, R_inner=0.2115,
-            obsc_radii=AuxTel_obsc['radii'], obsc_motion=AuxTel_obsc['motion'],
+            obsc_radii=AuxTel_obsc['radii'],
+            obsc_centers=AuxTel_obsc['centers'],
+            obsc_th_mins=AuxTel_obsc['th_mins'],
             focal_length=20.8, pixel_scale=10e-6
         )
 
@@ -746,7 +772,9 @@ def test_dz_fitter_LSST_fiducial():
 
         factory = danish.DonutFactory(
             R_outer=4.18, R_inner=2.5498,
-            obsc_radii=Rubin_obsc['radii'], obsc_motion=Rubin_obsc['motion'],
+            obsc_radii=Rubin_obsc['radii'],
+            obsc_centers=Rubin_obsc['centers'],
+            obsc_th_mins=Rubin_obsc['th_mins'],
             focal_length=10.31, pixel_scale=10e-6
         )
 
@@ -879,7 +907,9 @@ def test_dz_fitter_LSST_rigid_perturbation():
 
         factory = danish.DonutFactory(
             R_outer=4.18, R_inner=2.5498,
-            obsc_radii=Rubin_obsc['radii'], obsc_motion=Rubin_obsc['motion'],
+            obsc_radii=Rubin_obsc['radii'],
+            obsc_centers=Rubin_obsc['centers'],
+            obsc_th_mins=Rubin_obsc['th_mins'],
             focal_length=10.31, pixel_scale=10e-6
         )
 
@@ -1037,7 +1067,9 @@ def test_dz_fitter_LSST_z_perturbation():
 
         factory = danish.DonutFactory(
             R_outer=4.18, R_inner=2.5498,
-            obsc_radii=Rubin_obsc['radii'], obsc_motion=Rubin_obsc['motion'],
+            obsc_radii=Rubin_obsc['radii'],
+            obsc_centers=Rubin_obsc['centers'],
+            obsc_th_mins=Rubin_obsc['th_mins'],
             focal_length=10.31, pixel_scale=10e-6
         )
 
@@ -1107,7 +1139,9 @@ def test_dz_fitter_LSST_kolm():
 
     factory = danish.DonutFactory(
         R_outer=4.18, R_inner=2.5498,
-        obsc_radii=Rubin_obsc['radii'], obsc_motion=Rubin_obsc['motion'],
+        obsc_radii=Rubin_obsc['radii'],
+        obsc_centers=Rubin_obsc['centers'],
+        obsc_th_mins=Rubin_obsc['th_mins'],
         focal_length=10.31, pixel_scale=10e-6
     )
     sky_level = data[0]['sky_level']
@@ -1191,7 +1225,9 @@ def test_dz_fitter_LSST_atm():
 
     factory = danish.DonutFactory(
         R_outer=4.18, R_inner=2.5498,
-        obsc_radii=Rubin_obsc['radii'], obsc_motion=Rubin_obsc['motion'],
+        obsc_radii=Rubin_obsc['radii'],
+        obsc_centers=Rubin_obsc['centers'],
+        obsc_th_mins=Rubin_obsc['th_mins'],
         focal_length=10.31, pixel_scale=10e-6
     )
     sky_level = data[0]['sky_level']

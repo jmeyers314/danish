@@ -568,12 +568,17 @@ class DonutFactory:
         Also assumed to be Zernike normalization radius.
     R_inner : float
         Entrance pupil inner radius.  Used for defining annular Zernikes.
-    obsc_radii : dict of str -> float
-        Obscuration radii projected onto pupil in meters, indexed by surface
-        name.
-    obsc_motion : dict of str -> float
-        Obscuration motion with field angle in meters/radian, indexed by
-        surface name.
+    obsc_radii : dict of str -> array of float
+        Polynominal coefficients in field angle (degrees) of obscuration radii
+        projected onto pupil in meters, indexed by surface name.  Largest degree
+        first.
+    obsc_centers : dict of str -> array of float
+        Polynominal coefficients in field angle (degrees) of obscuration center
+        projected onto pupil in meters, indexed by surface name.  Largest degree
+        first.
+    obsc_th_mins : dict of str -> float
+        Minimum field angle (degrees) for which to apply obscuration, indexed by
+        surface.
     focal_length : float
         Focal length in meters.
     pixel_scale : float
@@ -582,16 +587,15 @@ class DonutFactory:
     def __init__(
         self, *,
         R_outer=4.18, R_inner=2.5498,
-        obsc_radii=None, obsc_motion=None,
+        obsc_radii=None, obsc_centers=None, obsc_th_mins=None,
         focal_length=10.31, pixel_scale=10e-6
     ):
         self.R_outer = R_outer
         self.R_inner = R_inner
 
-        # TODO: Allow focal_length, obsc_radii, obsc_motion to be functions
-        #       of field angle.
         self.obsc_radii = obsc_radii
-        self.obsc_motion = obsc_motion
+        self.obsc_centers = obsc_centers
+        self.obsc_th_mins = obsc_th_mins
         self.focal_length = focal_length
         self.pixel_scale = pixel_scale
 
@@ -708,11 +712,18 @@ class DonutFactory:
             for k in self.obsc_radii:
                 if not np.any(w):
                     break
+                thr = np.sqrt(thx*thx + thy*thy)
+                thr_deg = np.rad2deg(thr)
+                if thr_deg < self.obsc_th_mins[k]:
+                    continue
+                radius = np.polyval(self.obsc_radii[k], thr_deg)
+                center = np.polyval(self.obsc_centers[k], thr_deg)
+                cx = center*thx/thr
+                cy = center*thy/thr
+
                 enc = _enclosed_fraction(
                     x[w], y[w], u[w], v[w],
-                    -self.obsc_motion[k]*thx,
-                    -self.obsc_motion[k]*thy,
-                    self.obsc_radii[k],
+                    cx, cy, radius,
                     Z=Z1,
                     pixel_scale=self.pixel_scale,
                     _jac=jac[:, w],
