@@ -426,7 +426,7 @@ def test_fitter_LSST_kolm():
         thy = datum['thy']
         z_ref = datum['z_ref']
         z_actual = datum['z_actual']
-        img = datum['arr'][::-1, ::-1]
+        img = datum['arr']
 
         z_terms = np.arange(4, 23)
         fitter = danish.SingleDonutModel(
@@ -546,7 +546,7 @@ def test_fitter_LSST_atm():
         thy = datum['thy']
         z_ref = datum['z_ref']
         z_actual = datum['z_actual']
-        img = datum['arr'][::-1, ::-1]
+        img = datum['arr']
 
         z_terms = np.arange(4, 23)
         fitter = danish.SingleDonutModel(
@@ -1159,7 +1159,7 @@ def test_dz_fitter_LSST_kolm():
         thys.append(datum['thy'])
         z_refs.append(datum['z_ref'])
         z_actuals.append(datum['z_actual'])
-        imgs.append(datum['arr'][::-1, ::-1])
+        imgs.append(datum['arr'])
 
     dz_terms = (
         (1, 4),                          # defocus
@@ -1245,7 +1245,7 @@ def test_dz_fitter_LSST_atm():
         thys.append(datum['thy'])
         z_refs.append(datum['z_ref'])
         z_actuals.append(datum['z_actual'])
-        imgs.append(datum['arr'][::-1, ::-1])
+        imgs.append(datum['arr'])
 
     dz_terms = (
         (1, 4),                          # defocus
