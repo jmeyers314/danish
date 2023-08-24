@@ -65,8 +65,8 @@ def pupil_to_focal(
 def _pupil_to_focal(u, v, Z, *, focal_length=None):
     Z1 = Z * focal_length if focal_length else Z
     return (
-        Z1.gradX(u, v),
-        Z1.gradY(u, v)
+        -Z1.gradX(u, v),
+        -Z1.gradY(u, v)
     )
 
 
@@ -197,9 +197,9 @@ def _focal_to_pupil(
         if i >= 1:
             if np.max(np.abs(dx)) < tol and np.max(np.abs(dy)) < tol:
                 break
-        dW2du2 = Z1.gradX.gradX(u, v)
-        dW2dudv = Z1.gradX.gradY(u, v)
-        dW2dv2 = Z1.gradY.gradY(u, v)
+        dW2du2 = -Z1.gradX.gradX(u, v)
+        dW2dudv = -Z1.gradX.gradY(u, v)
+        dW2dv2 = -Z1.gradY.gradY(u, v)
         det = (dW2du2*dW2dv2 - dW2dudv**2)
         du = -(dW2dv2*dx - dW2dudv*dy)/det
         dv = -(-dW2dudv*dx + dW2du2*dy)/det
