@@ -57,6 +57,9 @@ class SingleDonutModel:
     z_ref : array of float
         Constant reference Zernike coefs to add to fitted coefficients.
         [0] is ignored, [1] is piston, [4] is defocus, etc.
+    x_offset, y_offset : galsim.zernike.Zernike, optional
+        Additional focal plane offsets (in meters) represented as Zernike
+        series.
     z_terms : sequence of int
         Which Zernike coefficients to include in the fit.  E.g.,
         [4,5,6,11] will fit defocus, astigmatism, and spherical.
@@ -71,6 +74,7 @@ class SingleDonutModel:
         self,
         factory, *,
         z_ref=None,
+        x_offset=None, y_offset=None,
         z_terms=(),
         thx=None, thy=None,
         npix=181,
@@ -84,6 +88,8 @@ class SingleDonutModel:
             3600*np.rad2deg(1/factory.focal_length)*factory.pixel_scale
         )
         self.z_ref = z_ref
+        self.x_offset = x_offset
+        self.y_offset = y_offset
         self.z_terms = z_terms
         self.thx = thx
         self.thy = thy
@@ -103,7 +109,10 @@ class SingleDonutModel:
         for i, term in enumerate(self.z_terms):
             aberrations[term] += z_fit[i]
         return self.factory.image(
-            aberrations=aberrations, thx=self.thx, thy=self.thy, npix=self.npix
+            aberrations=aberrations,
+            x_offset=self.x_offset, y_offset=self.y_offset,
+            thx=self.thx, thy=self.thy,
+            npix=self.npix
         )
 
     def model(
