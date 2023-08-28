@@ -35,7 +35,8 @@ from ._danish import poly_grid_contains
 def pupil_to_focal(
     u, v, *,
     Z=None, aberrations=None, R_outer=1.0, R_inner=0.0,
-    focal_length=None
+    focal_length=None,
+    x_offset=None, y_offset=None
 ):
     """Transform pupil coordinates to focal coordinates.
 
@@ -51,6 +52,9 @@ def pupil_to_focal(
         Annulus outer and inner radii in meters.
     focal_length : float
         Focal length in meters.
+    x_offset, y_offset : galsim.zernike.Zernike, optional
+        Additional focal plane offsets (in meters) represented as Zernike
+        series.
     """
     if Z is None:
         Z = galsim.zernike.Zernike(
@@ -59,21 +63,33 @@ def pupil_to_focal(
     if focal_length is None:
         raise ValueError("Missing focal length")
 
-    return _pupil_to_focal(u, v, Z, focal_length=focal_length)
-
-
-def _pupil_to_focal(u, v, Z, *, focal_length=None):
-    Z1 = Z * focal_length if focal_length else Z
-    return (
-        -Z1.gradX(u, v),
-        -Z1.gradY(u, v)
+    return _pupil_to_focal(
+        u, v, Z,
+        focal_length=focal_length,
+        x_offset=x_offset, y_offset=y_offset
     )
+
+
+def _pupil_to_focal(
+        u, v, Z, *,
+        focal_length=None,
+        x_offset=None, y_offset=None
+):
+    Z1 = Z * focal_length if focal_length else Z
+    zx = -Z1.gradX
+    zy = -Z1.gradY
+    if x_offset is not None:
+        zx += x_offset
+    if y_offset is not None:
+        zy += y_offset
+    return zx(u, v), zy(u, v)
 
 
 def pupil_focal_jacobian(
     u, v, *,
     Z=None, aberrations=None, R_outer=1.0, R_inner=0.0,
-    focal_length=None
+    focal_length=None,
+    x_offset=None, y_offset=None
 ):
     """Transform pupil coordinates to focal coordinates.
 
@@ -89,6 +105,9 @@ def pupil_focal_jacobian(
         Annulus outer and inner radii in meters.
     focal_length : float
         Focal length in meters.
+    x_offset, y_offset : galsim.zernike.Zernike, optional
+        Additional focal plane offsets (in meters) represented as Zernike
+        series.
     """
     if Z is None:
         Z = galsim.zernike.Zernike(
@@ -97,23 +116,39 @@ def pupil_focal_jacobian(
     if focal_length is None:
         raise ValueError("Missing focal length")
 
-    return _pupil_focal_jacobian(u, v, Z, focal_length)
+    return _pupil_focal_jacobian(
+        u, v, Z,
+        focal_length=focal_length,
+        x_offset=x_offset, y_offset=y_offset
+    )
 
 
-def _pupil_focal_jacobian(u, v, Z, *, focal_length=None):
+def _pupil_focal_jacobian(
+    u, v, Z, *,
+    focal_length=None,
+    x_offset=None, y_offset=None
+):
     Z1 = Z * focal_length if focal_length else Z
-    dxdu = Z1.gradX.gradX(u, v)
-    dxdv = Z1.gradX.gradY(u, v)
-    dydu = dxdv
-    # dydu = Z1.gradY.gradX(u, v)
-    dydv = Z1.gradY.gradY(u, v)
-    return dxdu, dxdv, dydu, dydv
+    zxx = -Z1.gradX.gradX
+    zxy = -Z1.gradX.gradY
+    zyx = -Z1.gradY.gradX
+    zyy = -Z1.gradY.gradY
+
+    if x_offset:
+        zxx += x_offset.gradX
+        zxy += x_offset.gradY
+    if y_offset:
+        zyx += y_offset.gradX
+        zyy += y_offset.gradY
+
+    return zxx(u, v), zxy(u, v), zyx(u, v), zyy(u, v)
 
 
 def focal_to_pupil(
     x, y, *,
     Z=None, aberrations=None, R_outer=1.0, R_inner=0.0,
     focal_length=None,
+    x_offset=None, y_offset=None,
     prefit_order=2, maxiter=20, tol=1e-5, strict=False
 ):
     """Transform focal coordinates to pupil coordinates.
@@ -130,6 +165,9 @@ def focal_to_pupil(
         Annulus outer and inner radii in meters.
     focal_length : float
         Focal length in meters.
+    x_offset, y_offset : galsim.zernike.Zernike, optional
+        Additional focal plane offsets (in meters) represented as Zernike
+        series.
     prefit_order : int
         Order of prefit used to get good initial guesses for coordinate
         transformation.
@@ -156,8 +194,9 @@ def focal_to_pupil(
 
     return _focal_to_pupil(
         x, y, Z,
-        prefit_order=prefit_order,
         focal_length=focal_length,
+        x_offset=x_offset, y_offset=y_offset,
+        prefit_order=prefit_order,
         maxiter=maxiter,
         tol=tol, strict=strict
     )
@@ -165,7 +204,9 @@ def focal_to_pupil(
 
 def _focal_to_pupil(
     x, y, Z, *,
-    focal_length=None, prefit_order=2, maxiter=20, tol=1e-5,
+    focal_length=None,
+    x_offset=None, y_offset=None,
+    prefit_order=2, maxiter=20, tol=1e-5,
     strict=False
 ):
     Z1 = Z * focal_length if focal_length else Z
@@ -176,7 +217,10 @@ def _focal_to_pupil(
     w &= r2test <= Z1.R_outer**2
     utest = utest[w]
     vtest = vtest[w]
-    xtest, ytest = _pupil_to_focal(utest, vtest, Z1)
+    xtest, ytest = _pupil_to_focal(
+        utest, vtest, Z1,
+        x_offset=x_offset, y_offset=y_offset
+    )
 
     # Prefit
     jmax = (prefit_order+1)*(prefit_order+2)//2
@@ -189,7 +233,10 @@ def _focal_to_pupil(
     v = galsim.zernike.Zernike(r[:,1], R_outer=R_outer)(x, y)
 
     # Newton-Raphson iterations to invert pupil_to_focal
-    x_current, y_current = _pupil_to_focal(u, v, Z1)
+    x_current, y_current = _pupil_to_focal(
+        u, v, Z1,
+        x_offset=x_offset, y_offset=y_offset
+    )
     dx = x_current - x
     dy = y_current - y
     dr2 = dx**2 + dy**2
@@ -197,17 +244,21 @@ def _focal_to_pupil(
         if i >= 1:
             if np.max(np.abs(dx)) < tol and np.max(np.abs(dy)) < tol:
                 break
-        dW2du2 = -Z1.gradX.gradX(u, v)
-        dW2dudv = -Z1.gradX.gradY(u, v)
-        dW2dv2 = -Z1.gradY.gradY(u, v)
-        det = (dW2du2*dW2dv2 - dW2dudv**2)
-        du = -(dW2dv2*dx - dW2dudv*dy)/det
+        dW2du2, dW2dudv, dW2dvdu, dW2dv2 = _pupil_focal_jacobian(
+            u, v, Z1, x_offset=x_offset, y_offset=y_offset
+        )
+        det = (dW2du2*dW2dv2 - dW2dudv*dW2dvdu)
+        # du = -(dW2dv2*dx - dW2dudv*dy)/det
+        # dv = -(-dW2dvdu*dx + dW2du2*dy)/det
+        du = -(dW2dv2*dx - dW2dvdu*dy)/det
         dv = -(-dW2dudv*dx + dW2du2*dy)/det
         # If xy miss distance increased, then decrease duv by
         # sqrt(distance ratio)
         uc = u + du
         vc = v + dv
-        xc, yc = _pupil_to_focal(uc, vc, Z1)
+        xc, yc = _pupil_to_focal(
+            uc, vc, Z1, x_offset=x_offset, y_offset=y_offset
+        )
         dxc = xc - x
         dyc = yc - y
         drc2 = dxc**2 + dyc**2
@@ -216,7 +267,10 @@ def _focal_to_pupil(
             alpha = np.maximum(0.001, (dr2[w]/drc2[w])**0.25)
             uc[w] = u[w] + alpha*du[w]
             vc[w] = v[w] + alpha*dv[w]
-            xc[w], yc[w] = _pupil_to_focal(uc[w], vc[w], Z1)
+            xc[w], yc[w] = _pupil_to_focal(
+                uc[w], vc[w], Z1,
+                x_offset=x_offset, y_offset=y_offset
+            )
             dxc[w] = xc[w] - x[w]
             dyc[w] = yc[w] - y[w]
             drc2[w] = dxc[w]**2 + dyc[w]**2
@@ -244,7 +298,9 @@ def enclosed_fraction(
     u, v,
     u0, v0, radius, *,
     Z=None, aberrations=None, R_outer=1.0, R_inner=0.0,
-    focal_length=None, pixel_scale=None,
+    focal_length=None,
+    x_offset=None, y_offset=None,
+    pixel_scale=None,
 ):
     """Compute fraction of pixels enclosed by circles defined on the pupil.
 
@@ -266,6 +322,9 @@ def enclosed_fraction(
         Annulus outer and inner radii in meters.
     focal_length : float
         Focal length in meters.
+    x_offset, y_offset : galsim.zernike.Zernike, optional
+        Additional focal plane offsets (in meters) represented as Zernike
+        series.
     pixel_scale : float
         Pixel scale in meters.
 
@@ -285,7 +344,10 @@ def enclosed_fraction(
         raise ValueError("Missing pixel scale")
 
     return _enclosed_fraction(
-        x, y, u, v, u0, v0, radius, Z, focal_length, pixel_scale,
+        x, y, u, v, u0, v0, radius, Z,
+        focal_length=focal_length,
+        x_offset=x_offset, y_offset=y_offset,
+        pixel_scale=pixel_scale
     )
 
 
@@ -295,6 +357,7 @@ def _enclosed_fraction(
     u0, v0, radius,
     Z, *,
     focal_length=None,
+    x_offset=None, y_offset=None,
     pixel_scale=1.0,
     _jac=None,
 ):
@@ -306,7 +369,10 @@ def _enclosed_fraction(
     # First determine "obvious" points either far inside or far outside circle
     # of interest.
     if _jac is None:
-        dxdu, dxdv, dydu, dydv = _pupil_focal_jacobian(u, v, Z1)
+        dxdu, dxdv, dydu, dydv = _pupil_focal_jacobian(
+            u, v, Z1,
+            x_offset=x_offset, y_offset=y_offset
+        )
         det = dxdu*dydv - dxdv*dydu
         dudx = dydv/det
         dudy = -dxdv/det
@@ -421,6 +487,7 @@ def _enclosed_fraction_debug(
     u0, v0, radius,
     Z, *,
     focal_length=None,
+    x_offset=None, y_offset=None,
     pixel_scale=1.0,
     axes=None
 ):  # pragma: no cover
@@ -436,7 +503,10 @@ def _enclosed_fraction_debug(
     dv = v - v0
 
     # Transform slope/intercept into focal coords
-    dxdu, dxdv, dydu, dydv = _pupil_focal_jacobian(u, v, Z1)
+    dxdu, dxdv, dydu, dydv = _pupil_focal_jacobian(
+        u, v, Z1,
+        x_offset=x_offset, y_offset=y_offset
+    )
     det = dxdu*dydv - dxdv*dydu
     dudx = dydv/det
     dudy = -dxdv/det
@@ -602,6 +672,7 @@ class DonutFactory:
     def image(
         self, *,
         Z=None, aberrations=None,
+        x_offset=None, y_offset=None,
         thx=0, thy=0, npix=181,
         prefit_order=2, maxiter=20, tol=1e-5, strict=False
     ):
@@ -613,6 +684,9 @@ class DonutFactory:
             Aberrations in meters.
         aberrations : array of float, optional
             Aberrations in meters.
+        x_offset, y_offset : galsim.zernike.Zernike, optional
+            Additional focal plane offsets (in meters) represented as Zernike
+            series.
         thx, thy : float
             Field angles in radians.
         npix : int
@@ -648,7 +722,7 @@ class DonutFactory:
         ph = np.linspace(0, 2*np.pi, 1000, endpoint=True)
         u, v = self.R_outer*np.cos(ph), self.R_outer*np.sin(ph)
         x, y = _pupil_to_focal(
-            u, v, Z1
+            u, v, Z1, x_offset=x_offset, y_offset=y_offset
         )
 
         xp = x/self.pixel_scale
@@ -673,6 +747,7 @@ class DonutFactory:
         # Now invert to get pixel centers projected on pupil
         u, v = _focal_to_pupil(
             x, y, Z1,
+            x_offset=x_offset, y_offset=y_offset,
             prefit_order=prefit_order, maxiter=maxiter, tol=tol, strict=strict
         )
 
@@ -689,7 +764,10 @@ class DonutFactory:
         img = np.zeros((npix, npix))
 
         # Compute jacobian just once
-        dxdu, dxdv, dydu, dydv = _pupil_focal_jacobian(u, v, Z1)
+        dxdu, dxdv, dydu, dydv = _pupil_focal_jacobian(
+            u, v, Z1,
+            x_offset=x_offset, y_offset=y_offset
+        )
         det = dxdu*dydv - dxdv*dydu
         dudx = dydv/det
         dudy = -dxdv/det
@@ -702,6 +780,7 @@ class DonutFactory:
             x, y, u, v,
             0.0, 0.0, self.R_outer,
             Z=Z1,
+            x_offset=x_offset, y_offset=y_offset,
             pixel_scale=self.pixel_scale,
             _jac=jac,
         )
@@ -725,6 +804,7 @@ class DonutFactory:
                     x[w], y[w], u[w], v[w],
                     cx, cy, radius,
                     Z=Z1,
+                    x_offset=x_offset, y_offset=y_offset,
                     pixel_scale=self.pixel_scale,
                     _jac=jac[:, w],
                 )
@@ -740,7 +820,14 @@ class DonutFactory:
         # of the Hessian means at least one ray path to an affected pixel gets
         # to contribute to the illumination, which is the behavior we want when
         # we're being sloppy.
-        f[w] /= np.abs(Z1.hessian(u[w], v[w]))
+        Fx = -Z1.gradX
+        Fy = -Z1.gradY
+        if x_offset:
+            Fx += x_offset
+        if y_offset:
+            Fy += y_offset
+        inv_sb = Fx.gradX * Fy.gradY - Fx.gradY * Fy.gradX
+        f[w] /= np.abs(inv_sb(u[w], v[w]))
         f[w] /= np.max(f[w])
 
         img[ypix, xpix] = f
@@ -749,6 +836,7 @@ class DonutFactory:
     def is_caustic(
         self, *,
         Z=None, aberrations=None,
+        x_offset=None, y_offset=None,
         nrad=50, naz=100
     ):
         """Check if given aberration introduces a caustic.
@@ -766,6 +854,9 @@ class DonutFactory:
             Aberrations in meters.
         aberrations : array of float, optional
             Aberrations in meters.
+        x_offset, y_offset : galsim.zernike.Zernike, optional
+            Additional focal plane offsets (in meters) represented as Zernike
+            series.
         nrad : int
             Number of radii to check between R_inner and R_outer.
         naz : int
@@ -792,12 +883,18 @@ class DonutFactory:
 
         u0 = uu * radii[0]
         v0 = vv * radii[0]
-        x0, y0 = _pupil_to_focal(u0, v0, Z1)
+        x0, y0 = _pupil_to_focal(
+            u0, v0, Z1,
+            x_offset=x_offset, y_offset=y_offset
+        )
 
         for radius in radii[1:]:
             u1 = uu * radius
             v1 = vv * radius
-            x1, y1 = _pupil_to_focal(u1, v1, Z1)
+            x1, y1 = _pupil_to_focal(
+                u1, v1, Z1,
+                x_offset=x_offset, y_offset=y_offset
+            )
             # Check that inner circle is contained in outer circle
             circle = ObscPolygon(x0, y0)
             if np.any(~circle.contains(x1, y1)):
