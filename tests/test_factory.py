@@ -1,3 +1,4 @@
+import batoid
 import os
 import yaml
 import numpy as np
@@ -313,9 +314,94 @@ def test_curly_offsets():
         assert np.nanquantile(np.abs(img-img2), 0.9) < 0.01
 
 
+@timer
+def test_focal_plane_hits():
+    telescope = batoid.Optic.fromYaml("LSST_r.yaml")
+    wavelength = 622e-9
+
+    rng = np.random.default_rng(987)
+
+    for _ in range(10):
+
+        thr = np.deg2rad(np.sqrt(rng.uniform(0, 1.8**2)))
+        ph = rng.uniform(0, 2*np.pi)
+        thx, thy = thr*np.cos(ph), thr*np.sin(ph)
+
+        rays = batoid.RayVector.asPolar(
+            optic=telescope,
+            theta_x=thx, theta_y=thy,
+            wavelength=wavelength,
+            nrad=20, naz=120
+        )
+
+        epRays = telescope.stopSurface.surface.intersect(rays.copy())
+        u = epRays.x
+        v = epRays.y
+        focal = telescope.trace(rays.copy())
+        chief = batoid.RayVector.fromFieldAngles(
+            theta_x=thx, theta_y=thy,
+            optic=telescope, wavelength=wavelength
+        )
+        telescope.trace(chief)
+        dx = focal.x - chief.x
+        dy = focal.y - chief.y
+
+        x_offset, y_offset = batoid.zernikeXYAberrations(
+            telescope,
+            thx, thy,
+            wavelength,
+            nrad=30, naz=180, reference='chief',
+            jmax=55, eps=0.612,
+            include_vignetted=False
+        )
+        zx = Zernike(
+            x_offset,
+            R_outer=4.18, R_inner=4.18*0.612,
+        )
+        zy = Zernike(
+            y_offset,
+            R_outer=4.18, R_inner=4.18*0.612,
+        )
+
+        w = ~focal.vignetted
+        dx1 = zx(u, v)
+        dy1 = zy(u, v)
+
+        np.testing.assert_array_less(
+            np.quantile(np.abs(dx1 - dx)[w]/10e-6, [0.5, 0.9, 1.0]),
+            [0.003, 0.01, 0.04]
+        )
+
+        np.testing.assert_array_less(
+            np.quantile(np.abs(dy1 - dy)[w]/10e-6, [0.5, 0.9, 1.0]),
+            [0.003, 0.01, 0.04]
+        )
+
+        # Check that danish gives the same answer
+        dx2, dy2 = danish.pupil_to_focal(
+            u, v,
+            aberrations=[0],
+            focal_length=10.31,
+            R_outer=4.18, R_inner=4.18*0.612,
+            x_offset=zx, y_offset=zy
+        )
+
+        np.testing.assert_array_less(
+            np.quantile(np.abs(dx2 - dx)[w]/10e-6, [0.5, 0.9, 1.0]),
+            [0.003, 0.01, 0.04]
+        )
+
+        np.testing.assert_array_less(
+            np.quantile(np.abs(dy2 - dy)[w]/10e-6, [0.5, 0.9, 1.0]),
+            [0.003, 0.01, 0.04]
+        )
+
+
+
 if __name__ == "__main__":
     test_coord_roundtrip()
     test_LSST()
     test_LSST_aberrated()
     test_factory_offsets()
     test_curly_offsets()
+    test_focal_plane_hits()
