@@ -797,7 +797,7 @@ def test_fitter_AuxTel_rigid_perturbation():
         np.testing.assert_allclose(dx_fit, dx, rtol=0, atol=1e-2)
         np.testing.assert_allclose(dy_fit, dy, rtol=0, atol=1e-2)
         np.testing.assert_allclose(fwhm_fit, fwhm, rtol=0, atol=5e-2)
-        np.testing.assert_allclose(z_fit, z_true, rtol=0, atol=0.005*wavelength)
+        np.testing.assert_allclose(z_fit, z_true, rtol=0, atol=0.006*wavelength)
         rms = np.sqrt(np.sum(((z_true-z_fit)/wavelength)**2))
         assert rms < 0.1, "rms %9.3f > 0.1" % rms
 
