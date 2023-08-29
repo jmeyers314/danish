@@ -55,6 +55,11 @@ def pupil_to_focal(
     x_offset, y_offset : galsim.zernike.Zernike, optional
         Additional focal plane offsets (in meters) represented as Zernike
         series.
+
+    Returns
+    -------
+    x, y : array of float
+        Focal coordinates in meters.
     """
     if Z is None:
         Z = galsim.zernike.Zernike(
@@ -108,6 +113,11 @@ def pupil_focal_jacobian(
     x_offset, y_offset : galsim.zernike.Zernike, optional
         Additional focal plane offsets (in meters) represented as Zernike
         series.
+
+    Returns
+    -------
+    dxdu, dxdv, dydu, dydv : array of float
+        Jacobian of focal coordinates with respect to pupil coordinates.
     """
     if Z is None:
         Z = galsim.zernike.Zernike(
