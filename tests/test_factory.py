@@ -350,7 +350,7 @@ def test_focal_plane_hits():
             telescope,
             thx, thy,
             wavelength,
-            nrad=30, naz=180, reference='chief',
+            nrad=20, naz=120, reference='chief',
             jmax=55, eps=0.612,
             include_vignetted=False
         )
@@ -395,6 +395,83 @@ def test_focal_plane_hits():
             np.quantile(np.abs(dy2 - dy)[w]/10e-6, [0.5, 0.9, 1.0]),
             [0.003, 0.01, 0.04]
         )
+
+        # Now add a phase screen in front of the telescope
+        coefs = rng.uniform(-20.0, 20.0, size=10)*1e-9  # ~20 nm RMSs
+        coefs[:4] = 0.0
+        perturbed = telescope.withInsertedOptic(
+            before="M1",
+            item=batoid.OPDScreen(
+                name='Screen',
+                surface=batoid.Plane(),
+                screen=batoid.Zernike(
+                    coefs,
+                    R_outer=4.18,
+                    R_inner=0.612*.18
+                ),
+                # screen=batoid.Plane(),
+                coordSys=telescope.stopSurface.coordSys,
+                obscuration=telescope['M1'].obscuration,
+            )
+        )
+
+        prays = perturbed.trace(rays.copy())
+        # Use the old chief ray; that's how the modeling code is set up.  The
+        # chief ray position is degenerate with the donut centroid so doesn't
+        # matter.
+        dx3 = prays.x - chief.x
+        dy3 = prays.y - chief.y
+
+        # Check that danish gives the same answer
+        dx4, dy4 = danish.pupil_to_focal(
+            u, v,
+            aberrations=-coefs,
+            focal_length=10.33,
+            R_outer=4.18, R_inner=4.18*0.612,
+            x_offset=zx, y_offset=zy
+        )
+
+        dx /= 10e-6
+        dy /= 10e-6
+        dx3 /= 10e-6
+        dy3 /= 10e-6
+        dx4 /= 10e-6
+        dy4 /= 10e-6
+
+        np.testing.assert_array_less(
+            np.quantile(np.abs(dx3 - dx4)[w], [0.5, 0.9, 1.0]),
+            [0.013, 0.025, 0.06]
+        )
+
+        np.testing.assert_array_less(
+            np.quantile(np.abs(dy3 - dy4)[w], [0.5, 0.9, 1.0]),
+            [0.013, 0.025, 0.06]
+        )
+
+        # import matplotlib.pyplot as plt
+        # plt.figure()
+        # plt.scatter(dx[w], dy[w], c='k', s=1)
+        # plt.scatter(dx3[w], dy3[w], c='r', s=1)
+        # plt.scatter(dx4[w], dy4[w], c='b', s=1)
+        # plt.show()
+
+        # plt.figure()
+        # plt.scatter((dx3-dx)[w], (dy3-dy)[w], c='r', s=1)
+        # plt.scatter((dx4-dx)[w], (dy4-dy)[w], c='b', s=1)
+        # plt.show()
+
+        # plt.figure()
+        # plt.scatter((dx3-dx4)[w], (dy3-dy4)[w], c='k', s=1)
+        # plt.show()
+
+        # print(np.quantile(np.abs(dx3/10e-6), [0.5, 0.9, 0.99, 1.0]))
+        # print(np.quantile(np.abs((dx3-dx)/10e-6), [0.5, 0.9, 0.99, 1.0]))
+        # print(np.quantile(np.abs((dx4-dx)/10e-6), [0.5, 0.9, 0.99, 1.0]))
+        # print()
+
+
+
+
 
 
 
