@@ -89,6 +89,11 @@ jobs:
       - name: List all installed packages for reference
         run: pip list
 
+      - name: Install the main branch of batoid
+        run: |
+          pip install -U pybind11-global
+          pip install -U git+https://github.com/jmeyers314/batoid.git@main
+
       - name: Build danish
         run: pip install .
 
