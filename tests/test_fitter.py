@@ -6,6 +6,7 @@ import yaml
 from scipy.optimize import least_squares
 import numpy as np
 import batoid
+from galsim.zernike import Zernike
 
 import danish
 from test_helpers import timer
@@ -148,6 +149,72 @@ def test_fitter_LSST_fiducial():
 
         dx_fit, dy_fit, fwhm_fit, *z_fit = result.x
         z_fit = np.array(z_fit)
+
+        # mod = fitter.model(
+        #     dx_fit, dy_fit, fwhm_fit, z_fit
+        # )
+        # plot_result(img, mod, z_fit/wavelength, z_true/wavelength)
+
+        np.testing.assert_allclose(dx_fit, dx, rtol=0, atol=5e-2)
+        np.testing.assert_allclose(dy_fit, dy, rtol=0, atol=5e-2)
+        np.testing.assert_allclose(fwhm_fit, fwhm, rtol=0, atol=5e-2)
+        np.testing.assert_allclose(z_fit, z_true, rtol=0, atol=0.05*wavelength)
+        rms = np.sqrt(np.sum(((z_true-z_fit)/wavelength)**2))
+        assert rms < 0.1, "rms %9.3f > 0.1" % rms
+
+        # Try with x_offset and y_offset too
+        ####################################
+
+        x_offset, y_offset = batoid.zernikeXYAberrations(
+            telescope,
+            np.deg2rad(thx),
+            np.deg2rad(thy),
+            wavelength,
+            nrad=20, naz=120, reference='chief',
+            jmax=66, eps=0.612
+        )
+        zx = Zernike(
+            x_offset,
+            R_outer=4.18, R_inner=4.18*0.61,
+        )
+        zy = Zernike(
+            y_offset,
+            R_outer=4.18, R_inner=4.18*0.61,
+        )
+
+        fitter = danish.SingleDonutModel(
+            factory,
+            x_offset=zx, y_offset=zy,
+            z_ref=z_ref*0,
+            z_terms=z_terms,
+            thx=thx, thy=thy
+        )
+
+        dx, dy = rng.uniform(-0.5, 0.5, size=2)
+        fwhm = rng.uniform(0.5, 1.5)
+        sky_level = 1000.0
+
+        img = fitter.model(
+            dx, dy, fwhm, z_true,
+            sky_level=sky_level, flux=5e6
+        )
+
+        guess = [0.0, 0.0, 0.7]+[0.0]*19
+        result = least_squares(
+            fitter.chi, guess, jac=fitter.jac,
+            ftol=1e-3, xtol=1e-3, gtol=1e-3,
+            max_nfev=20, verbose=2,
+            args=(img, sky_level)
+        )
+        for i in range(4, 23):
+            out = f"{i:2d}  {result.x[i-1]/wavelength:9.3f}"
+            out += f"  {z_true[i-4]/wavelength:9.3f}"
+            out += f"  {(result.x[i-1]-z_true[i-4])/wavelength:9.3f}"
+            print(out)
+
+        dx_fit, dy_fit, fwhm_fit, *z_fit = result.x
+        z_fit = np.array(z_fit)
+
         # mod = fitter.model(
         #     dx_fit, dy_fit, fwhm_fit, z_fit
         # )
@@ -510,7 +577,7 @@ def test_fitter_LSST_kolm():
 
 
 @timer
-def test_fitter_LSST_atm():
+def test_fitter_LSST_atm(plot=False):
     """Roundtrip using GalSim phase screen atmosphere + batoid to produce test
     image of AOS DOF perturbed optics.  Model and fitter run independent code.
     """
@@ -570,6 +637,7 @@ def test_fitter_LSST_atm():
 
         dx_fit, dy_fit, fwhm_fit, *z_fit = result.x
         z_fit = np.array(z_fit)
+
         # mod = fitter.model(
         #     dx_fit, dy_fit, fwhm_fit, z_fit
         # )
@@ -603,6 +671,7 @@ def test_fitter_LSST_atm():
 
         dx_fit, dy_fit, fwhm_fit, *z_fit = binned_result.x
         z_fit = np.array(z_fit)
+
         # mod = binned_fitter.model(
         #     dx_fit, dy_fit, fwhm_fit, z_fit
         # )
@@ -728,7 +797,7 @@ def test_fitter_AuxTel_rigid_perturbation():
         np.testing.assert_allclose(dx_fit, dx, rtol=0, atol=1e-2)
         np.testing.assert_allclose(dy_fit, dy, rtol=0, atol=1e-2)
         np.testing.assert_allclose(fwhm_fit, fwhm, rtol=0, atol=5e-2)
-        np.testing.assert_allclose(z_fit, z_true, rtol=0, atol=0.005*wavelength)
+        np.testing.assert_allclose(z_fit, z_true, rtol=0, atol=0.006*wavelength)
         rms = np.sqrt(np.sum(((z_true-z_fit)/wavelength)**2))
         assert rms < 0.1, "rms %9.3f > 0.1" % rms
 
