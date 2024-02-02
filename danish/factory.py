@@ -807,8 +807,8 @@ class DonutFactory:
                     continue
                 radius = np.polyval(self.obsc_radii[k], thr_deg)
                 center = np.polyval(self.obsc_centers[k], thr_deg)
-                cx = center*thx/thr
-                cy = center*thy/thr
+                cx = center*thx/thr if thr > 0 else 0
+                cy = center*thy/thr if thr > 0 else 0
 
                 enc = _enclosed_fraction(
                     x[w], y[w], u[w], v[w],
