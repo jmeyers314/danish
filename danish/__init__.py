@@ -1,4 +1,4 @@
-from ._version import __version__, __version_info__
+from ._version import __version__, __version_tuple__
 
 from .factory import (
     DonutFactory, pupil_to_focal, pupil_focal_jacobian,
