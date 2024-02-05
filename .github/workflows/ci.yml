@@ -45,7 +45,7 @@ jobs:
           echo 'event.after: ${{ github.event.after }}'
 
       - name: Set up Python ${{ matrix.py }}
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.py }}
 
@@ -89,10 +89,9 @@ jobs:
       - name: List all installed packages for reference
         run: pip list
 
-      - name: Install the main branch of batoid
+      - name: Install the release branch of batoid
         run: |
-          pip install -U pybind11-global
-          pip install -U git+https://github.com/jmeyers314/batoid.git@main
+          pip install batoid
 
       - name: Build danish
         run: pip install .
