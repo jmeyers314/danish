@@ -1,16 +1,7 @@
 import re
 from glob import glob
 from pybind11.setup_helpers import Pybind11Extension, build_ext
-from setuptools import setup
-
-VERSIONFILE="danish/_version.py"
-verstrline = open(VERSIONFILE, "rt").read()
-VSRE = r"^__version__ = ['\"]([^'\"]*)['\"]"
-mo = re.search(VSRE, verstrline, re.M)
-if mo:
-    __version__ = mo.group(1)
-else:
-    raise RuntimeError("Unable to find version string in %s." % (VERSIONFILE,))
+from setuptools import setup, find_packages
 
 with open("README.rst", 'r') as fh:
     long_description = fh.read()
@@ -24,14 +15,15 @@ ext_modules = [
 
 setup(
     name='danish',
-    version=__version__,
+    use_scm_version=True,
+    setup_requires=['setuptools_scm'],
     author='Josh Meyers',
-    author_email='meyers18@llnl.gov',
+    author_email='jmeyers314@gmail.com',
     url='https://github.com/jmeyers314/danish',
     description="Geometric donut engine",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    packages=['danish'],
+    packages=find_packages(exclude=['danish/data', 'danish/data/*']),
     package_data={
         "danish": ["data/*"],
     },

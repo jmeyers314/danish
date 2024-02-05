@@ -1,3 +1,6 @@
 [build-system]
-requires = ["setuptools>=42", "wheel", "pybind11>2.10"]
+requires = ["setuptools>=42", "wheel", "setuptools_scm[toml]>=3.4", "cmake", "pybind11"]
 build-backend = "setuptools.build_meta"
+
+[tool.setuptools_scm]
+write_to = "danish/_version.py"
