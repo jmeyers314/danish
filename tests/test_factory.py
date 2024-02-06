@@ -407,9 +407,8 @@ def test_focal_plane_hits():
                 screen=batoid.Zernike(
                     coefs,
                     R_outer=4.18,
-                    R_inner=0.612*.18
+                    R_inner=0.612*4.18
                 ),
-                # screen=batoid.Plane(),
                 coordSys=telescope.stopSurface.coordSys,
                 obscuration=telescope['M1'].obscuration,
             )
@@ -440,12 +439,12 @@ def test_focal_plane_hits():
 
         np.testing.assert_array_less(
             np.quantile(np.abs(dx3 - dx4)[w], [0.5, 0.9, 1.0]),
-            [0.013, 0.025, 0.06]
+            [0.003, 0.01, 0.05]
         )
 
         np.testing.assert_array_less(
             np.quantile(np.abs(dy3 - dy4)[w], [0.5, 0.9, 1.0]),
-            [0.013, 0.025, 0.06]
+            [0.003, 0.01, 0.05]
         )
 
         # import matplotlib.pyplot as plt
