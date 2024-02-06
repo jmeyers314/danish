@@ -104,8 +104,8 @@ jobs:
       - name: Upload coverage to codecov
         run: |
           pwd -P
-          ls -la
-          env
+          ls -rtlha
+          cat coverage.xml
           coverage combine || true  # (Not necessary I think, but just in case.)
           coverage report
           ls -la
