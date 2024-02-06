@@ -23,7 +23,7 @@ setup(
     description="Geometric donut engine",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    packages=find_packages(exclude=['danish/data', 'danish/data/*']),
+    packages=find_packages(exclude=['danish.data', 'danish.data.*']),
     package_data={
         "danish": ["data/*"],
     },
