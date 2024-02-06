@@ -1,0 +1,3 @@
+include src/*.cpp
+recursive-include danish/data/ *
+include LICENSE
