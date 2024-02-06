@@ -23,11 +23,10 @@ setup(
     description="Geometric donut engine",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    packages=find_packages(where="danish", exclude=['danish/data', 'danish/data/*']),
+    packages=find_packages(exclude=['danish/data', 'danish/data/*']),
     package_data={
         "danish": ["data/*"],
     },
-    package_dir={'danish': 'danish'},
     install_requires=['pybind11>2.10', 'numpy', 'pyyaml', 'galsim', 'batoid', 'scipy'],
     python_requires='>=3.8',
     zip_safe=False,
