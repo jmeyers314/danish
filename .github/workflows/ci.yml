@@ -105,7 +105,6 @@ jobs:
         run: |
           pwd -P
           ls -rtlha
-          cat coverage.xml
           coverage combine || true  # (Not necessary I think, but just in case.)
           coverage report
           ls -la
