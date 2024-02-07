@@ -96,7 +96,7 @@ jobs:
           pip install batoid
 
       - name: Build danish
-        run: pip install .
+        run: pip install -e .
 
       - name: Run unit tests
         run: pytest --cov=danish --cov-report=xml --cov-config tests/.coveragerc
