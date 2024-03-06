@@ -115,9 +115,7 @@ def test_fitter_LSST_fiducial():
 
         factory = danish.DonutFactory(
             R_outer=4.18, R_inner=2.5498,
-            obsc_radii=Rubin_obsc['radii'],
-            obsc_centers=Rubin_obsc['centers'],
-            obsc_th_mins=Rubin_obsc['th_mins'],
+            mask_params=Rubin_obsc,
             focal_length=10.31, pixel_scale=10e-6
         )
 
@@ -287,9 +285,7 @@ def test_fitter_LSST_rigid_perturbation():
 
         factory = danish.DonutFactory(
             R_outer=4.18, R_inner=2.5498,
-            obsc_radii=Rubin_obsc['radii'],
-            obsc_centers=Rubin_obsc['centers'],
-            obsc_th_mins=Rubin_obsc['th_mins'],
+            mask_params=Rubin_obsc,
             focal_length=10.31, pixel_scale=10e-6
         )
 
@@ -408,9 +404,7 @@ def test_fitter_LSST_z_perturbation():
 
         factory = danish.DonutFactory(
             R_outer=4.18, R_inner=2.5498,
-            obsc_radii=Rubin_obsc['radii'],
-            obsc_centers=Rubin_obsc['centers'],
-            obsc_th_mins=Rubin_obsc['th_mins'],
+            mask_params=Rubin_obsc,
             focal_length=10.31, pixel_scale=10e-6
         )
 
@@ -471,16 +465,12 @@ def test_fitter_LSST_kolm():
 
     factory = danish.DonutFactory(
         R_outer=4.18, R_inner=2.5498,
-        obsc_radii=Rubin_obsc['radii'],
-        obsc_centers=Rubin_obsc['centers'],
-        obsc_th_mins=Rubin_obsc['th_mins'],
+        mask_params=Rubin_obsc,
         focal_length=10.31, pixel_scale=10e-6
     )
     binned_factory = danish.DonutFactory(
         R_outer=4.18, R_inner=2.5498,
-        obsc_radii=Rubin_obsc['radii'],
-        obsc_centers=Rubin_obsc['centers'],
-        obsc_th_mins=Rubin_obsc['th_mins'],
+        mask_params=Rubin_obsc,
         focal_length=10.31, pixel_scale=20e-6
     )
 
@@ -590,16 +580,12 @@ def test_fitter_LSST_atm(plot=False):
 
     factory = danish.DonutFactory(
         R_outer=4.18, R_inner=2.5498,
-        obsc_radii=Rubin_obsc['radii'],
-        obsc_centers=Rubin_obsc['centers'],
-        obsc_th_mins=Rubin_obsc['th_mins'],
+        mask_params=Rubin_obsc,
         focal_length=10.31, pixel_scale=10e-6
     )
     binned_factory = danish.DonutFactory(
         R_outer=4.18, R_inner=2.5498,
-        obsc_radii=Rubin_obsc['radii'],
-        obsc_centers=Rubin_obsc['centers'],
-        obsc_th_mins=Rubin_obsc['th_mins'],
+        mask_params=Rubin_obsc,
         focal_length=10.31, pixel_scale=20e-6
     )
 
@@ -748,9 +734,7 @@ def test_fitter_AuxTel_rigid_perturbation():
         # seen elsewhere.  Possible location for future improvement.
         factory = danish.DonutFactory(
             R_outer=0.6, R_inner=0.2115,
-            obsc_radii=AuxTel_obsc['radii'],
-            obsc_centers=AuxTel_obsc['centers'],
-            obsc_th_mins=AuxTel_obsc['th_mins'],
+            mask_params=AuxTel_obsc,
             focal_length=20.8, pixel_scale=10e-6
         )
 
@@ -841,9 +825,7 @@ def test_dz_fitter_LSST_fiducial():
 
         factory = danish.DonutFactory(
             R_outer=4.18, R_inner=2.5498,
-            obsc_radii=Rubin_obsc['radii'],
-            obsc_centers=Rubin_obsc['centers'],
-            obsc_th_mins=Rubin_obsc['th_mins'],
+            mask_params=Rubin_obsc,
             focal_length=10.31, pixel_scale=10e-6
         )
 
@@ -976,9 +958,7 @@ def test_dz_fitter_LSST_rigid_perturbation():
 
         factory = danish.DonutFactory(
             R_outer=4.18, R_inner=2.5498,
-            obsc_radii=Rubin_obsc['radii'],
-            obsc_centers=Rubin_obsc['centers'],
-            obsc_th_mins=Rubin_obsc['th_mins'],
+            mask_params=Rubin_obsc,
             focal_length=10.31, pixel_scale=10e-6
         )
 
@@ -1136,9 +1116,7 @@ def test_dz_fitter_LSST_z_perturbation():
 
         factory = danish.DonutFactory(
             R_outer=4.18, R_inner=2.5498,
-            obsc_radii=Rubin_obsc['radii'],
-            obsc_centers=Rubin_obsc['centers'],
-            obsc_th_mins=Rubin_obsc['th_mins'],
+            mask_params=Rubin_obsc,
             focal_length=10.31, pixel_scale=10e-6
         )
 
@@ -1208,9 +1186,7 @@ def test_dz_fitter_LSST_kolm():
 
     factory = danish.DonutFactory(
         R_outer=4.18, R_inner=2.5498,
-        obsc_radii=Rubin_obsc['radii'],
-        obsc_centers=Rubin_obsc['centers'],
-        obsc_th_mins=Rubin_obsc['th_mins'],
+        mask_params=Rubin_obsc,
         focal_length=10.31, pixel_scale=10e-6
     )
     sky_level = data[0]['sky_level']
@@ -1294,9 +1270,7 @@ def test_dz_fitter_LSST_atm():
 
     factory = danish.DonutFactory(
         R_outer=4.18, R_inner=2.5498,
-        obsc_radii=Rubin_obsc['radii'],
-        obsc_centers=Rubin_obsc['centers'],
-        obsc_th_mins=Rubin_obsc['th_mins'],
+        mask_params=Rubin_obsc,
         focal_length=10.31, pixel_scale=10e-6
     )
     sky_level = data[0]['sky_level']
