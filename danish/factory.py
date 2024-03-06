@@ -648,34 +648,47 @@ class DonutFactory:
         Also assumed to be Zernike normalization radius.
     R_inner : float
         Entrance pupil inner radius.  Used for defining annular Zernikes.
-    obsc_radii : dict of str -> array of float
-        Polynominal coefficients in field angle (degrees) of obscuration radii
-        projected onto pupil in meters, indexed by surface name.  Largest degree
-        first.
-    obsc_centers : dict of str -> array of float
-        Polynominal coefficients in field angle (degrees) of obscuration center
-        projected onto pupil in meters, indexed by surface name.  Largest degree
-        first.
-    obsc_th_mins : dict of str -> float
-        Minimum field angle (degrees) for which to apply obscuration, indexed by
-        surface.
+    mask_params : dict
+        Nested dictionary containing the mask model. See the notes below
+        for details on the format.
     focal_length : float
         Focal length in meters.
     pixel_scale : float
         Pixel scale in meters.
+
+    Notes
+    -----
+    The mask_params dictionary is a nested dictionary the specifies the
+    mask model. Each top-level item in the dictionary can have any number
+    of edges (usually "outer" and/or "inner"). Each edge is modeled as a
+    circle in pupil space. For each of these edges, there is a minimum
+    and maximum field angle where the edge needs to be computed, as well
+    as polynomial coefficients for calculating the center and radius of
+    the circle. These coefficients are meant to be used with np.polyval.
+    Each edge also has a "clear" bool which indicates whether the interior
+    of the circle is clear or opaque.
+
+    The format of the dictionary is
+    {
+        item:
+            edge:
+                clear: bool
+                thetaMin: float (degrees)
+                thetaMax: float (degrees)
+                center: [float,] (meters)
+                radius: [float,] (meters)
+    }
     """
     def __init__(
         self, *,
         R_outer=4.18, R_inner=2.5498,
-        obsc_radii=None, obsc_centers=None, obsc_th_mins=None,
+        mask_params=None,
         focal_length=10.31, pixel_scale=10e-6
     ):
         self.R_outer = R_outer
         self.R_inner = R_inner
 
-        self.obsc_radii = obsc_radii
-        self.obsc_centers = obsc_centers
-        self.obsc_th_mins = obsc_th_mins
+        self.mask_params = mask_params
         self.focal_length = focal_length
         self.pixel_scale = pixel_scale
 
@@ -797,32 +810,37 @@ class DonutFactory:
 
         # Clip out other obscurations as requested
         w = np.nonzero(f)[0]
-        if self.obsc_radii is not None:
-            for k in self.obsc_radii:
-                if not np.any(w):
-                    break
-                thr = np.sqrt(thx*thx + thy*thy)
-                thr_deg = np.rad2deg(thr)
-                if thr_deg < self.obsc_th_mins[k]:
-                    continue
-                radius = np.polyval(self.obsc_radii[k], thr_deg)
-                center = np.polyval(self.obsc_centers[k], thr_deg)
-                cx = center*thx/thr if thr > 0 else 0
-                cy = center*thy/thr if thr > 0 else 0
+        if self.mask_params is not None:
+            for item in self.mask_params:
+                for edge in self.mask_params[item]:
+                    edge_params = self.mask_params[item][edge]
+                
+                    if not np.any(w):
+                        break
+                    thr = np.sqrt(thx*thx + thy*thy)
+                    thr_deg = np.rad2deg(thr)
+                    if thr_deg < edge_params["thetaMin"] or thr_deg > edge_params["thetaMax"]:
+                        continue
 
-                enc = _enclosed_fraction(
-                    x[w], y[w], u[w], v[w],
-                    cx, cy, radius,
-                    Z=Z1,
-                    x_offset=x_offset, y_offset=y_offset,
-                    pixel_scale=self.pixel_scale,
-                    _jac=jac[:, w],
-                )
-                if '_inner' in k:
-                    f[w] = np.minimum(f[w], 1-enc)
-                else:
-                    f[w] = np.minimum(f[w], enc)
-                w = np.nonzero(f)[0]
+                    radius = np.polyval(edge_params["radius"], thr_deg)
+                    center = np.polyval(edge_params["center"], thr_deg)
+                    cx = center*thx/thr if thr > 0 else 0
+                    cy = center*thy/thr if thr > 0 else 0
+
+                    enc = _enclosed_fraction(
+                        x[w], y[w], u[w], v[w],
+                        cx, cy, radius,
+                        Z=Z1,
+                        x_offset=x_offset, y_offset=y_offset,
+                        pixel_scale=self.pixel_scale,
+                        _jac=jac[:, w],
+                    )
+                    if edge_params["clear"]:
+                        f[w] = np.minimum(f[w], enc)
+                    else:
+                        f[w] = np.minimum(f[w], 1-enc)
+                        
+                    w = np.nonzero(f)[0]
 
         # pixel pupil-to-focal area ratio
         # Negative hessian almost certainly means there's a caustic, but we'll
