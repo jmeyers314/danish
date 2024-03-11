@@ -1,4 +1,5 @@
 import batoid
+from contextlib import ExitStack
 import os
 import yaml
 import numpy as np
@@ -315,163 +316,401 @@ def test_curly_offsets():
 
 
 @timer
-def test_focal_plane_hits():
-    telescope = batoid.Optic.fromYaml("LSST_r.yaml")
+def test_focal_plane_hits_fiducial():
+    """Test that polynomial fit of focal plane ray hit locations (wrt the chief ray)
+    matches the true focal plane ray hit locations."""
+
+    fiducial = batoid.Optic.fromYaml("LSST_r.yaml")
+    # We mostly care about the transformation for donuts, so shift the camera
+    shifted = fiducial.withGloballyShiftedOptic("LSSTCamera", [0,0,0.0015])
     wavelength = 622e-9
+    focal_length = 10.31
+    eps = 0.621
 
     rng = np.random.default_rng(987)
 
     for _ in range(10):
-
         thr = np.deg2rad(np.sqrt(rng.uniform(0, 1.8**2)))
         ph = rng.uniform(0, 2*np.pi)
         thx, thy = thr*np.cos(ph), thr*np.sin(ph)
 
         rays = batoid.RayVector.asPolar(
-            optic=telescope,
+            optic=shifted,
             theta_x=thx, theta_y=thy,
             wavelength=wavelength,
-            nrad=20, naz=120
+            nrad=20, naz=120,
         )
 
-        epRays = telescope.stopSurface.surface.intersect(rays.copy())
+        epRays = shifted.stopSurface.interact(rays.copy())
         u = epRays.x
         v = epRays.y
-        focal = telescope.trace(rays.copy())
-        chief = batoid.RayVector.fromFieldAngles(
+        focal = shifted.trace(rays.copy())
+
+        chief = batoid.RayVector.fromStop(
+            0, 0, shifted, wavelength=wavelength,
             theta_x=thx, theta_y=thy,
-            optic=telescope, wavelength=wavelength
         )
-        telescope.trace(chief)
+
+        shifted.trace(chief)
         dx = focal.x - chief.x
         dy = focal.y - chief.y
 
-        x_offset, y_offset = batoid.zernikeXYAberrations(
-            telescope,
-            thx, thy,
-            wavelength,
-            nrad=20, naz=120, reference='chief',
-            jmax=55, eps=0.612,
-            include_vignetted=False
-        )
-        zx = Zernike(
-            x_offset,
-            R_outer=4.18, R_inner=4.18*0.612,
-        )
-        zy = Zernike(
-            y_offset,
-            R_outer=4.18, R_inner=4.18*0.612,
-        )
-
-        w = ~focal.vignetted
-        dx1 = zx(u, v)
-        dy1 = zy(u, v)
-
-        np.testing.assert_array_less(
-            np.quantile(np.abs(dx1 - dx)[w]/10e-6, [0.5, 0.9, 1.0]),
-            [0.003, 0.01, 0.04]
-        )
-
-        np.testing.assert_array_less(
-            np.quantile(np.abs(dy1 - dy)[w]/10e-6, [0.5, 0.9, 1.0]),
-            [0.003, 0.01, 0.04]
-        )
-
-        # Check that danish gives the same answer
-        dx2, dy2 = danish.pupil_to_focal(
-            u, v,
-            aberrations=[0],
-            focal_length=10.31,
-            R_outer=4.18, R_inner=4.18*0.612,
-            x_offset=zx, y_offset=zy
-        )
-
-        np.testing.assert_array_less(
-            np.quantile(np.abs(dx2 - dx)[w]/10e-6, [0.5, 0.9, 1.0]),
-            [0.003, 0.01, 0.04]
-        )
-
-        np.testing.assert_array_less(
-            np.quantile(np.abs(dy2 - dy)[w]/10e-6, [0.5, 0.9, 1.0]),
-            [0.003, 0.01, 0.04]
-        )
-
-        # Now add a phase screen in front of the telescope
-        coefs = rng.uniform(-20.0, 20.0, size=10)*1e-9  # ~20 nm RMSs
-        coefs[:4] = 0.0
-        perturbed = telescope.withInsertedOptic(
-            before="M1",
-            item=batoid.OPDScreen(
-                name='Screen',
-                surface=batoid.Plane(),
-                screen=batoid.Zernike(
-                    coefs,
-                    R_outer=4.18,
-                    R_inner=0.612*4.18
-                ),
-                coordSys=telescope.stopSurface.coordSys,
-                obscuration=telescope['M1'].obscuration,
+        for order, tol_xy, tol_ta in [
+            (11, 7e-2, 6e-1),
+            (12, 2e-2, 6e-2),
+            (13, 2e-3, 2e-2),
+            (14, 6e-4, 9e-3),
+        ]:
+            x_offset, y_offset = batoid.zernikeXYAberrations(
+                shifted,
+                thx, thy,
+                wavelength,
+                nrad=20, naz=120, reference='chief',
+                # nrad=80, naz=480, reference='chief',
+                jmax=np.sum(np.arange(order)), eps=eps,
+                include_vignetted=False
             )
-        )
+            zx = Zernike(
+                x_offset,
+                R_outer=4.18, R_inner=4.18*eps,
+            )
+            zy = Zernike(
+                y_offset,
+                R_outer=4.18, R_inner=4.18*eps,
+            )
 
-        prays = perturbed.trace(rays.copy())
-        # Use the old chief ray; that's how the modeling code is set up.  The
-        # chief ray position is degenerate with the donut centroid so doesn't
-        # matter.
-        dx3 = prays.x - chief.x
-        dy3 = prays.y - chief.y
+            w = ~focal.vignetted
+            dx1 = zx(u, v)
+            dy1 = zy(u, v)
 
-        # Check that danish gives the same answer
-        dx4, dy4 = danish.pupil_to_focal(
-            u, v,
-            aberrations=-coefs,
-            focal_length=10.33,
-            R_outer=4.18, R_inner=4.18*0.612,
-            x_offset=zx, y_offset=zy
-        )
+            rms_xy = np.sqrt(
+                np.mean(
+                    (dx-dx1)**2 + (dy-dy1)**2
+                )
+            )/10e-6
+            # print(rms_xy)
 
-        dx /= 10e-6
-        dy /= 10e-6
-        dx3 /= 10e-6
-        dy3 /= 10e-6
-        dx4 /= 10e-6
-        dy4 /= 10e-6
+            ddr1 = np.hypot(dx-dx1, dy-dy1)/10e-6  # pixels
+            np.testing.assert_array_less(ddr1, tol_xy)
 
-        np.testing.assert_array_less(
-            np.quantile(np.abs(dx3 - dx4)[w], [0.5, 0.9, 1.0]),
-            [0.003, 0.01, 0.05]
-        )
+            zTA = batoid.zernikeTA(
+                shifted,
+                thx, thy,
+                wavelength,
+                nrad=20, naz=120, reference='chief',
+                jmax=np.sum(np.arange(order)), eps=eps,
+                focal_length=focal_length,
+            ) * wavelength
 
-        np.testing.assert_array_less(
-            np.quantile(np.abs(dy3 - dy4)[w], [0.5, 0.9, 1.0]),
-            [0.003, 0.01, 0.05]
-        )
+            zz = Zernike(
+                zTA,
+                R_outer=4.18, R_inner=4.18*eps,
+            )
+            zzx = -zz.gradX*focal_length
+            zzy = -zz.gradY*focal_length
 
-        # import matplotlib.pyplot as plt
-        # plt.figure()
-        # plt.scatter(dx[w], dy[w], c='k', s=1)
-        # plt.scatter(dx3[w], dy3[w], c='r', s=1)
-        # plt.scatter(dx4[w], dy4[w], c='b', s=1)
-        # plt.show()
+            dx2 = zzx(u, v)
+            dy2 = zzy(u, v)
 
-        # plt.figure()
-        # plt.scatter((dx3-dx)[w], (dy3-dy)[w], c='r', s=1)
-        # plt.scatter((dx4-dx)[w], (dy4-dy)[w], c='b', s=1)
-        # plt.show()
+            rms_ta =np.sqrt(
+                np.mean(
+                    (dx-dx2)**2 + (dy-dy2)**2
+                )
+            )/10e-6
+            # print(rms_ta)
 
-        # plt.figure()
-        # plt.scatter((dx3-dx4)[w], (dy3-dy4)[w], c='k', s=1)
-        # plt.show()
+            ddr2 = np.hypot(dx-dx2, dy-dy2)/10e-6  # pixels
+            np.testing.assert_array_less(ddr2, tol_ta)
 
-        # print(np.quantile(np.abs(dx3/10e-6), [0.5, 0.9, 0.99, 1.0]))
-        # print(np.quantile(np.abs((dx3-dx)/10e-6), [0.5, 0.9, 0.99, 1.0]))
-        # print(np.quantile(np.abs((dx4-dx)/10e-6), [0.5, 0.9, 0.99, 1.0]))
-        # print()
+            # import matplotlib.pyplot as plt
+
+            # def colorbar(mappable):
+            #     from mpl_toolkits.axes_grid1 import make_axes_locatable
+            #     import matplotlib.pyplot as plt
+            #     last_axes = plt.gca()
+            #     ax = mappable.axes
+            #     fig = ax.figure
+            #     divider = make_axes_locatable(ax)
+            #     cax = divider.append_axes("right", size="5%", pad=0.05)
+            #     cbar = fig.colorbar(mappable, cax=cax)
+            #     plt.sca(last_axes)
+            #     return cbar
+
+            # fig, axes = plt.subplots(ncols=2, figsize=(10, 4.5))
+            # for ax, val, title in zip(
+            #     axes,
+            #     [dx-dx1, dy-dy1],
+            #     ["dx", "dy"]
+            # ):
+            #     colorbar(
+            #         ax.scatter(
+            #             u[w], v[w], c=val[w]/10e-6, cmap='bwr', vmin=-0.01, vmax=0.01, s=5
+            #         )
+            #     )
+            #     ax.set_aspect('equal')
+            #     ax.set_title(title)
+            # fig.suptitle(
+            #     f"focal plane hit residuals (pixels)\n\n"
+            #     f"Using zernikeXYAberrations order={order}, j={np.sum(np.arange(order))}"
+            # )
+            # fig.tight_layout()
+            # plt.show()
+
+            # fig, axes = plt.subplots(ncols=2, figsize=(10, 4.5))
+            # for ax, val, title in zip(
+            #     axes,
+            #     [dx-dx2, dy-dy2],
+            #     ["dx", "dy"]
+            # ):
+            #     colorbar(
+            #         ax.scatter(
+            #             u[w], v[w], c=val[w]/10e-6, cmap='bwr', vmin=-0.01, vmax=0.01, s=5
+            #         )
+            #     )
+            #     ax.set_aspect('equal')
+            #     ax.set_title(title)
+            # fig.suptitle(
+            #     f"focal plane hit residuals (pixels)\n\n"
+            #     f"Using zernikeTA order={order}, j={np.sum(np.arange(order))}"
+            # )
+            # fig.tight_layout()
+            # plt.show()
 
 
+@timer
+def test_focal_plane_hits_perturbed():
+    """Test that polynomial model for ray aberrations produces the correct
+    ray hit locations on the focal plane.
+    """
+    fiducial = batoid.Optic.fromYaml("LSST_r.yaml")
+    # We mostly care about the transformation for donuts, so shift the camera
+    shifted = fiducial.withGloballyShiftedOptic("LSSTCamera", [0,0,0.0015])
+    wavelength = 622e-9
+    focal_length = 10.31
+    eps = 0.621
 
+    rng = np.random.default_rng(987)
 
+    # Loop over a few perturbations
+    # Use a phase screen as the perturbation
+    with ExitStack() as stack:
+        if __name__ == "__main__":
+            from tqdm import tqdm
+            pbar = stack.enter_context(tqdm(total=400))
+        else:
+            pbar = None
+        for _ in range(10):
+            amplitude = 100e-9  # ~100 nm RMS perturbations
+            jmax = 22
+            coefs = rng.uniform(-1, 1, size=jmax+1)*amplitude/np.sqrt(jmax+1)
+            coefs[:4] = 0.0  # No PTT
+            # Perturb both the fiducial optics and the shifted optics.
+            # Use the perturbed+shifted optics as the "truth" to match.
+            # Use the perturbed+fiducial optics to get the perturbation
+            # to Zernike coefficients.
+            perturbed_fiducial = fiducial.withInsertedOptic(
+                before="M1",
+                item=batoid.OPDScreen(
+                    name='Screen',
+                    surface=batoid.Plane(),
+                    screen=batoid.Zernike(
+                        coefs,
+                        R_outer=4.18,
+                        R_inner=4.18*eps,
+                    ),
+                    coordSys=fiducial.stopSurface.coordSys,
+                    obscuration=fiducial['M1'].obscuration,
+                )
+            )
+            perturbed_shifted = shifted.withInsertedOptic(
+                before="M1",
+                item=batoid.OPDScreen(
+                    name='Screen',
+                    surface=batoid.Plane(),
+                    screen=batoid.Zernike(
+                        coefs,
+                        R_outer=4.18,
+                        R_inner=4.18*eps,
+                    ),
+                    coordSys=shifted.stopSurface.coordSys,
+                    obscuration=shifted['M1'].obscuration,
+                )
+            )
 
+            # Now loop over some field angles
+            for __ in range(10):
+                thr = np.deg2rad(np.sqrt(rng.uniform(0, 1.8**2)))
+                ph = rng.uniform(0, 2*np.pi)
+                thx, thy = thr*np.cos(ph), thr*np.sin(ph)
+
+                rays = batoid.RayVector.asPolar(
+                    optic=shifted,
+                    theta_x=thx, theta_y=thy,
+                    wavelength=wavelength,
+                    nrad=20, naz=120,
+                )
+
+                epRays = shifted.stopSurface.interact(rays.copy())
+                u = epRays.x
+                v = epRays.y
+                focal = perturbed_shifted.trace(rays.copy())
+
+                chief = batoid.RayVector.fromStop(
+                    0, 0, shifted, wavelength=wavelength,
+                    theta_x=thx, theta_y=thy,
+                )
+
+                perturbed_shifted.trace(chief)
+                dx = focal.x - chief.x
+                dy = focal.y - chief.y
+
+                for order, tol_xy, tol_ta in [
+                    (11, 6e-2, 5e-1),
+                    (12, 2e-2, 7e-2),
+                    (13, 5e-3, 6e-2),
+                    (14, 4e-3, 6e-2),
+                ]:
+                    # Get "intrinsic" zernikes from the unperturbed optics
+                    x_offset, y_offset = batoid.zernikeXYAberrations(
+                        shifted,
+                        thx, thy,
+                        wavelength,
+                        nrad=20, naz=120, reference='chief',
+                        # nrad=80, naz=480, reference='chief',
+                        jmax=np.sum(np.arange(order)), eps=eps,
+                        include_vignetted=False
+                    )
+                    zx = Zernike(
+                        x_offset,
+                        R_outer=4.18, R_inner=4.18*eps,
+                    )
+                    zy = Zernike(
+                        y_offset,
+                        R_outer=4.18, R_inner=4.18*eps,
+                    )
+
+                    # Get the perturbation Zernikes from perturbed in-focus optics.
+                    # Use reference sphere Zernikes.
+                    zfiducial = batoid.zernike(
+                        fiducial,
+                        thx, thy,
+                        wavelength,
+                        nx=256, reference='chief',
+                        jmax=np.sum(np.arange(order)), eps=eps,
+                    )*wavelength
+                    zperturbed = batoid.zernike(
+                        perturbed_fiducial,
+                        thx, thy,
+                        wavelength,
+                        nx=256, reference='chief',
+                        jmax=np.sum(np.arange(order)), eps=eps,
+                    )*wavelength
+                    dz = zperturbed - zfiducial
+                    zperturbation = Zernike(
+                        dz,
+                        R_outer=4.18, R_inner=4.18*eps,
+                    )
+
+                    w = ~focal.vignetted
+                    dx1 = (zx - zperturbation.gradX*focal_length)(u, v)
+                    dy1 = (zy - zperturbation.gradY*focal_length)(u, v)
+
+                    rms_xy = np.sqrt(
+                        np.mean(
+                            (dx-dx1)**2 + (dy-dy1)**2
+                        )
+                    )/10e-6
+                    # print(rms_xy)
+
+                    ddr1 = np.hypot(dx-dx1, dy-dy1)/10e-6  # pixels
+                    np.testing.assert_array_less(ddr1, tol_xy)
+
+                    # Now try the TA method
+                    zTA = batoid.zernikeTA(
+                        shifted,
+                        thx, thy,
+                        wavelength,
+                        nrad=20, naz=120, reference='chief',
+                        jmax=np.sum(np.arange(order)), eps=eps,
+                        focal_length=focal_length,
+                    ) * wavelength
+
+                    zz = Zernike(
+                        zTA+dz,
+                        R_outer=4.18, R_inner=4.18*eps,
+                    )
+                    zzx = -zz.gradX*focal_length
+                    zzy = -zz.gradY*focal_length
+
+                    dx2 = zzx(u, v)
+                    dy2 = zzy(u, v)
+
+                    rms_ta =np.sqrt(
+                        np.mean(
+                            (dx-dx2)**2 + (dy-dy2)**2
+                        )
+                    )/10e-6
+                    # print(rms_ta)
+
+                    ddr2 = np.hypot(dx-dx2, dy-dy2)/10e-6  # pixels
+                    np.testing.assert_array_less(ddr2, tol_ta)
+
+                    # import matplotlib.pyplot as plt
+
+                    # def colorbar(mappable):
+                    #     from mpl_toolkits.axes_grid1 import make_axes_locatable
+                    #     import matplotlib.pyplot as plt
+                    #     last_axes = plt.gca()
+                    #     ax = mappable.axes
+                    #     fig = ax.figure
+                    #     divider = make_axes_locatable(ax)
+                    #     cax = divider.append_axes("right", size="5%", pad=0.05)
+                    #     cbar = fig.colorbar(mappable, cax=cax)
+                    #     plt.sca(last_axes)
+                    #     return cbar
+
+                    # fig, axes = plt.subplots(ncols=2, figsize=(10, 4.5))
+                    # for ax, val, title in zip(
+                    #     axes,
+                    #     [dx-dx1, dy-dy1],
+                    #     ["dx", "dy"]
+                    # ):
+                    #     colorbar(
+                    #         ax.scatter(
+                    #             u[w], v[w], c=val[w]/10e-6, cmap='bwr', vmin=-0.01, vmax=0.01, s=5
+                    #         )
+                    #     )
+                    #     ax.set_aspect('equal')
+                    #     ax.set_title(title)
+                    # fig.suptitle(
+                    #     f"focal plane hit residuals (pixels)\n\n"
+                    #     f"Using zernikeXYAberrations order={order}, j={np.sum(np.arange(order))}"
+                    # )
+                    # fig.tight_layout()
+                    # plt.show()
+
+                    # fig, axes = plt.subplots(ncols=2, figsize=(10, 4.5))
+                    # for ax, val, title in zip(
+                    #     axes,
+                    #     [dx-dx2, dy-dy2],
+                    #     ["dx", "dy"]
+                    # ):
+                    #     colorbar(
+                    #         ax.scatter(
+                    #             u[w], v[w], c=val[w]/10e-6, cmap='bwr', vmin=-0.01, vmax=0.01, s=5
+                    #         )
+                    #     )
+                    #     ax.set_aspect('equal')
+                    #     ax.set_title(title)
+                    # fig.suptitle(
+                    #     f"focal plane hit residuals (pixels)\n\n"
+                    #     f"Using zernikeTA order={order}, j={np.sum(np.arange(order))}"
+                    # )
+                    # fig.tight_layout()
+                    # plt.show()
+
+                    if pbar:
+                        pbar.update()
 
 
 if __name__ == "__main__":
@@ -480,4 +719,5 @@ if __name__ == "__main__":
     test_LSST_aberrated()
     test_factory_offsets()
     test_curly_offsets()
-    test_focal_plane_hits()
+    test_focal_plane_hits_fiducial()
+    test_focal_plane_hits_perturbed()
