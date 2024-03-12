@@ -658,7 +658,7 @@ class DonutFactory:
 
     Notes
     -----
-    The mask_params dictionary is a nested dictionary the specifies the
+    The mask_params dictionary is a nested dictionary that specifies the
     mask model. Each top-level item in the dictionary can have any number
     of edges (usually "outer" and/or "inner"). Each edge is modeled as a
     circle in pupil space. For each of these edges, there is a minimum
