@@ -9,11 +9,9 @@ from danish import DonutFactory
 
 
 def time_image():
-    obsc = yaml.safe_load(open(os.path.join(danish.datadir, 'RubinObsc.yaml')))
+    maskModel = yaml.safe_load(open(os.path.join(danish.datadir, 'RubinObsc.yaml')))
     factory = DonutFactory(
-        obsc_radii=obsc['radii'],
-        obsc_centers=obsc['centers'],
-        obsc_th_mins=obsc['th_mins'],
+        mask_params=maskModel
     )
 
     telescope = batoid.Optic.fromYaml("LSST_r.yaml")
