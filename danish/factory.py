@@ -814,7 +814,7 @@ class DonutFactory:
             for item in self.mask_params:
                 for edge in self.mask_params[item]:
                     edge_params = self.mask_params[item][edge]
-                
+
                     if not np.any(w):
                         break
                     thr = np.sqrt(thx*thx + thy*thy)
@@ -839,7 +839,7 @@ class DonutFactory:
                         f[w] = np.minimum(f[w], enc)
                     else:
                         f[w] = np.minimum(f[w], 1-enc)
-                        
+
                     w = np.nonzero(f)[0]
 
         # pixel pupil-to-focal area ratio
