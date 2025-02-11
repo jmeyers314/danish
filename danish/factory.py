@@ -854,10 +854,18 @@ class DonutFactory:
             Fx += x_offset
         if y_offset:
             Fy += y_offset
-        inv_sb = Fx.gradX * Fy.gradY - Fx.gradY * Fy.gradX
-        f[w] /= np.abs(inv_sb(u[w], v[w]))
-        f[w] /= np.max(f[w])
 
+        # # The Zernike math directly below is more elegant, but it turns out that
+        # # forming the products and sums _after_ evaluating is usually more efficient.
+        # inv_sb = Fx.gradX * Fy.gradY - Fx.gradY * Fy.gradX
+        # f[w] /= np.abs(inv_sb(u[w], v[w]))
+
+        uw = u[w]
+        vw = v[w]
+        inv_sb = Fx.gradX(uw, vw)*Fy.gradY(uw, vw) - Fx.gradY(uw, vw)*Fy.gradX(uw, vw)
+        f[w] /= np.abs(inv_sb)
+
+        f[w] /= np.max(f[w])
         img[ypix, xpix] = f
         return img
 
