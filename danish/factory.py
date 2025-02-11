@@ -391,12 +391,12 @@ def _enclosed_fraction(
     else:
         dxdu, dxdv, dydu, dydv, dudx, dudy, dvdx, dvdy = _jac
 
-    drho = np.hypot(du, dv)
+    drhosq = du*du + dv*dv
     h1 = np.sqrt((dudx + dvdy)**2 + (dudy - dvdx)**2)
     h2 = np.sqrt((dudx - dvdy)**2 + (dudy + dvdx)**2)
     maxLinearScale = 0.5 * (h1 + h2) * pixel_scale
-    winside = drho < radius - maxLinearScale
-    woutside = drho > radius + maxLinearScale
+    winside = drhosq < (radius - maxLinearScale)**2
+    woutside = drhosq > (radius + maxLinearScale)**2
     wunknown = ~winside & ~woutside
     wx = np.nonzero(wunknown)[0]
 
