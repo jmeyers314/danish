@@ -24,7 +24,7 @@ jobs:
         run: python -m cibuildwheel --output-dir wheelhouse
         env:
           CIBW_BUILD: "*manylinux*"
-          CIBW_SKIP: cp36* cp37* pp* *i686*
+          CIBW_SKIP: cp36* cp37* cp38* pp* *i686*
           CIBW_BUILD_VERBOSITY: 3
           CIBW_BEFORE_BUILD: pip install -U pybind11-global
 
@@ -50,7 +50,7 @@ jobs:
         run: python -m cibuildwheel --output-dir wheelhouse
         env:
           CIBW_BUILD: "*musllinux*"
-          CIBW_SKIP: cp36* cp37* pp* *i686*
+          CIBW_SKIP: cp36* cp37* cp38* pp* *i686*
           CIBW_BUILD_VERBOSITY: 3
           CIBW_BEFORE_BUILD: pip install -U pybind11-global
 
@@ -76,7 +76,7 @@ jobs:
         run: python -m cibuildwheel --output-dir wheelhouse
         env:
           CIBW_BUILD: "*macosx*"
-          CIBW_SKIP: cp36* cp37* pp* *i686*
+          CIBW_SKIP: cp36* cp37* cp38* pp* *i686*
           CIBW_BUILD_VERBOSITY: 3
           CIBW_BEFORE_BUILD: pip install -U pybind11-global
 
@@ -116,7 +116,11 @@ jobs:
           python -m pip install -U pip
           pip install -U numpy setuptools
           pip install -U pybind11-global
-          pip install -U build
+          pip install -U build setuptools_scm
+
+      - name: Extract version
+        run: |
+          echo "PACKAGE_VERSION=$(python -c 'from setuptools_scm import get_version; print(get_version())')" >> $GITHUB_ENV
 
       - name: Download wheels
         uses: actions/download-artifact@v4
@@ -139,14 +143,17 @@ jobs:
           echo ls -l dist
           ls -l dist
 
-      # - name: Publish package to TestPyPI
-      #   uses: pypa/gh-action-pypi-publish@release/v1
-      #   with:
-      #     password: ${{ secrets.TEST_PYPI_TOKEN }}
-      #     repository-url: https://test.pypi.org/legacy/
-
-      - name: Publish to PyPI
+      - name: Publish to TestPyPI if alpha
+        if: "contains(env.PACKAGE_VERSION, 'a') && !contains(env.PACKAGE_VERSION, '.dev')"
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
-            password: ${{ secrets.PYPI_TOKEN }}
-            verbose: true
+          verbose: true
+          password: ${{ secrets.TEST_PYPI_TOKEN }}
+          repository-url: https://test.pypi.org/legacy/
+
+      - name: Publish to PyPI if stable release
+        if: "!contains(env.PACKAGE_VERSION, 'a') && !contains(env.PACKAGE_VERSION, '.dev')"
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          password: ${{ secrets.PYPI_TOKEN }}
+          verbose: true
