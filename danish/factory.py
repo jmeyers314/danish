@@ -303,6 +303,319 @@ def _focal_to_pupil(
     return u, v
 
 
+def _gnomonic(u, v):
+    """Transform gnomonic tangent plane coordinates to unit sphere coordinates.
+
+    Parameters
+    ----------
+    u, v : array of float
+        Gnomonic coordinates in radians.
+
+    Returns
+    -------
+    alpha, beta, gamma : array of float
+        3D coordinates on the unit sphere.
+    """
+    gamma = 1/np.sqrt(1.0 + u*u + v*v)
+    alpha = u*gamma
+    beta = v*gamma
+    return alpha, beta, -gamma
+
+
+def _rotxy(r, angle):
+    """Rotate a 3D vector around the z-axis.
+
+    Parameters
+    ----------
+    r : array of float
+        3D vector to rotate.
+    angle : float
+        Angle in degrees to rotate the vector.
+
+    Returns
+    -------
+    r_rot : array of float
+        Rotated 3D vector.
+    """
+    sth, cth = np.sin(np.deg2rad(angle)), np.cos(np.deg2rad(angle))
+    x = r[0]*cth + r[1]*sth
+    y = -r[0]*sth + r[1]*cth
+    z = r[2]
+    return np.array([x, y, z])
+
+
+def _project_spider_vane(
+    r0, v0, width, length, angle, thx, thy
+):
+    """Project a 3D spider vane onto the entrance pupil.
+
+    Parameters
+    ----------
+    r0 : array of float
+        3D position of the spider vane center (meters).
+    v0 : array of float
+        3D direction of the spider vane (unitless).
+    width : float
+        Width of the spider vane in meters.
+    length : float
+        Length of the spider vane in meters.
+    angle : float
+        Z-axis rotation angle to apply in degrees.
+    thx, thy : float
+        Gnomonic tangent plane coordinates in radians along which to project the
+        spider vane shadow.
+
+    Returns
+    -------
+    p1 : array of float
+        Projected ~center position of the first edge of the spider vane (meters).
+    angle1 : float
+        Projected angle of the first edge of the spider vane (degrees).
+    p2 : array of float
+        Projected ~center position of the second edge of the spider vane (meters).
+    angle2 : float
+        Projected angle of the second edge of the spider vane (degrees).
+    """
+    r0 = np.array(r0)
+    v0 = np.array(v0)
+    v0 /= np.linalg.norm(v0)
+
+    # Find direction perp to v0 and (0, 0, 1)
+    # This is the direction along which the width is defined.
+    # Expand the cross product with (0, 0, 1) by hand for speed.
+    norm = np.sqrt(v0[0]**2 + v0[1]**2)
+    perp = np.array([v0[1], -v0[0], 0.0]) / norm
+
+    # Compute the spider vane edges in 3D.
+    centerline = np.array([r0 - v0*length/2, r0 + v0*length/2])
+    edge1 = _rotxy(centerline.T-(perp*width/2)[:, None], angle)
+    edge2 = _rotxy(centerline.T+(perp*width/2)[:, None], angle)
+
+    # Now project the edges onto the entrance pupil (defined by z=0).
+    vproj = _gnomonic(thx, thy)
+    t1 = -edge1[2]/vproj[2]
+    t2 = -edge2[2]/vproj[2]
+    proj1 = (edge1 + np.outer(vproj, t1))
+    proj2 = (edge2 + np.outer(vproj, t2))
+
+    # Mean projected xy position.  I.e., ~center of the spider vane
+    p1 = np.mean(proj1[:2], axis=1)
+    p2 = np.mean(proj2[:2], axis=1)
+    angle1 = np.rad2deg(np.arctan2(proj1[1, 1] - proj1[1, 0], proj1[0, 1] - proj1[0, 0]))
+    angle2 = np.rad2deg(np.arctan2(proj2[1, 1] - proj2[1, 0], proj2[0, 1] - proj2[0, 0]))
+    return p1, angle1, p2, angle2
+
+
+def strut_masked_fraction(
+    x, y,
+    u, v,
+    length,
+    p1, angle1, # First edge point and angle
+    p2, angle2, # Second edge point and angle
+    Z=None, aberrations=None, R_outer=1.0, R_inner=0.0,
+    focal_length=None,
+    x_offset=None, y_offset=None,
+    pixel_scale=None,
+):
+    if Z is None:
+        Z = galsim.zernike.Zernike(
+            aberrations, R_outer=R_outer, R_inner=R_inner
+        )
+    Z1 = Z * focal_length if focal_length else Z
+
+    if pixel_scale is None:
+        raise ValueError("Missing pixel scale")
+
+    dxdu, dxdv, dydu, dydv = _pupil_focal_jacobian(
+        u, v, Z1,
+        x_offset=x_offset, y_offset=y_offset
+    )
+    det = dxdu*dydv - dxdv*dydu
+    dudx = dydv/det
+    dudy = -dxdv/det
+    dvdx = -dydu/det
+    dvdy = dxdu/det
+    jac = dxdu, dxdv, dydu, dydv, dudx, dudy, dvdx, dvdy
+
+    return _strut_masked_fraction(
+        x, y, u, v, length,
+        p1, angle1, p2, angle2,
+        Z=Z1,
+        jac=jac,
+        pixel_scale=pixel_scale
+    )
+
+
+def _pixel_frac(
+    u0, v0, sth0, cth0, # Line in pupil coordinates
+    u1, v1, # Pupil coordinates of pixels
+    x1, y1, # Pixel coordinates of pixels
+    dudx, dudy, dvdx, dvdy, # Jacobian of pupil to focal transform
+):
+    # Need to transform line from pupil -> focal
+    # Start with line equation:
+    #   (u-u0) sin(th) = (v-v0) cos(th)   #1
+    # Also have transformation equations
+    #   u-u0 = (x-x0) dudx + (y-y0) dudy  #2
+    #   v-v0 = (x-x0) dvdx + (y-y0) dvdy  #3
+    # Form cos(th) • (3) - sin(th) • (2)
+    # Yields:
+    #   0 = (x-x0) [cos(th) dvdx - sin(th) dudx] + (y-y0) [cos(th) dvdy - sin(th) dudy]
+    # Rearrange:
+    #   (x-x0) [sth dudx - cth dvdx] = (y-y0) [cth dvdy - sth dudy]
+    # or
+    #   (x-x0) sin(ph) = (y-y0) cos(ph)
+    # with
+    #   sin(ph) /propto   sth dudx - cth dvdx
+    #   cos(ph) /propto   cth dvdy - sth dudy
+    # Renormalize as desired...
+    # Note, there's a possible minus sign ambiguity.
+    # Resolve by having identity Jacobian produce ph = th.
+
+    cph = cth0 * dvdy - sth0 * dudy
+    sph = sth0 * dudx - cth0 * dvdx
+    norm = np.sqrt(sph**2 + cph**2)
+    cph /= norm
+    sph /= norm
+
+    # That takes care of the initial orientation, but we need the transformed point too.
+    det = dudx*dvdy - dvdx*dudy
+    dxdu = dvdy/det
+    dydu = -dvdx/det
+    dxdv = -dudy/det
+    dydv = dudx/det
+    x0 = (u0-u1)*dxdu + (v0-v1)*dxdv + x1
+    y0 = (u0-u1)*dydu + (v0-v1)*dydv + y1
+
+    # express x0, y0 wrt x1, y1
+    x0 = x0 - x1
+    y0 = y0 - y1
+
+    flip = np.zeros_like(u1, dtype=bool)
+    w = cph < 0
+    cph[w] = -cph[w]
+    x0[w] = -x0[w]
+    flip[w] = ~flip[w]
+
+    w = sph < 0
+    sph[w] = -sph[w]
+    y0[w] = -y0[w]
+    flip[w] = ~flip[w]
+
+    w = sph > cph
+    cph[w], sph[w] = sph[w], cph[w]
+    x0[w], y0[w] = y0[w], x0[w]
+    flip[w] = ~flip[w]
+
+    right = (0.5 - x0) * sph/cph + y0 + 0.5  # wrt bottom
+    left = (-0.5 - x0) * sph/cph + y0 + 0.5
+
+    frac = np.zeros_like(u1)
+
+    w = left > 1
+    frac[w] = 1.0
+
+    w = (left <= 1) & (right >= 1)  # top and left
+    frac[w] = 1.0 - 0.5 * cph[w] / sph[w] * (1 - left[w])**2
+
+    w = (left > 0) & (right < 1) # left and right
+    frac[w] = 0.5 * (left[w] + right[w])
+
+    w = (left <= 0) & (right > 0) # left and bottom
+    frac[w] = 0.5 * cph[w] / sph[w] * right[w]**2
+
+    w = right < 0
+    frac[w] = 0.0
+
+    frac[flip] = 1.0 - frac[flip]
+
+    return frac
+
+
+def _strut_masked_fraction(
+    x, y,
+    u, v,
+    length,
+    p1, angle1, # First edge point and angle
+    p2, angle2, # Second edge point and angle
+    *,
+    Z,
+    jac,
+    pixel_scale,
+):
+    p0 = 0.5 * (p1 + p2)  # Center of strut
+
+    # Start with all pixels unmasked
+    masked_fraction = np.zeros_like(u)
+
+    # Find points within length/2 of p0 and close to strut edges
+    du0 = u - p0[0]
+    dv0 = v - p0[1]
+    wclose0 = du0**2 + dv0**2 < (length/2)**2
+
+    dxdu, dxdv, dydu, dydv, dudx, dudy, dvdx, dvdy = jac
+
+    h1 = np.sqrt((dudx + dvdy)**2 + (dudy - dvdx)**2)
+    h2 = np.sqrt((dudx - dvdy)**2 + (dudy + dvdx)**2)
+    maxLinearScale = 0.5 * (h1 + h2) * pixel_scale
+
+    # Points close to edge1
+    du1 = u - p1[0]
+    dv1 = v - p1[1]
+    sth1, cth1 = np.sin(np.deg2rad(angle1)), np.cos(np.deg2rad(angle1))
+    d1 = np.abs(-du1*sth1 + dv1*cth1)
+    wclose1 = d1 < 2*maxLinearScale
+
+    # Points close to edge2
+    du2 = u - p2[0]
+    dv2 = v - p2[1]
+    sth2, cth2 = np.sin(np.deg2rad(angle2)), np.cos(np.deg2rad(angle2))
+    d2 = np.abs(-du2*sth2 + dv2*cth2)
+    wclose2 = d2 < 2*maxLinearScale
+
+    wclose = wclose0 & (wclose1 | wclose2)
+
+    if not np.any(wclose):
+        return masked_fraction
+
+    # Restrict further analysis to points close to the strut edges
+    x = x[wclose]
+    y = y[wclose]
+    u = u[wclose]
+    v = v[wclose]
+    du1 = du1[wclose]
+    dv1 = dv1[wclose]
+    du2 = du2[wclose]
+    dv2 = dv2[wclose]
+    dxdu = dxdu[wclose]
+    dxdv = dxdv[wclose]
+    dydu = dydu[wclose]
+    dydv = dydv[wclose]
+    dudx = dudx[wclose]
+    dudy = dudy[wclose]
+    dvdx = dvdx[wclose]
+    dvdy = dvdy[wclose]
+
+    # May need to track whether to mask above or mask below the line.
+    # above/below may change depending on how we normalize to 0 < m < 1.
+
+    masks = []
+    for sth, cth, p in [
+        (sth1, cth1, p1),
+        (sth2, cth2, p2)
+    ]:
+        masks.append(
+            _pixel_frac(
+                p[0], p[1], sth, cth,
+                u, v, x, y,
+                dudx*pixel_scale, dudy*pixel_scale, dvdx*pixel_scale, dvdy*pixel_scale
+            )
+        )
+    masked_fraction[wclose] += masks[0] - masks[1]
+
+    return masked_fraction
+
+
 def enclosed_fraction(
     x, y,
     u, v,
@@ -696,7 +1009,8 @@ class DonutFactory:
         self, *,
         Z=None, aberrations=None,
         x_offset=None, y_offset=None,
-        thx=0, thy=0, npix=181,
+        thx=0, thy=0, spider_angle=0,
+        npix=181,
         prefit_order=2, maxiter=20, tol=1e-5, strict=False
     ):
         """Compute aberrated donut image.
@@ -712,6 +1026,8 @@ class DonutFactory:
             series.
         thx, thy : float
             Field angles in radians.
+        spider_angle : float
+            Additional rotation for spider struts around optic axis in degrees.
         npix : int
             Number of pixels along image edge.  Must be odd.
         prefit_order : int
@@ -811,36 +1127,55 @@ class DonutFactory:
         # Clip out other obscurations as requested
         w = np.nonzero(f)[0]
         if self.mask_params is not None:
-            for item in self.mask_params:
-                for edge in self.mask_params[item]:
-                    edge_params = self.mask_params[item][edge]
-
-                    if not np.any(w):
-                        break
-                    thr = np.sqrt(thx*thx + thy*thy)
-                    thr_deg = np.rad2deg(thr)
-                    if thr_deg < edge_params["thetaMin"] or thr_deg > edge_params["thetaMax"]:
-                        continue
-
-                    radius = np.polyval(edge_params["radius"], thr_deg)
-                    center = np.polyval(edge_params["center"], thr_deg)
-                    cx = center*thx/thr if thr > 0 else 0
-                    cy = center*thy/thr if thr > 0 else 0
-
-                    enc = _enclosed_fraction(
-                        x[w], y[w], u[w], v[w],
-                        cx, cy, radius,
-                        Z=Z1,
-                        x_offset=x_offset, y_offset=y_offset,
-                        pixel_scale=self.pixel_scale,
-                        _jac=jac[:, w],
-                    )
-                    if edge_params["clear"]:
-                        f[w] = np.minimum(f[w], enc)
-                    else:
+            thr = np.sqrt(thx*thx + thy*thy)
+            thr_deg = np.rad2deg(thr)
+            for item, val in self.mask_params.items():
+                if item == "Spider_3D":
+                    for vane in val:
+                        p1, angle1, p2, angle2 = _project_spider_vane(
+                            vane["r0"], vane["v0"],
+                            vane["width"], vane["length"],
+                            vane["angle"]+spider_angle, thx, thy
+                        )
+                        enc = _strut_masked_fraction(
+                            x[w], y[w],
+                            u[w], v[w],
+                            vane["length"],
+                            p1, angle1,
+                            p2, angle2,
+                            Z = Z1,
+                            jac = jac[:, w],
+                            pixel_scale=self.pixel_scale,
+                        )
                         f[w] = np.minimum(f[w], 1-enc)
+                else:
+                    for edge, edge_params in val.items():
+                        if not np.any(w):
+                            break
+                        if thr_deg < edge_params["thetaMin"] or thr_deg > edge_params["thetaMax"]:
+                            continue
 
-                    w = np.nonzero(f)[0]
+                        radius = np.polyval(edge_params["radius"], thr_deg)
+                        center = np.polyval(edge_params["center"], thr_deg)
+                        cx = center*thx/thr if thr > 0 else 0
+                        cy = center*thy/thr if thr > 0 else 0
+
+                        enc = _enclosed_fraction(
+                            x[w], y[w], u[w], v[w],
+                            cx, cy, radius,
+                            Z=Z1,
+                            x_offset=x_offset, y_offset=y_offset,
+                            pixel_scale=self.pixel_scale,
+                            _jac=jac[:, w],
+                        )
+                        if edge_params["clear"]:
+                            f[w] = np.minimum(f[w], enc)
+                        else:
+                            f[w] = np.minimum(f[w], 1-enc)
+
+                        w = np.nonzero(f)[0]
+                if not np.any(w):
+                    break
 
         # pixel pupil-to-focal area ratio
         # Negative hessian almost certainly means there's a caustic, but we'll
