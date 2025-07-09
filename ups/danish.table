@@ -1,1 +1,4 @@
 envPrepend(PYTHONPATH, ${PRODUCT_DIR})
+envPrepend(LD_LIBRARY_PATH, ${PRODUCT_DIR}/danish)
+envPrepend(DYLD_LIBRARY_PATH, ${PRODUCT_DIR}/danish)
+envPrepend(LSST_LIBRARY_PATH, ${PRODUCT_DIR}/danish)

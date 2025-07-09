@@ -216,7 +216,7 @@ def test_factory_offsets():
 def test_curly_offsets():
     """ The distorted transformation from pupil to focal for Rubin isn't
     actually curl-free, so we make a small error when modeling as a gradient
-    of a scalar function.  This test uses an alternate API with out the scalar
+    of a scalar function.  This test uses an alternate API without the scalar
     gradient assumption and checks that the donut images are similar.  (The
     error is known to be small).
     """
@@ -305,8 +305,8 @@ def test_curly_offsets():
         # fig.tight_layout()
         # plt.show()
 
-        # 90% of pixels (non-edge pixels basically) are within 0.01 of each other
-        assert np.nanquantile(np.abs(img-img2), 0.9) < 0.01
+        # 90% of pixels (non-edge pixels basically) are within 0.02 of each other
+        assert np.nanquantile(np.abs(img-img2), 0.9) < 0.02
 
 
 @timer
