@@ -155,6 +155,24 @@ def _pupil_focal_jacobian(
     return zxx(u, v), zxy(u, v), zyx(u, v), zyy(u, v)
 
 
+def _focal_pupil_jacobian(
+    u, v, Z, *,
+    focal_length=None,
+    x_offset=None, y_offset=None
+):
+    dxdu, dxdv, dydu, dydv = _pupil_focal_jacobian(
+        u, v, Z,
+        focal_length=focal_length,
+        x_offset=x_offset, y_offset=y_offset
+    )
+    det = dxdu*dydv - dxdv*dydu
+    dudx = dydv/det
+    dudy = -dxdv/det
+    dvdx = -dydu/det
+    dvdy = dxdu/det
+    return dudx, dudy, dvdx, dvdy
+
+
 def focal_to_pupil(
     x, y, *,
     Z=None, aberrations=None, R_outer=1.0, R_inner=0.0,
@@ -436,20 +454,20 @@ def strut_masked_fraction(
     if pixel_scale is None:
         raise ValueError("Missing pixel scale")
 
-    dxdu, dxdv, dydu, dydv = _pupil_focal_jacobian(
+    dudx, dudy, dvdx, dvdy = _focal_pupil_jacobian(
         u, v, Z1,
+        focal_length=focal_length,
         x_offset=x_offset, y_offset=y_offset
     )
-    det = dxdu*dydv - dxdv*dydu
-    dudx = dydv/det
-    dudy = -dxdv/det
-    dvdx = -dydu/det
-    dvdy = dxdu/det
+    # Apply pixel scale to the Jacobian
+    dudx *= pixel_scale
+    dudy *= pixel_scale
+    dvdx *= pixel_scale
+    dvdy *= pixel_scale
 
     return _strut_masked_fraction(
         x, y, u, v, length,
         p1, angle1, p2, angle2,
-        pixel_scale=pixel_scale,
         dudx=dudx, dudy=dudy, dvdx=dvdx, dvdy=dvdy
     )
 
@@ -491,7 +509,6 @@ def _strut_masked_fraction(
     p1, angle1, # First edge point and angle
     p2, angle2, # Second edge point and angle
     *,
-    pixel_scale,
     dudx, dudy, dvdx, dvdy,
 ):
     p0 = 0.5 * (p1 + p2)  # Center of strut
@@ -506,7 +523,7 @@ def _strut_masked_fraction(
 
     h1 = np.sqrt((dudx + dvdy)**2 + (dudy - dvdx)**2)
     h2 = np.sqrt((dudx - dvdy)**2 + (dudy + dvdx)**2)
-    maxLinearScale = 0.5 * (h1 + h2) * pixel_scale
+    maxLinearScale = 0.5 * (h1 + h2)
 
     # Points close to edge1
     du1 = u - p1[0]
@@ -549,7 +566,7 @@ def _strut_masked_fraction(
             _pixel_frac(
                 p[0], p[1], sth, cth,
                 u, v, x, y,
-                dudx*pixel_scale, dudy*pixel_scale, dvdx*pixel_scale, dvdy*pixel_scale
+                dudx, dudy, dvdx, dvdy
             )
         )
     masked_fraction[wclose] += masks[0] - masks[1]
@@ -609,15 +626,10 @@ def enclosed_fraction(
 
     Z1 = Z * focal_length if focal_length else Z
 
-    dxdu, dxdv, dydu, dydv = _pupil_focal_jacobian(
+    dudx, dudy, dvdx, dvdy = _focal_pupil_jacobian(
         u, v, Z1,
         x_offset=x_offset, y_offset=y_offset
     )
-    det = dxdu*dydv - dxdv*dydu
-    dudx = dydv/det
-    dudy = -dxdv/det
-    dvdx = -dydu/det
-    dvdy = dxdu/det
 
     return _enclosed_fraction(
         x, y, u, v, u0, v0, radius,
@@ -631,7 +643,6 @@ def _enclosed_fraction(
     u, v,
     u0, v0, radius,
     *,
-    pixel_scale,
     dudx, dudy, dvdx, dvdy,
 ):
     out = np.zeros_like(x)  # the enclosed fraction
@@ -641,7 +652,7 @@ def _enclosed_fraction(
     drhosq = du*du + dv*dv
     h1 = np.sqrt((dudx + dvdy)**2 + (dudy - dvdx)**2)
     h2 = np.sqrt((dudx - dvdy)**2 + (dudy + dvdx)**2)
-    maxLinearScale = 0.5 * (h1 + h2) * pixel_scale
+    maxLinearScale = 0.5 * (h1 + h2)
     winside = drhosq < (radius - maxLinearScale)**2
     woutside = drhosq > (radius + maxLinearScale)**2
     wunknown = ~winside & ~woutside
@@ -664,8 +675,9 @@ def _enclosed_fraction(
     dudy = dudy[wunknown]
     dvdx = dvdx[wunknown]
     dvdy = dvdy[wunknown]
+    drhosq = drhosq[wunknown]
 
-    norm = np.sqrt(du**2 + dv**2)
+    norm = np.sqrt(drhosq)
     lineu = u0 + radius * du / norm
     linev = v0 + radius * dv / norm
     sth = -du / norm
@@ -674,7 +686,7 @@ def _enclosed_fraction(
     frac = _pixel_frac(
         lineu, linev, sth, cth,
         u, v, x, y,
-        dudx*pixel_scale, dudy*pixel_scale, dvdx*pixel_scale, dvdy*pixel_scale
+        dudx, dudy, dvdx, dvdy
     )
     out[wx] = frac
 
@@ -832,21 +844,20 @@ class DonutFactory:
         img = np.zeros((npix, npix))
 
         # Compute jacobian just once
-        dxdu, dxdv, dydu, dydv = _pupil_focal_jacobian(
+        dudx, dudy, dvdx, dvdy = _focal_pupil_jacobian(
             u, v, Z1,
             x_offset=x_offset, y_offset=y_offset
         )
-        det = dxdu*dydv - dxdv*dydu
-        dudx = dydv/det
-        dudy = -dxdv/det
-        dvdx = -dydu/det
-        dvdy = dxdu/det
+        # Apply pixel scale to the Jacobian
+        dudx *= self.pixel_scale
+        dudy *= self.pixel_scale
+        dvdx *= self.pixel_scale
+        dvdy *= self.pixel_scale
 
         # Always clip out the primary mirror outer diameter
         f = _enclosed_fraction(
             x, y, u, v,
             0.0, 0.0, self.R_outer,
-            pixel_scale=self.pixel_scale,
             dudx=dudx, dudy=dudy, dvdx=dvdx, dvdy=dvdy
         )
 
@@ -869,7 +880,6 @@ class DonutFactory:
                             vane["length"],
                             p1, angle1,
                             p2, angle2,
-                            pixel_scale=self.pixel_scale,
                             dudx=dudx[w], dudy=dudy[w],
                             dvdx=dvdx[w], dvdy=dvdy[w]
                         )
@@ -889,7 +899,6 @@ class DonutFactory:
                         enc = _enclosed_fraction(
                             x[w], y[w], u[w], v[w],
                             cx, cy, radius,
-                            pixel_scale=self.pixel_scale,
                             dudx=dudx[w], dudy=dudy[w], dvdx=dvdx[w], dvdy=dvdy[w]
                         )
                         if edge_params["clear"]:
