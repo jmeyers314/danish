@@ -30,7 +30,7 @@
 import numpy as np
 import galsim
 from functools import lru_cache
-from ._danish import poly_grid_contains, pixel_frac, enclosed_circle
+from ._danish import poly_grid_contains, pixel_frac, enclosed_circle, enclosed_strut
 
 
 def pupil_to_focal(
@@ -392,9 +392,20 @@ def __project_spider_vane(
     # Mean projected xy position.  I.e., ~center of the spider vane
     p1 = np.mean(proj1[:2], axis=1)
     p2 = np.mean(proj2[:2], axis=1)
-    angle1 = np.rad2deg(np.arctan2(proj1[1, 1] - proj1[1, 0], proj1[0, 1] - proj1[0, 0]))
-    angle2 = np.rad2deg(np.arctan2(proj2[1, 1] - proj2[1, 0], proj2[0, 1] - proj2[0, 0]))
-    return p1, angle1, p2, angle2
+
+    sth1 = proj1[1, 1] - proj1[1, 0]
+    cth1 = proj1[0, 1] - proj1[0, 0]
+    norm1 = np.sqrt(sth1**2 + cth1**2)
+    sth1 /= norm1
+    cth1 /= norm1
+
+    sth2 = proj2[1, 1] - proj2[1, 0]
+    cth2 = proj2[0, 1] - proj2[0, 0]
+    norm2 = np.sqrt(sth2**2 + cth2**2)
+    sth2 /= norm2
+    cth2 /= norm2
+
+    return p1[0], p1[1], sth1, cth1, p2[0], p2[1], sth2, cth2
 
 
 def _project_spider_vane(
@@ -420,14 +431,14 @@ def _project_spider_vane(
 
     Returns
     -------
-    p1 : array of float
+    p1x, p1y : float
         Projected ~center position of the first edge of the spider vane (meters).
-    angle1 : float
-        Projected angle of the first edge of the spider vane (degrees).
-    p2 : array of float
+    sth1, cth1 : float
+        Projected sine and cosine of the angle of the first edge of the spider vane.
+    p2x, p2y : float
         Projected ~center position of the second edge of the spider vane (meters).
-    angle2 : float
-        Projected angle of the second edge of the spider vane (degrees).
+    sth2, cth2 : float
+        Projected sine and cosine of the angle of the second edge of the spider vane.
     """
     return __project_spider_vane(
         tuple(r0), tuple(v0), width, length, angle, thx, thy
@@ -438,8 +449,8 @@ def strut_masked_fraction(
     x, y,
     u, v,
     length,
-    p1, angle1, # First edge point and angle
-    p2, angle2, # Second edge point and angle
+    p1x, p1y, sth1, cth1, # First edge point and angle
+    p2x, p2y, sth2, cth2, # Second edge point and angle
     Z=None, aberrations=None, R_outer=1.0, R_inner=0.0,
     focal_length=None,
     x_offset=None, y_offset=None,
@@ -467,7 +478,7 @@ def strut_masked_fraction(
 
     return _strut_masked_fraction(
         x, y, u, v, length,
-        p1, angle1, p2, angle2,
+        p1x, p1y, sth1, cth1, p2x, p2y, sth2, cth2,
         dudx=dudx, dudy=dudy, dvdx=dvdx, dvdy=dvdy
     )
 
@@ -506,72 +517,22 @@ def _strut_masked_fraction(
     x, y,
     u, v,
     length,
-    p1, angle1, # First edge point and angle
-    p2, angle2, # Second edge point and angle
+    u1, v1, sth1, cth1, # First edge point and angle
+    u2, v2, sth2, cth2, # Second edge point and angle
     *,
     dudx, dudy, dvdx, dvdy,
 ):
-    p0 = 0.5 * (p1 + p2)  # Center of strut
-
-    # Start with all pixels unmasked
-    masked_fraction = np.zeros_like(u)
-
-    # Find points within length/2 of p0 and close to strut edges
-    du0 = u - p0[0]
-    dv0 = v - p0[1]
-    wclose0 = du0**2 + dv0**2 < (length/2)**2
-
-    h1 = np.sqrt((dudx + dvdy)**2 + (dudy - dvdx)**2)
-    h2 = np.sqrt((dudx - dvdy)**2 + (dudy + dvdx)**2)
-    maxLinearScale = 0.5 * (h1 + h2)
-
-    # Points close to edge1
-    du1 = u - p1[0]
-    dv1 = v - p1[1]
-    sth1, cth1 = np.sin(np.deg2rad(angle1)), np.cos(np.deg2rad(angle1))
-    d1 = np.abs(-du1*sth1 + dv1*cth1)
-    wclose1 = d1 < 2*maxLinearScale
-
-    # Points close to edge2
-    du2 = u - p2[0]
-    dv2 = v - p2[1]
-    sth2, cth2 = np.sin(np.deg2rad(angle2)), np.cos(np.deg2rad(angle2))
-    d2 = np.abs(-du2*sth2 + dv2*cth2)
-    wclose2 = d2 < 2*maxLinearScale
-
-    wclose = (wclose0 & (wclose1 | wclose2)).nonzero()[0]
-
-    if len(wclose) == 0:
-        return masked_fraction
-
-    # Restrict further analysis to points close to the strut edges
-    x = x[wclose]
-    y = y[wclose]
-    u = u[wclose]
-    v = v[wclose]
-    dudx = dudx[wclose]
-    dudy = dudy[wclose]
-    dvdx = dvdx[wclose]
-    dvdy = dvdy[wclose]
-
-    # May need to track whether to mask above or mask below the line.
-    # above/below may change depending on how we normalize to 0 < m < 1.
-
-    masks = []
-    for sth, cth, p in [
-        (sth1, cth1, p1),
-        (sth2, cth2, p2)
-    ]:
-        masks.append(
-            _pixel_frac(
-                p[0], p[1], sth, cth,
-                u, v, x, y,
-                dudx, dudy, dvdx, dvdy
-            )
-        )
-    masked_fraction[wclose] += masks[0] - masks[1]
-
-    return masked_fraction
+    frac = np.empty_like(u)
+    enclosed_strut(
+        x.ctypes.data, y.ctypes.data,
+        u.ctypes.data, v.ctypes.data,
+        length,
+        u1, v1, sth1, cth1,
+        u2, v2, sth2, cth2,
+        dudx.ctypes.data, dudy.ctypes.data, dvdx.ctypes.data, dvdy.ctypes.data,
+        frac.ctypes.data, len(u)
+    )
+    return frac
 
 
 def enclosed_fraction(
@@ -630,10 +591,14 @@ def enclosed_fraction(
         u, v, Z1,
         x_offset=x_offset, y_offset=y_offset
     )
+    # Apply pixel scale to the Jacobian
+    dudx *= pixel_scale
+    dudy *= pixel_scale
+    dvdx *= pixel_scale
+    dvdy *= pixel_scale
 
     return _enclosed_fraction(
         x, y, u, v, u0, v0, radius,
-        pixel_scale=pixel_scale,
         dudx=dudx, dudy=dudy, dvdx=dvdx, dvdy=dvdy
     )
 
@@ -833,7 +798,7 @@ class DonutFactory:
             for item, val in self.mask_params.items():
                 if item == "Spider_3D":
                     for vane in val:
-                        p1, angle1, p2, angle2 = _project_spider_vane(
+                        p1x, p1y, sth1, cth1, p2x, p2y, sth2, cth2 = _project_spider_vane(
                             vane["r0"], vane["v0"],
                             vane["width"], vane["length"],
                             vane["angle"]+spider_angle, thx, thy
@@ -842,8 +807,8 @@ class DonutFactory:
                             x[w], y[w],
                             u[w], v[w],
                             vane["length"],
-                            p1, angle1,
-                            p2, angle2,
+                            p1x, p1y, sth1, cth1,
+                            p2x, p2y, sth2, cth2,
                             dudx=dudx[w], dudy=dudy[w],
                             dvdx=dvdx[w], dvdy=dvdy[w]
                         )
