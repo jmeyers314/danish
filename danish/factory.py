@@ -445,14 +445,12 @@ def strut_masked_fraction(
     dudy = -dxdv/det
     dvdx = -dydu/det
     dvdy = dxdu/det
-    jac = dxdu, dxdv, dydu, dydv, dudx, dudy, dvdx, dvdy
 
     return _strut_masked_fraction(
         x, y, u, v, length,
         p1, angle1, p2, angle2,
-        Z=Z1,
-        jac=jac,
-        pixel_scale=pixel_scale
+        pixel_scale=pixel_scale,
+        dudx=dudx, dudy=dudy, dvdx=dvdx, dvdy=dvdy
     )
 
 
@@ -493,9 +491,8 @@ def _strut_masked_fraction(
     p1, angle1, # First edge point and angle
     p2, angle2, # Second edge point and angle
     *,
-    Z,
-    jac,
     pixel_scale,
+    dudx, dudy, dvdx, dvdy,
 ):
     p0 = 0.5 * (p1 + p2)  # Center of strut
 
@@ -506,8 +503,6 @@ def _strut_masked_fraction(
     du0 = u - p0[0]
     dv0 = v - p0[1]
     wclose0 = du0**2 + dv0**2 < (length/2)**2
-
-    dxdu, dxdv, dydu, dydv, dudx, dudy, dvdx, dvdy = jac
 
     h1 = np.sqrt((dudx + dvdy)**2 + (dudy - dvdx)**2)
     h2 = np.sqrt((dudx - dvdy)**2 + (dudy + dvdx)**2)
@@ -537,14 +532,6 @@ def _strut_masked_fraction(
     y = y[wclose]
     u = u[wclose]
     v = v[wclose]
-    du1 = du1[wclose]
-    dv1 = dv1[wclose]
-    du2 = du2[wclose]
-    dv2 = dv2[wclose]
-    dxdu = dxdu[wclose]
-    dxdv = dxdv[wclose]
-    dydu = dydu[wclose]
-    dydv = dydv[wclose]
     dudx = dudx[wclose]
     dudy = dudy[wclose]
     dvdx = dvdx[wclose]
@@ -623,7 +610,7 @@ def enclosed_fraction(
     Z1 = Z * focal_length if focal_length else Z
 
     dxdu, dxdv, dydu, dydv = _pupil_focal_jacobian(
-        u, v, Z,
+        u, v, Z1,
         x_offset=x_offset, y_offset=y_offset
     )
     det = dxdu*dydv - dxdv*dydu
@@ -631,13 +618,11 @@ def enclosed_fraction(
     dudy = -dxdv/det
     dvdx = -dydu/det
     dvdy = dxdu/det
-    _jac = dxdu, dxdv, dydu, dydv, dudx, dudy, dvdx, dvdy
 
     return _enclosed_fraction(
-        x, y, u, v, u0, v0, radius, Z1,
-        x_offset=x_offset, y_offset=y_offset,
+        x, y, u, v, u0, v0, radius,
         pixel_scale=pixel_scale,
-        _jac=_jac
+        dudx=dudx, dudy=dudy, dvdx=dvdx, dvdy=dvdy
     )
 
 
@@ -645,17 +630,13 @@ def _enclosed_fraction(
     x, y,
     u, v,
     u0, v0, radius,
-    Z, *,
+    *,
     pixel_scale,
-    _jac,
+    dudx, dudy, dvdx, dvdy,
 ):
     out = np.zeros_like(x)  # the enclosed fraction
     du = u - u0  # pupil displacement from circle center
     dv = v - v0
-
-    # First determine "obvious" points either far inside or far outside circle
-    # of interest.
-    dxdu, dxdv, dydu, dydv, dudx, dudy, dvdx, dvdy = _jac
 
     drhosq = du*du + dv*dv
     h1 = np.sqrt((dudx + dvdy)**2 + (dudy - dvdx)**2)
@@ -679,10 +660,6 @@ def _enclosed_fraction(
     dv = dv[wunknown]
     x = x[wunknown]
     y = y[wunknown]
-    dxdu = dxdu[wunknown]
-    dxdv = dxdv[wunknown]
-    dydu = dydu[wunknown]
-    dydv = dydv[wunknown]
     dudx = dudx[wunknown]
     dudy = dudy[wunknown]
     dvdx = dvdx[wunknown]
@@ -864,15 +841,13 @@ class DonutFactory:
         dudy = -dxdv/det
         dvdx = -dydu/det
         dvdy = dxdu/det
-        jac = np.array([dxdu, dxdv, dydu, dydv, dudx, dudy, dvdx, dvdy])
 
         # Always clip out the primary mirror outer diameter
         f = _enclosed_fraction(
             x, y, u, v,
             0.0, 0.0, self.R_outer,
-            Z=Z1,
             pixel_scale=self.pixel_scale,
-            _jac=jac,
+            dudx=dudx, dudy=dudy, dvdx=dvdx, dvdy=dvdy
         )
 
         # Clip out other obscurations as requested
@@ -894,9 +869,9 @@ class DonutFactory:
                             vane["length"],
                             p1, angle1,
                             p2, angle2,
-                            Z = Z1,
-                            jac = jac[:, w],
                             pixel_scale=self.pixel_scale,
+                            dudx=dudx[w], dudy=dudy[w],
+                            dvdx=dvdx[w], dvdy=dvdy[w]
                         )
                         f[w] = np.minimum(f[w], 1-enc)
                 else:
@@ -914,9 +889,8 @@ class DonutFactory:
                         enc = _enclosed_fraction(
                             x[w], y[w], u[w], v[w],
                             cx, cy, radius,
-                            Z=Z1,
                             pixel_scale=self.pixel_scale,
-                            _jac=jac[:, w],
+                            dudx=dudx[w], dudy=dudy[w], dvdx=dvdx[w], dvdy=dvdy[w]
                         )
                         if edge_params["clear"]:
                             f[w] = np.minimum(f[w], enc)
