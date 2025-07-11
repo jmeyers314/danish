@@ -29,7 +29,8 @@
 
 import numpy as np
 import galsim
-from ._danish import poly_grid_contains
+from functools import lru_cache
+from ._danish import poly_grid_contains, pixel_frac
 
 
 def pupil_to_focal(
@@ -344,6 +345,40 @@ def _rotxy(r, angle):
     return np.array([x, y, z])
 
 
+@lru_cache
+def __project_spider_vane(
+    r0, v0, width, length, angle, thx, thy
+):
+    r0 = np.array(r0)
+    v0 = np.array(v0)
+    v0 /= np.linalg.norm(v0)
+
+    # Find direction perp to v0 and (0, 0, 1)
+    # This is the direction along which the width is defined.
+    # Expand the cross product with (0, 0, 1) by hand for speed.
+    norm = np.sqrt(v0[0]**2 + v0[1]**2)
+    perp = np.array([v0[1], -v0[0], 0.0]) / norm
+
+    # Compute the spider vane edges in 3D.
+    centerline = np.array([r0 - v0*length/2, r0 + v0*length/2])
+    edge1 = _rotxy(centerline.T-(perp*width/2)[:, None], angle)
+    edge2 = _rotxy(centerline.T+(perp*width/2)[:, None], angle)
+
+    # Now project the edges onto the entrance pupil (defined by z=0).
+    vproj = _gnomonic(thx, thy)
+    t1 = -edge1[2]/vproj[2]
+    t2 = -edge2[2]/vproj[2]
+    proj1 = (edge1 + np.outer(vproj, t1))
+    proj2 = (edge2 + np.outer(vproj, t2))
+
+    # Mean projected xy position.  I.e., ~center of the spider vane
+    p1 = np.mean(proj1[:2], axis=1)
+    p2 = np.mean(proj2[:2], axis=1)
+    angle1 = np.rad2deg(np.arctan2(proj1[1, 1] - proj1[1, 0], proj1[0, 1] - proj1[0, 0]))
+    angle2 = np.rad2deg(np.arctan2(proj2[1, 1] - proj2[1, 0], proj2[0, 1] - proj2[0, 0]))
+    return p1, angle1, p2, angle2
+
+
 def _project_spider_vane(
     r0, v0, width, length, angle, thx, thy
 ):
@@ -376,34 +411,9 @@ def _project_spider_vane(
     angle2 : float
         Projected angle of the second edge of the spider vane (degrees).
     """
-    r0 = np.array(r0)
-    v0 = np.array(v0)
-    v0 /= np.linalg.norm(v0)
-
-    # Find direction perp to v0 and (0, 0, 1)
-    # This is the direction along which the width is defined.
-    # Expand the cross product with (0, 0, 1) by hand for speed.
-    norm = np.sqrt(v0[0]**2 + v0[1]**2)
-    perp = np.array([v0[1], -v0[0], 0.0]) / norm
-
-    # Compute the spider vane edges in 3D.
-    centerline = np.array([r0 - v0*length/2, r0 + v0*length/2])
-    edge1 = _rotxy(centerline.T-(perp*width/2)[:, None], angle)
-    edge2 = _rotxy(centerline.T+(perp*width/2)[:, None], angle)
-
-    # Now project the edges onto the entrance pupil (defined by z=0).
-    vproj = _gnomonic(thx, thy)
-    t1 = -edge1[2]/vproj[2]
-    t2 = -edge2[2]/vproj[2]
-    proj1 = (edge1 + np.outer(vproj, t1))
-    proj2 = (edge2 + np.outer(vproj, t2))
-
-    # Mean projected xy position.  I.e., ~center of the spider vane
-    p1 = np.mean(proj1[:2], axis=1)
-    p2 = np.mean(proj2[:2], axis=1)
-    angle1 = np.rad2deg(np.arctan2(proj1[1, 1] - proj1[1, 0], proj1[0, 1] - proj1[0, 0]))
-    angle2 = np.rad2deg(np.arctan2(proj2[1, 1] - proj2[1, 0], proj2[0, 1] - proj2[0, 0]))
-    return p1, angle1, p2, angle2
+    return __project_spider_vane(
+        tuple(r0), tuple(v0), width, length, angle, thx, thy
+    )
 
 
 def strut_masked_fraction(
@@ -452,83 +462,27 @@ def _pixel_frac(
     x1, y1, # Pixel coordinates of pixels
     dudx, dudy, dvdx, dvdy, # Jacobian of pupil to focal transform
 ):
-    # Need to transform line from pupil -> focal
-    # Start with line equation:
-    #   (u-u0) sin(th) = (v-v0) cos(th)   #1
-    # Also have transformation equations
-    #   u-u0 = (x-x0) dudx + (y-y0) dudy  #2
-    #   v-v0 = (x-x0) dvdx + (y-y0) dvdy  #3
-    # Form cos(th) • (3) - sin(th) • (2)
-    # Yields:
-    #   0 = (x-x0) [cos(th) dvdx - sin(th) dudx] + (y-y0) [cos(th) dvdy - sin(th) dudy]
-    # Rearrange:
-    #   (x-x0) [sth dudx - cth dvdx] = (y-y0) [cth dvdy - sth dudy]
-    # or
-    #   (x-x0) sin(ph) = (y-y0) cos(ph)
-    # with
-    #   sin(ph) /propto   sth dudx - cth dvdx
-    #   cos(ph) /propto   cth dvdy - sth dudy
-    # Renormalize as desired...
-    # Note, there's a possible minus sign ambiguity.
-    # Resolve by having identity Jacobian produce ph = th.
-
-    cph = cth0 * dvdy - sth0 * dudy
-    sph = sth0 * dudx - cth0 * dvdx
-    norm = np.sqrt(sph**2 + cph**2)
-    cph /= norm
-    sph /= norm
-
-    # That takes care of the initial orientation, but we need the transformed point too.
-    det = dudx*dvdy - dvdx*dudy
-    dxdu = dvdy/det
-    dydu = -dvdx/det
-    dxdv = -dudy/det
-    dydv = dudx/det
-    x0 = (u0-u1)*dxdu + (v0-v1)*dxdv + x1
-    y0 = (u0-u1)*dydu + (v0-v1)*dydv + y1
-
-    # express x0, y0 wrt x1, y1
-    x0 = x0 - x1
-    y0 = y0 - y1
-
-    flip = np.zeros_like(u1, dtype=bool)
-    w = cph < 0
-    cph[w] = -cph[w]
-    x0[w] = -x0[w]
-    flip[w] = ~flip[w]
-
-    w = sph < 0
-    sph[w] = -sph[w]
-    y0[w] = -y0[w]
-    flip[w] = ~flip[w]
-
-    w = sph > cph
-    cph[w], sph[w] = sph[w], cph[w]
-    x0[w], y0[w] = y0[w], x0[w]
-    flip[w] = ~flip[w]
-
-    right = (0.5 - x0) * sph/cph + y0 + 0.5  # wrt bottom
-    left = (-0.5 - x0) * sph/cph + y0 + 0.5
-
-    frac = np.zeros_like(u1)
-
-    w = left > 1
-    frac[w] = 1.0
-
-    w = (left <= 1) & (right >= 1)  # top and left
-    frac[w] = 1.0 - 0.5 * cph[w] / sph[w] * (1 - left[w])**2
-
-    w = (left > 0) & (right < 1) # left and right
-    frac[w] = 0.5 * (left[w] + right[w])
-
-    w = (left <= 0) & (right > 0) # left and bottom
-    frac[w] = 0.5 * cph[w] / sph[w] * right[w]**2
-
-    w = right < 0
-    frac[w] = 0.0
-
-    frac[flip] = 1.0 - frac[flip]
-
+    frac = np.empty_like(u1)
+    if isinstance(u0, np.ndarray):
+        pixel_frac(
+            u0.ctypes.data, v0.ctypes.data,
+            sth0.ctypes.data, cth0.ctypes.data,
+            u1.ctypes.data, v1.ctypes.data,
+            x1.ctypes.data, y1.ctypes.data,
+            dudx.ctypes.data, dudy.ctypes.data,
+            dvdx.ctypes.data, dvdy.ctypes.data,
+            frac.ctypes.data, len(u1)
+        )
+    else:
+        pixel_frac(
+            u0, v0,
+            sth0, cth0,
+            u1.ctypes.data, v1.ctypes.data,
+            x1.ctypes.data, y1.ctypes.data,
+            dudx.ctypes.data, dudy.ctypes.data,
+            dvdx.ctypes.data, dvdy.ctypes.data,
+            frac.ctypes.data, len(u1)
+        )
     return frac
 
 
@@ -573,9 +527,9 @@ def _strut_masked_fraction(
     d2 = np.abs(-du2*sth2 + dv2*cth2)
     wclose2 = d2 < 2*maxLinearScale
 
-    wclose = wclose0 & (wclose1 | wclose2)
+    wclose = (wclose0 & (wclose1 | wclose2)).nonzero()[0]
 
-    if not np.any(wclose):
+    if len(wclose) == 0:
         return masked_fraction
 
     # Restrict further analysis to points close to the strut edges
@@ -734,71 +688,18 @@ def _enclosed_fraction(
     dvdx = dvdx[wunknown]
     dvdy = dvdy[wunknown]
 
-    # Calculate nearby slope/intercept of circle in pupil coords
-    # See Janish (A.2)
-    mp = -du/dv
-    bp = np.hypot(du, dv)/dv*radius
-    # Adjust for circle center
-    bp += v0 - mp*u0
+    norm = np.sqrt(du**2 + dv**2)
+    lineu = u0 + radius * du / norm
+    linev = v0 + radius * dv / norm
+    sth = -du / norm
+    cth = dv / norm
 
-    # Transform slope/intercept to focal coords
-    alpha = dvdy - mp*dudy
-    beta = mp*dudx - dvdx
-    gamma = mp*u + bp - v
-    m = beta/alpha
-    b = (-beta*x + gamma)/alpha + y
-
-    # Use local linear approx to transform u0, v0 -> x0, y0
-    x0 = x + (u0-u)*dxdu + (v0-v)*dxdv
-    y0 = y + (u0-u)*dydu + (v0-v)*dydv
-
-    # Center coords around x0, y0
-    x -= x0
-    y -= y0
-    b += m*x0-y0
-
-    # Normalize to m < 0
-    w = (m > 0)
-    x[w] = -x[w]
-    m[w] = -m[w]
-
-    # Normalize to -1 < m
-    w = (m < -1)
-    x[w], y[w] = y[w], x[w]
-    m[w], b[w] = 1/m[w], -b[w]/m[w]
-
-    # Convert meters -> pixels
-    x /= pixel_scale
-    y /= pixel_scale
-    b /= pixel_scale
-
-    # Distance b/n top of pixel and circle intersection point.
-    # Janish (A.3) and (A.4)
-    gamma = y + 0.5 - (m*(x + 0.5) + b)
-
-    # pixel is fully inside circle
-    w = gamma < 0
-    out[wx[w]] = 1.0
-
-    # pixel is fully outside circle
-    w = gamma > (1-m)
-    out[wx[w]] = 0.0
-
-    # line crosses left and bottom
-    w = (1 < gamma) & (gamma < (1-m))
-    mw = m[w]
-    out[wx[w]] = -0.5/mw*(1 - (gamma[w]+mw))**2
-
-    # crosses left and right
-    w = (-m < gamma) & (gamma < 1)
-    out[wx[w]] = 1 - gamma[w] - m[w]/2
-
-    # crosses top and right
-    w = (0 < gamma) & (gamma < -m)
-    out[wx[w]] = 1 + 0.5*gamma[w]**2/m[w]
-
-    w = y<0
-    out[wx[w]] = 1 - out[wx[w]]
+    frac = _pixel_frac(
+        lineu, linev, sth, cth,
+        u, v, x, y,
+        dudx*pixel_scale, dudy*pixel_scale, dvdx*pixel_scale, dvdy*pixel_scale
+    )
+    out[wx] = frac
 
     return out
 

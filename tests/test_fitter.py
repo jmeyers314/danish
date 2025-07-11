@@ -578,14 +578,16 @@ def test_fitter_LSST_atm(plot=False):
         data = pickle.load(f)
     wavelength = data[0]['wavelength']
 
+    obsc = Rubin_obsc.copy()
+    del obsc['Spider_3D']
     factory = danish.DonutFactory(
         R_outer=4.18, R_inner=2.5498,
-        mask_params=Rubin_obsc,
+        mask_params=obsc,
         focal_length=10.31, pixel_scale=10e-6
     )
     binned_factory = danish.DonutFactory(
         R_outer=4.18, R_inner=2.5498,
-        mask_params=Rubin_obsc,
+        mask_params=obsc,
         focal_length=10.31, pixel_scale=20e-6
     )
 
@@ -1184,9 +1186,11 @@ def test_dz_fitter_LSST_kolm():
     ) as f:
         data = pickle.load(f)
 
+    obsc = Rubin_obsc.copy()
+    del obsc['Spider_3D']
     factory = danish.DonutFactory(
         R_outer=4.18, R_inner=2.5498,
-        mask_params=Rubin_obsc,
+        mask_params=obsc,
         focal_length=10.31, pixel_scale=10e-6
     )
     sky_level = data[0]['sky_level']
