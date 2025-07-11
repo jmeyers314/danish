@@ -173,6 +173,25 @@ def _focal_pupil_jacobian(
     return dudx, dudy, dvdx, dvdy
 
 
+def _pixel_pupil_jacobian(
+    u, v, Z, *,
+    pixel_scale,
+    focal_length=None,
+    x_offset=None, y_offset=None,
+):
+    dudx, dudy, dvdx, dvdy = _focal_pupil_jacobian(
+        u, v, Z,
+        focal_length=focal_length,
+        x_offset=x_offset, y_offset=y_offset
+    )
+    # Apply pixel scale to the Jacobian
+    dudx *= pixel_scale
+    dudy *= pixel_scale
+    dvdx *= pixel_scale
+    dvdy *= pixel_scale
+    return dudx, dudy, dvdx, dvdy
+
+
 def focal_to_pupil(
     x, y, *,
     Z=None, aberrations=None, R_outer=1.0, R_inner=0.0,
@@ -465,16 +484,12 @@ def strut_masked_fraction(
     if pixel_scale is None:
         raise ValueError("Missing pixel scale")
 
-    dudx, dudy, dvdx, dvdy = _focal_pupil_jacobian(
+    dudx, dudy, dvdx, dvdy = _pixel_pupil_jacobian(
         u, v, Z1,
+        pixel_scale=pixel_scale,
         focal_length=focal_length,
-        x_offset=x_offset, y_offset=y_offset
+        x_offset=x_offset, y_offset=y_offset,
     )
-    # Apply pixel scale to the Jacobian
-    dudx *= pixel_scale
-    dudy *= pixel_scale
-    dvdx *= pixel_scale
-    dvdy *= pixel_scale
 
     return _strut_masked_fraction(
         x, y, u, v, length,
@@ -587,15 +602,11 @@ def enclosed_fraction(
 
     Z1 = Z * focal_length if focal_length else Z
 
-    dudx, dudy, dvdx, dvdy = _focal_pupil_jacobian(
+    dudx, dudy, dvdx, dvdy = _pixel_pupil_jacobian(
         u, v, Z1,
+        pixel_scale=pixel_scale,
         x_offset=x_offset, y_offset=y_offset
     )
-    # Apply pixel scale to the Jacobian
-    dudx *= pixel_scale
-    dudy *= pixel_scale
-    dvdx *= pixel_scale
-    dvdy *= pixel_scale
 
     return _enclosed_fraction(
         x, y, u, v, u0, v0, radius,
@@ -773,15 +784,11 @@ class DonutFactory:
         img = np.zeros((npix, npix))
 
         # Compute jacobian just once
-        dudx, dudy, dvdx, dvdy = _focal_pupil_jacobian(
+        dudx, dudy, dvdx, dvdy = _pixel_pupil_jacobian(
             u, v, Z1,
+            pixel_scale=self.pixel_scale,
             x_offset=x_offset, y_offset=y_offset
         )
-        # Apply pixel scale to the Jacobian
-        dudx *= self.pixel_scale
-        dudy *= self.pixel_scale
-        dvdx *= self.pixel_scale
-        dvdy *= self.pixel_scale
 
         # Always clip out the primary mirror outer diameter
         f = _enclosed_fraction(
