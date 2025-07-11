@@ -257,6 +257,99 @@ void enclosed_circle(
     }
 }
 
+
+double enclosed_strut_1(
+    double x, double y, double u, double v,
+    double length,
+    double u1, double v1, double sth1, double cth1,
+    double u2, double v2, double sth2, double cth2,
+    double dudx, double dudy,
+    double dvdx, double dvdy
+) {
+    // Center of the strut
+    double cu = 0.5 * (u1 + u2);
+    double cv = 0.5 * (v1 + v2);
+
+    // Exclude points > length/2 from strut center
+    double du0 = u - cu;
+    double dv0 = v - cv;
+    if (du0*du0 + dv0*dv0 >= (length/2)*(length/2))
+        return 0.0;  // Outside the strut
+
+    // Exclude points not close to either edge
+    // Note this implies the strut is thin
+    double h1 = std::sqrt((dudx + dvdy)*(dudx + dvdy) + (dudy - dvdx)*(dudy - dvdx));
+    double h2 = std::sqrt((dudx - dvdy)*(dudx - dvdy) + (dudy + dvdx)*(dudy + dvdx));
+    double maxLinearScale = 0.5 * (h1 + h2);
+
+    // Points close to edge1
+    double du1 = u - u1;
+    double dv1 = v - v1;
+    double d1 = std::abs(-du1*sth1 + dv1*cth1);
+    bool wclose1 = d1 < 2*maxLinearScale;
+
+    // Points close to edge2
+    double du2 = u - u2;
+    double dv2 = v - v2;
+    double d2 = std::abs(-du2*sth2 + dv2*cth2);
+    bool wclose2 = d2 < 2*maxLinearScale;
+
+    if (!wclose1 && !wclose2)
+        return 0.0;  // Outside the strut
+
+    double frac = pixel_frac_1(
+        u1, v1, sth1, cth1,
+        u, v,
+        x, y,
+        dudx, dudy,
+        dvdx, dvdy
+    );
+    frac -= pixel_frac_1(
+        u2, v2, sth2, cth2,
+        u, v,
+        x, y,
+        dudx, dudy,
+        dvdx, dvdy
+    );
+
+    return frac;
+}
+
+
+void enclosed_strut(
+    size_t x_ptr, size_t y_ptr,
+    size_t u_ptr, size_t v_ptr,
+    double length,
+    double u1, double v1, double sth1, double cth1,
+    double u2, double v2, double sth2, double cth2,
+    size_t dudx_ptr, size_t dudy_ptr,
+    size_t dvdx_ptr, size_t dvdy_ptr,
+    size_t frac_ptr, size_t n_points
+) {
+    for (size_t i = 0; i < n_points; i++) {
+        double x = reinterpret_cast<double*>(x_ptr)[i];
+        double y = reinterpret_cast<double*>(y_ptr)[i];
+        double u = reinterpret_cast<double*>(u_ptr)[i];
+        double v = reinterpret_cast<double*>(v_ptr)[i];
+        double dudx = reinterpret_cast<double*>(dudx_ptr)[i];
+        double dudy = reinterpret_cast<double*>(dudy_ptr)[i];
+        double dvdx = reinterpret_cast<double*>(dvdx_ptr)[i];
+        double dvdy = reinterpret_cast<double*>(dvdy_ptr)[i];
+
+        double frac = enclosed_strut_1(
+            x, y, u, v,
+            length,
+            u1, v1, sth1, cth1,
+            u2, v2, sth2, cth2,
+            dudx, dudy,
+            dvdx, dvdy
+        );
+
+        reinterpret_cast<double*>(frac_ptr)[i] = frac;
+    }
+}
+
+
 PYBIND11_MODULE(_danish, m) {
     m.def("poly_grid_contains", &poly_grid_contains);
     m.def(
@@ -278,4 +371,5 @@ PYBIND11_MODULE(_danish, m) {
         >(&pixel_frac)
     );
     m.def("enclosed_circle", &enclosed_circle);
+    m.def("enclosed_strut", &enclosed_strut);
 }
