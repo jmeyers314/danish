@@ -666,11 +666,24 @@ def enclosed_fraction(
     if pixel_scale is None:
         raise ValueError("Missing pixel scale")
 
+    Z1 = Z * focal_length if focal_length else Z
+
+    dxdu, dxdv, dydu, dydv = _pupil_focal_jacobian(
+        u, v, Z,
+        x_offset=x_offset, y_offset=y_offset
+    )
+    det = dxdu*dydv - dxdv*dydu
+    dudx = dydv/det
+    dudy = -dxdv/det
+    dvdx = -dydu/det
+    dvdy = dxdu/det
+    _jac = dxdu, dxdv, dydu, dydv, dudx, dudy, dvdx, dvdy
+
     return _enclosed_fraction(
-        x, y, u, v, u0, v0, radius, Z,
-        focal_length=focal_length,
+        x, y, u, v, u0, v0, radius, Z1,
         x_offset=x_offset, y_offset=y_offset,
-        pixel_scale=pixel_scale
+        pixel_scale=pixel_scale,
+        _jac=_jac
     )
 
 
@@ -679,30 +692,16 @@ def _enclosed_fraction(
     u, v,
     u0, v0, radius,
     Z, *,
-    focal_length=None,
-    x_offset=None, y_offset=None,
-    pixel_scale=1.0,
-    _jac=None,
+    pixel_scale,
+    _jac,
 ):
-    Z1 = Z * focal_length if focal_length else Z
     out = np.zeros_like(x)  # the enclosed fraction
     du = u - u0  # pupil displacement from circle center
     dv = v - v0
 
     # First determine "obvious" points either far inside or far outside circle
     # of interest.
-    if _jac is None:
-        dxdu, dxdv, dydu, dydv = _pupil_focal_jacobian(
-            u, v, Z1,
-            x_offset=x_offset, y_offset=y_offset
-        )
-        det = dxdu*dydv - dxdv*dydu
-        dudx = dydv/det
-        dudy = -dxdv/det
-        dvdx = -dydu/det
-        dvdy = dxdu/det
-    else:
-        dxdu, dxdv, dydu, dydv, dudx, dudy, dvdx, dvdy = _jac
+    dxdu, dxdv, dydu, dydv, dudx, dudy, dvdx, dvdy = _jac
 
     drhosq = du*du + dv*dv
     h1 = np.sqrt((dudx + dvdy)**2 + (dudy - dvdx)**2)
@@ -801,154 +800,6 @@ def _enclosed_fraction(
     w = y<0
     out[wx[w]] = 1 - out[wx[w]]
 
-    return out
-
-
-def _enclosed_fraction_debug(
-    x, y,
-    u, v,
-    u0, v0, radius,
-    Z, *,
-    focal_length=None,
-    x_offset=None, y_offset=None,
-    pixel_scale=1.0,
-    axes=None
-):  # pragma: no cover
-    if axes:
-        ax0, ax1 = axes
-
-    print(f"(x, y) = ({x:.6f}, {y:.6f})")
-    print(f"(xp, yp) = ({x/pixel_scale:.1f}, {y/pixel_scale:.1f})")
-    print(f"(u, v) = ({u:.4f}, {v:.4f})")
-    print(f"(u0, v0) = ({u0:.4f}, {v0:.4f})")
-    Z1 = Z * focal_length if focal_length else Z
-    du = u - u0  # pupil displacement from circle center
-    dv = v - v0
-
-    # Transform slope/intercept into focal coords
-    dxdu, dxdv, dydu, dydv = _pupil_focal_jacobian(
-        u, v, Z1,
-        x_offset=x_offset, y_offset=y_offset
-    )
-    det = dxdu*dydv - dxdv*dydu
-    dudx = dydv/det
-    dudy = -dxdv/det
-    dvdx = -dydu/det
-    dvdy = dxdu/det
-
-    drho = np.hypot(du, dv)
-    h1 = np.sqrt((dudx + dvdy)**2 + (dudy - dvdx)**2)
-    h2 = np.sqrt((dudx - dvdy)**2 + (dudy + dvdx)**2)
-    maxLinearScale = 0.5 * (h1 + h2) * pixel_scale
-    print(f"maxLinearScale = {maxLinearScale:.4f}")
-
-    if drho < radius - maxLinearScale:
-        print("quick inside")
-        return 1.0
-    elif drho > radius + maxLinearScale:
-        print("quick outside")
-        return 0.0
-    else:
-        print("quick unknown")
-
-    # Calculate nearby slope/intercept of circle in pupil coords
-    mp = -du/dv
-    bp = np.hypot(du, dv)/dv*radius
-    # Adjust for circle center
-    bp += v0 - mp*u0
-
-    if ax1:
-        xs = np.linspace(-4.18, 4.18)
-        ys = xs*mp + bp
-        ax1.plot(xs, ys, c='r')
-
-    # alpha = dvdy - mp*dudy
-    # beta = mp*dudx - dvdx
-    # gamma = mp*du + bp - dv
-    # m = beta/alpha
-    # b = (-beta*x + gamma)/alpha + y
-    alpha = dvdy - mp*dudy
-    beta = mp*dudx - dvdx
-    gamma = mp*u + bp - v
-    m = beta/alpha
-    b = (-beta*x + gamma)/alpha + y
-
-    if ax0:
-        xs = np.linspace(-90, 90)
-        ys = xs*m + b/pixel_scale
-        ax0.plot(xs, ys, c='m')
-
-    # Use local linear approx to transform u0, v0 -> x0, y0
-    x0 = x + (u0-u)*dxdu + (v0-v)*dxdv
-    y0 = y + (u0-u)*dydu + (v0-v)*dydv
-
-    # Center coords around x0, y0
-    x -= x0
-    y -= y0
-    b += m*x0-y0
-
-    print(f"initial m = {m:.4f}")
-    print(f"initial b = {b:.4f}")
-
-    # Normalize to m < 0
-    if m > 0:
-        print("normalizing to m < 0")
-        x, m = -x, -m
-
-    # Normalize to -1 < m
-    if m < -1:
-        print("normalizing to -1 < m")
-        x, y = y, x
-        m, b = 1/m, -b/m
-
-    # Convert meters -> pixels
-    x /= pixel_scale
-    y /= pixel_scale
-    b /= pixel_scale
-
-    gamma = y + 0.5 - (m*(x + 0.5) + b)
-    print(f"gamma = {gamma:.4f}")
-    print(f"m = {m:.4f}")
-
-    # pixel is fully inside circle
-    if gamma < 0:
-        print("slow inside")
-        print(f"  gamma < 0  :  {gamma:.4f} < 0")
-        out = 1.0
-
-    # pixel is fully outside circle
-    if gamma > (1-m):
-        print("slow outside")
-        print(f"  gamma > (1-m)  :  {gamma:.4f} > {1-m:.4f}")
-        out = 0.0
-
-    # line crosses left and bottom
-    if (1 < gamma) & (gamma < (1-m)):
-        print("slow LB")
-        print(f"  1 < gamma  :  1 < {gamma:.4f}")
-        print(f"  gamma < (1-m)  :  {gamma:.4f} < {1-m:.4f}")
-        out = -0.5/m*(1 - (gamma+m))**2
-
-    # crosses left and right
-    if (-m < gamma) & (gamma < 1):
-        print("slow LR")
-        print(f"  -m < gamma  :  {-m:.4f} < {gamma:.4f}")
-        print(f"  gamma < 1  :  {gamma:.4f} < 1")
-        out = 1 - gamma - m/2
-
-    # crosses top and right
-    if (0 < gamma) & (gamma < -m):
-        print("slow TR")
-        print(f"  0 < gamma  :  0 < {gamma:.4f}")
-        print(f"  gamma < -m  :  {gamma:.4f} < {-m:.4f}")
-        out = 1 + 0.5*gamma**2/m
-
-    if y<0:
-        print("flip")
-        print(f"  y < 0  :  {y:.4f} < 0")
-        out = 1 - out
-
-    print(out)
     return out
 
 
@@ -1119,7 +970,6 @@ class DonutFactory:
             x, y, u, v,
             0.0, 0.0, self.R_outer,
             Z=Z1,
-            x_offset=x_offset, y_offset=y_offset,
             pixel_scale=self.pixel_scale,
             _jac=jac,
         )
@@ -1164,7 +1014,6 @@ class DonutFactory:
                             x[w], y[w], u[w], v[w],
                             cx, cy, radius,
                             Z=Z1,
-                            x_offset=x_offset, y_offset=y_offset,
                             pixel_scale=self.pixel_scale,
                             _jac=jac[:, w],
                         )

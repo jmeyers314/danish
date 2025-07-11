@@ -12,7 +12,7 @@ import yaml
 
 directory = os.path.dirname(__file__)
 Rubin_obsc = yaml.safe_load(open(os.path.join(danish.datadir, 'RubinObsc.yaml')))
-
+# del Rubin_obsc["Spider_3D"]
 
 def main():
     """Roundtrip using GalSim Kolmogorov atmosphere + batoid to produce test
