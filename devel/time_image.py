@@ -10,6 +10,7 @@ from danish import DonutFactory
 
 def time_image():
     maskModel = yaml.safe_load(open(os.path.join(danish.datadir, 'RubinObsc.yaml')))
+    # del maskModel["Spider_3D"]
     factory = DonutFactory(
         mask_params=maskModel
     )
