@@ -30,7 +30,7 @@
 import numpy as np
 import galsim
 from functools import lru_cache
-from ._danish import poly_grid_contains, pixel_frac
+from ._danish import poly_grid_contains, pixel_frac, enclosed_circle
 
 
 def pupil_to_focal(
@@ -645,52 +645,16 @@ def _enclosed_fraction(
     *,
     dudx, dudy, dvdx, dvdy,
 ):
-    out = np.zeros_like(x)  # the enclosed fraction
-    du = u - u0  # pupil displacement from circle center
-    dv = v - v0
-
-    drhosq = du*du + dv*dv
-    h1 = np.sqrt((dudx + dvdy)**2 + (dudy - dvdx)**2)
-    h2 = np.sqrt((dudx - dvdy)**2 + (dudy + dvdx)**2)
-    maxLinearScale = 0.5 * (h1 + h2)
-    winside = drhosq < (radius - maxLinearScale)**2
-    woutside = drhosq > (radius + maxLinearScale)**2
-    wunknown = ~winside & ~woutside
-    wx = np.nonzero(wunknown)[0]
-
-    out[winside] = 1.0
-    out[woutside] = 0.0
-
-    if not np.any(wunknown):
-        return out
-
-    # restrict to unknown points
-    u = u[wunknown]
-    v = v[wunknown]
-    du = du[wunknown]
-    dv = dv[wunknown]
-    x = x[wunknown]
-    y = y[wunknown]
-    dudx = dudx[wunknown]
-    dudy = dudy[wunknown]
-    dvdx = dvdx[wunknown]
-    dvdy = dvdy[wunknown]
-    drhosq = drhosq[wunknown]
-
-    norm = np.sqrt(drhosq)
-    lineu = u0 + radius * du / norm
-    linev = v0 + radius * dv / norm
-    sth = -du / norm
-    cth = dv / norm
-
-    frac = _pixel_frac(
-        lineu, linev, sth, cth,
-        u, v, x, y,
-        dudx, dudy, dvdx, dvdy
+    frac = np.empty_like(u)
+    enclosed_circle(
+        x.ctypes.data, y.ctypes.data,
+        u.ctypes.data, v.ctypes.data,
+        u0, v0, radius,
+        dudx.ctypes.data, dudy.ctypes.data,
+        dvdx.ctypes.data, dvdy.ctypes.data,
+        frac.ctypes.data, len(u)
     )
-    out[wx] = frac
-
-    return out
+    return frac
 
 
 class DonutFactory:

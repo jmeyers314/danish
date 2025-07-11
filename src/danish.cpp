@@ -195,6 +195,67 @@ void pixel_frac(
     }
 }
 
+double enclosed_circle_1(
+    double x, double y, double u, double v,
+    double u0, double v0, double radius,
+    double dudx, double dudy,
+    double dvdx, double dvdy
+) {
+    double du = u - u0;
+    double dv = v - v0;
+
+    double drhosq = du*du + dv*dv;
+    double h1 = std::sqrt((dudx + dvdy)*(dudx + dvdy) + (dudy - dvdx)*(dudy - dvdx));
+    double h2 = std::sqrt((dudx - dvdy)*(dudx - dvdy) + (dudy + dvdx)*(dudy + dvdx));
+    double maxLinearScale = 0.5 * (h1 + h2);
+    if (drhosq < (radius - maxLinearScale)*(radius - maxLinearScale))
+        return 1.0;
+    if (drhosq > (radius + maxLinearScale)*(radius + maxLinearScale))
+        return 0.0;
+
+    double norm = std::sqrt(drhosq);
+    double lineu = u0 + radius * du / norm;
+    double linev = v0 + radius * dv / norm;
+    double sth = -du / norm;
+    double cth = dv / norm;
+
+    return pixel_frac_1(
+        lineu, linev, sth, cth,
+        u, v, x, y,
+        dudx, dudy,
+        dvdx, dvdy
+    );
+}
+
+
+void enclosed_circle(
+    size_t x_ptr, size_t y_ptr,
+    size_t u_ptr, size_t v_ptr,
+    double u0, double v0, double radius,
+    size_t dudx_ptr, size_t dudy_ptr,
+    size_t dvdx_ptr, size_t dvdy_ptr,
+    size_t frac_ptr, size_t n_points
+) {
+    for (size_t i = 0; i < n_points; i++) {
+        double x = reinterpret_cast<double*>(x_ptr)[i];
+        double y = reinterpret_cast<double*>(y_ptr)[i];
+        double u = reinterpret_cast<double*>(u_ptr)[i];
+        double v = reinterpret_cast<double*>(v_ptr)[i];
+        double dudx = reinterpret_cast<double*>(dudx_ptr)[i];
+        double dudy = reinterpret_cast<double*>(dudy_ptr)[i];
+        double dvdx = reinterpret_cast<double*>(dvdx_ptr)[i];
+        double dvdy = reinterpret_cast<double*>(dvdy_ptr)[i];
+
+        double frac = enclosed_circle_1(
+            x, y, u, v,
+            u0, v0, radius,
+            dudx, dudy,
+            dvdx, dvdy
+        );
+
+        reinterpret_cast<double*>(frac_ptr)[i] = frac;
+    }
+}
 
 PYBIND11_MODULE(_danish, m) {
     m.def("poly_grid_contains", &poly_grid_contains);
@@ -216,4 +277,5 @@ PYBIND11_MODULE(_danish, m) {
             size_t, size_t
         >(&pixel_frac)
     );
+    m.def("enclosed_circle", &enclosed_circle);
 }
