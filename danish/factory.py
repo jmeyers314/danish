@@ -614,6 +614,169 @@ def enclosed_fraction(
     )
 
 
+def _enclosed_strut_1(
+    x, y, u, v,
+    length,
+    u1, v1, sth1, cth1,
+    u2, v2, sth2, cth2,
+    dudx, dudy,
+    dvdx, dvdy
+):
+    # Center of the strut
+    cu = 0.5 * (u1 + u2)
+    cv = 0.5 * (v1 + v2)
+
+    # Exclude points > length/2 from strut center
+    du0 = u - cu
+    dv0 = v - cv
+    if (du0*du0 + dv0*dv0 >= (length/2)*(length/2)):
+        return 0.0  # Outside the strut
+
+    # Exclude points not close to either edge
+    # Note this implies the strut is thin
+    h1 = np.sqrt((dudx + dvdy)*(dudx + dvdy) + (dudy - dvdx)*(dudy - dvdx))
+    h2 = np.sqrt((dudx - dvdy)*(dudx - dvdy) + (dudy + dvdx)*(dudy + dvdx))
+    maxLinearScale = 0.5 * (h1 + h2)
+
+    # Points close to edge1
+    du1 = u - u1
+    dv1 = v - v1
+    d1 = np.abs(-du1*sth1 + dv1*cth1)
+    wclose1 = d1 < 2*maxLinearScale
+
+    # Points close to edge2
+    du2 = u - u2
+    dv2 = v - v2
+    d2 = np.abs(-du2*sth2 + dv2*cth2)
+    wclose2 = d2 < 2*maxLinearScale
+
+    if not wclose1 and not wclose2:
+        return 0.0  # Outside the strut
+
+    frac = _pixel_frac_1(
+        u1, v1, sth1, cth1,
+        u, v,
+        x, y,
+        dudx, dudy,
+        dvdx, dvdy
+    )
+    frac -= _pixel_frac_1(
+        u2, v2, sth2, cth2,
+        u, v,
+        x, y,
+        dudx, dudy,
+        dvdx, dvdy
+    )
+    return frac
+
+
+def _pixel_frac_1(
+    u0, v0, sth0, cth0,
+    u1, v1,
+    x1, y1,
+    dudx, dudy, dvdx, dvdy
+):
+    cph = cth0 * dvdy - sth0 * dudy
+    sph = sth0 * dudx - cth0 * dvdx
+    norm = np.sqrt(sph*sph + cph*cph)
+    cph /= norm
+    sph /= norm
+
+    # That takes care of the initial orientation, but we need the transformed point too.
+    det = dudx*dvdy - dvdx*dudy
+    dxdu = dvdy/det
+    dydu = -dvdx/det
+    dxdv = -dudy/det
+    dydv = dudx/det
+    x0 = (u0-u1)*dxdu + (v0-v1)*dxdv + x1
+    y0 = (u0-u1)*dydu + (v0-v1)*dydv + y1
+
+    # express x0, y0 wrt x1, y1
+    x0 = x0 - x1
+    y0 = y0 - y1
+
+    flip = False
+    if cph < 0:
+        cph = -cph
+        x0 = -x0
+        flip =  not flip
+    if sph < 0:
+        sph = -sph
+        y0 = -y0
+        flip =  not flip
+    if sph > cph:
+        sph, cph = cph, sph
+        x0, y0 = y0, x0
+        flip =  not flip
+
+    right = (0.5 - x0) * sph/cph + y0 + 0.5  # wrt bottom
+    left = (-0.5 - x0) * sph/cph + y0 + 0.5
+
+    frac = 0.0
+
+    if left > 1:
+        frac = 1.0
+    elif right >= 1:
+        frac = 1.0 - 0.5 * cph / sph * (1 - left) * (1 - left)
+    elif left > 0:
+        frac = 0.5 * (left + right)
+    elif right > 0:
+        frac = 0.5 * cph / sph * right * right
+    else:
+        frac = 0.0
+
+    return 1.0 - frac if flip else frac
+
+
+def _enclosed_circle_1(
+    x, y, u, v,
+    u0, v0, radius,
+    dudx, dudy, dvdx, dvdy,
+):
+    """
+    Parameters
+    ----------
+    x, y : float
+        Focal plane coordinates in meters.
+    u, v : float
+        Pupil coordinates in meters.
+    u0, v0 : float
+        Pupil coordinates of circle center in meters.
+    radius : float
+        Circle radius in meters.
+    dudx, dudy, dvdx, dvdy : float
+        Jacobian of pupil to focal transform in meters per pixel.
+    """
+    # Coords wrt circle center
+    du = u - u0
+    dv = v - v0
+
+    # Determine points far from circle boundary
+    drhosq = du*du + dv*dv
+    h1 = np.sqrt((dudx + dvdy)*(dudx + dvdy) + (dudy - dvdx)*(dudy - dvdx))
+    h2 = np.sqrt((dudx - dvdy)*(dudx - dvdy) + (dudy + dvdx)*(dudy + dvdx))
+    maxLinearScale = 0.5 * (h1 + h2)
+    rmin = radius - maxLinearScale
+    rmax = radius + maxLinearScale
+    if (drhosq < rmin**2):
+        return 1.0
+    if (drhosq > rmax**2):
+        return 0.0
+
+    norm = np.sqrt(drhosq)
+    lineu = u0 + radius * du / norm
+    linev = v0 + radius * dv / norm
+    sth = -du / norm
+    cth = dv / norm
+
+    return _pixel_frac_1(
+        lineu, linev, sth, cth,
+        u, v, x, y,
+        dudx, dudy,
+        dvdx, dvdy
+    )
+
+
 def _enclosed_fraction(
     x, y,
     u, v,
