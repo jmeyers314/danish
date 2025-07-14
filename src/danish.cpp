@@ -138,15 +138,24 @@ void pixel_frac(
     size_t dvdx_ptr, size_t dvdy_ptr,
     size_t frac_ptr, size_t n_points
 ) {
+    double* u1p = reinterpret_cast<double*>(u1_ptr);
+    double* v1p = reinterpret_cast<double*>(v1_ptr);
+    double* x1p = reinterpret_cast<double*>(x1_ptr);
+    double* y1p = reinterpret_cast<double*>(y1_ptr);
+    double* dudxp = reinterpret_cast<double*>(dudx_ptr);
+    double* dudyp = reinterpret_cast<double*>(dudy_ptr);
+    double* dvdxp = reinterpret_cast<double*>(dvdx_ptr);
+    double* dvdyp = reinterpret_cast<double*>(dvdy_ptr);
+
     for (size_t i = 0; i < n_points; i++) {
-        double u1 = reinterpret_cast<double*>(u1_ptr)[i];
-        double v1 = reinterpret_cast<double*>(v1_ptr)[i];
-        double x1 = reinterpret_cast<double*>(x1_ptr)[i];
-        double y1 = reinterpret_cast<double*>(y1_ptr)[i];
-        double dudx = reinterpret_cast<double*>(dudx_ptr)[i];
-        double dudy = reinterpret_cast<double*>(dudy_ptr)[i];
-        double dvdx = reinterpret_cast<double*>(dvdx_ptr)[i];
-        double dvdy = reinterpret_cast<double*>(dvdy_ptr)[i];
+        double u1 = u1p[i];
+        double v1 = v1p[i];
+        double x1 = x1p[i];
+        double y1 = y1p[i];
+        double dudx = dudxp[i];
+        double dudy = dudyp[i];
+        double dvdx = dvdxp[i];
+        double dvdy = dvdyp[i];
 
         double frac = pixel_frac_1(
             u0, v0, sth0, cth0,
@@ -169,19 +178,33 @@ void pixel_frac(
     size_t dvdx_ptr, size_t dvdy_ptr,
     size_t frac_ptr, size_t n_points
 ) {
+    double* u0p = reinterpret_cast<double*>(u0_ptr);
+    double* v0p = reinterpret_cast<double*>(v0_ptr);
+    double* sth0p = reinterpret_cast<double*>(sth0_ptr);
+    double* cth0p = reinterpret_cast<double*>(cth0_ptr);
+    double* u1p = reinterpret_cast<double*>(u1_ptr);
+    double* v1p = reinterpret_cast<double*>(v1_ptr);
+    double* x1p = reinterpret_cast<double*>(x1_ptr);
+    double* y1p = reinterpret_cast<double*>(y1_ptr);
+    double* dudxp = reinterpret_cast<double*>(dudx_ptr);
+    double* dudyp = reinterpret_cast<double*>(dudy_ptr);
+    double* dvdxp = reinterpret_cast<double*>(dvdx_ptr);
+    double* dvdyp = reinterpret_cast<double*>(dvdy_ptr);
+    double* fracp = reinterpret_cast<double*>(frac_ptr);
+
     for (size_t i = 0; i < n_points; i++) {
-        double u0 = reinterpret_cast<double*>(u0_ptr)[i];
-        double v0 = reinterpret_cast<double*>(v0_ptr)[i];
-        double sth0 = reinterpret_cast<double*>(sth0_ptr)[i];
-        double cth0 = reinterpret_cast<double*>(cth0_ptr)[i];
-        double u1 = reinterpret_cast<double*>(u1_ptr)[i];
-        double v1 = reinterpret_cast<double*>(v1_ptr)[i];
-        double x1 = reinterpret_cast<double*>(x1_ptr)[i];
-        double y1 = reinterpret_cast<double*>(y1_ptr)[i];
-        double dudx = reinterpret_cast<double*>(dudx_ptr)[i];
-        double dudy = reinterpret_cast<double*>(dudy_ptr)[i];
-        double dvdx = reinterpret_cast<double*>(dvdx_ptr)[i];
-        double dvdy = reinterpret_cast<double*>(dvdy_ptr)[i];
+        double u0 = u0p[i];
+        double v0 = v0p[i];
+        double sth0 = sth0p[i];
+        double cth0 = cth0p[i];
+        double u1 = u1p[i];
+        double v1 = v1p[i];
+        double x1 = x1p[i];
+        double y1 = y1p[i];
+        double dudx = dudxp[i];
+        double dudy = dudyp[i];
+        double dvdx = dvdxp[i];
+        double dvdy = dvdyp[i];
 
         double frac = pixel_frac_1(
             u0, v0, sth0, cth0,
@@ -191,7 +214,7 @@ void pixel_frac(
             dvdx, dvdy
         );
 
-        reinterpret_cast<double*>(frac_ptr)[i] = frac;
+        fracp[i] = frac;
     }
 }
 
@@ -236,15 +259,25 @@ void enclosed_circle(
     size_t dvdx_ptr, size_t dvdy_ptr,
     size_t frac_ptr, size_t n_points
 ) {
+    double* xp = reinterpret_cast<double*>(x_ptr);
+    double* yp = reinterpret_cast<double*>(y_ptr);
+    double* up = reinterpret_cast<double*>(u_ptr);
+    double* vp = reinterpret_cast<double*>(v_ptr);
+    double* dudxp = reinterpret_cast<double*>(dudx_ptr);
+    double* dudyp = reinterpret_cast<double*>(dudy_ptr);
+    double* dvdxp = reinterpret_cast<double*>(dvdx_ptr);
+    double* dvdyp = reinterpret_cast<double*>(dvdy_ptr);
+    double* fracp = reinterpret_cast<double*>(frac_ptr);
+
     for (size_t i = 0; i < n_points; i++) {
-        double x = reinterpret_cast<double*>(x_ptr)[i];
-        double y = reinterpret_cast<double*>(y_ptr)[i];
-        double u = reinterpret_cast<double*>(u_ptr)[i];
-        double v = reinterpret_cast<double*>(v_ptr)[i];
-        double dudx = reinterpret_cast<double*>(dudx_ptr)[i];
-        double dudy = reinterpret_cast<double*>(dudy_ptr)[i];
-        double dvdx = reinterpret_cast<double*>(dvdx_ptr)[i];
-        double dvdy = reinterpret_cast<double*>(dvdy_ptr)[i];
+        double x = xp[i];
+        double y = yp[i];
+        double u = up[i];
+        double v = vp[i];
+        double dudx = dudxp[i];
+        double dudy = dudyp[i];
+        double dvdx = dvdxp[i];
+        double dvdy = dvdyp[i];
 
         double frac = enclosed_circle_1(
             x, y, u, v,
@@ -253,7 +286,7 @@ void enclosed_circle(
             dvdx, dvdy
         );
 
-        reinterpret_cast<double*>(frac_ptr)[i] = frac;
+        fracp[i] = frac;
     }
 }
 
@@ -326,15 +359,25 @@ void enclosed_strut(
     size_t dvdx_ptr, size_t dvdy_ptr,
     size_t frac_ptr, size_t n_points
 ) {
+    double* xp = reinterpret_cast<double*>(x_ptr);
+    double* yp = reinterpret_cast<double*>(y_ptr);
+    double* up = reinterpret_cast<double*>(u_ptr);
+    double* vp = reinterpret_cast<double*>(v_ptr);
+    double* dudxp = reinterpret_cast<double*>(dudx_ptr);
+    double* dudyp = reinterpret_cast<double*>(dudy_ptr);
+    double* dvdxp = reinterpret_cast<double*>(dvdx_ptr);
+    double* dvdyp = reinterpret_cast<double*>(dvdy_ptr);
+    double* fracp = reinterpret_cast<double*>(frac_ptr);
+
     for (size_t i = 0; i < n_points; i++) {
-        double x = reinterpret_cast<double*>(x_ptr)[i];
-        double y = reinterpret_cast<double*>(y_ptr)[i];
-        double u = reinterpret_cast<double*>(u_ptr)[i];
-        double v = reinterpret_cast<double*>(v_ptr)[i];
-        double dudx = reinterpret_cast<double*>(dudx_ptr)[i];
-        double dudy = reinterpret_cast<double*>(dudy_ptr)[i];
-        double dvdx = reinterpret_cast<double*>(dvdx_ptr)[i];
-        double dvdy = reinterpret_cast<double*>(dvdy_ptr)[i];
+        double x = xp[i];
+        double y = yp[i];
+        double u = up[i];
+        double v = vp[i];
+        double dudx = dudxp[i];
+        double dudy = dudyp[i];
+        double dvdx = dvdxp[i];
+        double dvdy = dvdyp[i];
 
         double frac = enclosed_strut_1(
             x, y, u, v,
@@ -345,7 +388,7 @@ void enclosed_strut(
             dvdx, dvdy
         );
 
-        reinterpret_cast<double*>(frac_ptr)[i] = frac;
+        fracp[i] = frac;
     }
 }
 
