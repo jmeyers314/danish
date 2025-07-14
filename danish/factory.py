@@ -755,8 +755,7 @@ class DonutFactory:
             xgrid.ctypes.data, xgrid.ctypes.data, corners.ctypes.data,
             len(xgrid), len(xgrid)
         )
-
-        contained = corners[1:,1:]
+        contained = np.array(corners[1:,1:]) # Be sure to make a copy!
         contained |= corners[:-1,1:]
         contained |= corners[1:,:-1]
         contained |= corners[:-1,:-1]
