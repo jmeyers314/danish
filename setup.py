@@ -28,7 +28,7 @@ setup(
         "danish": ["data/*"],
     },
     install_requires=['pybind11>2.10', 'numpy', 'pyyaml', 'galsim', 'batoid', 'scipy'],
-    python_requires='>=3.8',
+    python_requires='>=3.10',
     zip_safe=False,
     include_package_data=True,
     classifiers=[
