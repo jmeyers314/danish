@@ -816,24 +816,62 @@ class DonutFactory:
     Notes
     -----
     The mask_params dictionary is a nested dictionary that specifies the
-    mask model. Each top-level item in the dictionary can have any number
-    of edges (usually "outer" and/or "inner"). Each edge is modeled as a
-    circle in pupil space. For each of these edges, there is a minimum
-    and maximum field angle where the edge needs to be computed, as well
-    as polynomial coefficients for calculating the center and radius of
-    the circle. These coefficients are meant to be used with np.polyval.
-    Each edge also has a "clear" bool which indicates whether the interior
-    of the circle is clear or opaque.
+    mask model. Each top-level item in the dictionary (except for
+    `Spider_3D`, see below) can have any number of edges (usually "outer"
+    and/or "inner"). Each edge is modeled as a circle in pupil space. For
+    each of these edges, there is a minimum and maximum field angle where
+    the edge needs to be computed, as well as polynomial coefficients for
+    calculating the center and radius of the circle. These coefficients
+    are meant to be used with np.polyval. Each edge also has a "clear"
+    bool which indicates whether the interior of the circle is clear or
+    opaque.
 
-    The format of the dictionary is
+    Spider struts are modeled as 2D rectangles situated in 3D space.
+    The Spider_3d item is a list of dictionaries, each containing the
+    following keys:
+      - 'r0': [float, float, float]
+        3D position of the spider vane center in meters.  The coordinate
+        system is such that the Z-axis is the optic axis, and the origin
+        is center of the entrance pupil.
+      - 'v0': [float, float, float]
+        3D direction of the spider vane in meters.
+      - 'width': float
+        Width of the spider vane in meters.  The width is measured
+        perpendicular to both the optic axis and the spider vane
+        direction.
+      - 'length': float
+        Approximate length of the spider vane in meters.  We assume that
+        the ends of the spider struts are obscured by other components so
+        detailed modeling is not necessary.
+      - 'angle': float
+        Additional Z-axis rotation angle to apply in degrees.
+
+    An obscuration dictionary containing both circular and spider strut
+    components would look something like:
+
     {
-        item:
+        item1:
             edge:
                 clear: bool
                 thetaMin: float (degrees)
                 thetaMax: float (degrees)
                 center: [float,] (meters)
                 radius: [float,] (meters)
+        item2:
+            edge2:
+                clear: bool
+                thetaMin: float (degrees)
+                thetaMax: float (degrees)
+                center: [float,] (meters)
+                radius: [float,] (meters)
+        Spider_3D:
+            -
+                r0: [float, float, float]  (meters)
+                v0: [float, float, float]  (meters)
+                width: float  (meters)
+                length: float  (meters)
+                angle: float  (degrees)
+            ...
     }
     """
     def __init__(
