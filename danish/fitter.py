@@ -47,7 +47,102 @@ else:
         return cv2.filter2D(A, -1, B[::-1,::-1], borderType=cv2.BORDER_CONSTANT)
 
 
-class SingleDonutModel:
+class BaseDonutModel:
+    """Base class for donut models.
+
+    Parameters
+    ----------
+    factory : DonutFactory
+    npix : int
+        Number of pixels along image edge. Must be odd.
+    seed : int
+        Random seed for use when creating noisy donut images.
+    """
+    def __init__(self, factory, npix, seed):
+        assert npix % 2 == 1, "npix must be odd"
+
+        self.factory = factory
+        self.npix = npix
+        self.no2 = (npix-1)//2
+        self.gsrng = galsim.BaseDeviate(seed)
+        # arcseconds per pixel
+        # This is only used for the atmospheric part of the model, where we
+        # ignore distortion and draw a circular profile in image coordinates.
+        self.sky_scale = (
+            3600*np.rad2deg(1/factory.focal_length)*factory.pixel_scale
+        )
+
+    @lru_cache(maxsize=1000)
+    def _atm_kernel(self, dx, dy, fwhm):
+        """Compute atmospheric kernel.
+
+        Parameters
+        ----------
+        dx, dy : float
+            Offset in pixels.
+        fwhm : float
+            Full width half maximum of Kolmogorov kernel.
+
+        Returns
+        -------
+        array of float
+            Atmospheric kernel array.
+        """
+        obj = galsim.Kolmogorov(fwhm=fwhm).shift(dx, dy)
+        img = obj.drawImage(nx=self.no2, ny=self.no2, scale=self.sky_scale)
+        return img.array
+
+    def _assemble_image(self, opt, atm, flux=None, sky_level=None):
+        """Apply convolution and add optional noise.
+
+        Parameters
+        ----------
+        opt : array of float
+            Optical model array.
+        atm : array of float
+            Atmospheric kernel array.
+        flux : float, optional
+            Flux level at which to set image.
+        sky_level : float, optional
+            Sky level to use when adding Poisson noise.
+
+        Returns
+        -------
+        array of float
+            Convolved and potentially noisy image array.
+        """
+        arr = convolve(opt, atm)
+        img = galsim.Image(arr)
+        if flux is not None:
+            img.array[:] *= flux/np.sum(img.array)
+        if sky_level is not None:
+            pn = galsim.PoissonNoise(self.gsrng, sky_level=sky_level)
+            img.addNoise(pn)
+        return img.array
+
+    def _chi_single(self, model, datum, var):
+        """Compute chi for a single image.
+
+        Parameters
+        ----------
+        model : array of float
+            Model image.
+        datum : array of float
+            Data image.
+        var : float or array of float
+            Variance of the sky only.
+
+        Returns
+        -------
+        array of float
+            Flattened chi residuals.
+        """
+        model = model.copy()
+        model *= np.sum(datum)/np.sum(model)
+        return ((datum-model)/np.sqrt(var+model)).ravel()
+
+
+class SingleDonutModel(BaseDonutModel):
     """Model individual donuts using single Zernike offsets to a reference
     single Zernike series.
 
@@ -80,31 +175,16 @@ class SingleDonutModel:
         npix=181,
         seed=57721
     ):
-        self.factory = factory
-        # arcseconds per pixel
-        # This is only used for the atmospheric part of the model, where we
-        # ignore distortion and draw a circular profile in image coordinates.
-        self.sky_scale = (
-            3600*np.rad2deg(1/factory.focal_length)*factory.pixel_scale
-        )
+        super().__init__(factory, npix, seed)
         self.z_ref = z_ref
         self.x_offset = x_offset
         self.y_offset = y_offset
         self.z_terms = z_terms
         self.thx = thx
         self.thy = thy
-        self.npix = npix
-        self.no2 = (npix-1)//2
-        self.gsrng = galsim.BaseDeviate(seed)
 
     @lru_cache(maxsize=1000)
-    def _atmKernel(self, dx, dy, fwhm):
-        obj = galsim.Kolmogorov(fwhm=fwhm).shift(dx, dy)
-        img = obj.drawImage(nx=self.no2, ny=self.no2, scale=self.sky_scale)
-        return img.array
-
-    @lru_cache(maxsize=1000)
-    def _optImage(self, z_fit):
+    def _opt_image(self, z_fit):
         aberrations = np.array(self.z_ref)
         for i, term in enumerate(self.z_terms):
             aberrations[term] += z_fit[i]
@@ -140,16 +220,9 @@ class SingleDonutModel:
         img : array of float
             Model image.
         """
-        atm = self._atmKernel(dx, dy, fwhm)
-        opt = self._optImage(tuple(z_fit))
-        arr = convolve(opt, atm)
-        img = galsim.Image(arr)  # Does this make a copy?
-        if flux is not None:
-            img.array[:] *= flux/np.sum(img.array)
-        if sky_level is not None:
-            pn = galsim.PoissonNoise(self.gsrng, sky_level=sky_level)
-            img.addNoise(pn)
-        return img.array
+        atm = self._atm_kernel(dx, dy, fwhm)
+        opt = self._opt_image(tuple(z_fit))
+        return self._assemble_image(opt, atm, flux, sky_level)
 
     def chi(
         self, params, data, var
@@ -175,9 +248,7 @@ class SingleDonutModel:
         """
         dx, dy, fwhm, *z_fit = params
         mod = self.model(dx, dy, fwhm, z_fit)
-        mod *= np.sum(data)/np.sum(mod)
-        _chi = ((data-mod)/np.sqrt(var + mod)).ravel()
-        return _chi
+        return self._chi_single(mod, data, var)
 
     def jac(
         self, params, data, var
@@ -266,7 +337,7 @@ class DoubleZernike:
         return self.coefs.shape[0]-1
 
 
-class MultiDonutModel:
+class MultiDonutModel(BaseDonutModel):
     """Model double Zernikes on top of reference per-donut single Zernikes to
     multiple donuts simultaneously.
 
@@ -302,14 +373,7 @@ class MultiDonutModel:
         npix=181,
         seed=577215
     ):
-        self.factory = factory
-        # arcseconds per pixel
-        # As with SingleDonutModel, we only use the scale here for the
-        # atmospheric part, and the kernel is isotropic in pixel coordinates,
-        # ignoring distortion.
-        self.sky_scale = (
-            3600*np.rad2deg(1/factory.focal_length)*factory.pixel_scale
-        )
+        super().__init__(factory, npix, seed)
 
         if dz_ref is None and z_refs is None:
             raise ValueError("Must provide dz_ref or z_refs")
@@ -326,23 +390,14 @@ class MultiDonutModel:
         self.dz_terms = dz_terms
         self.thxs = thxs
         self.thys = thys
-        self.npix = npix
-        self.no2 = (npix-1)//2
-        self.gsrng = galsim.BaseDeviate(seed)
         self.nstar = len(thxs)
         self.jmax_fit = max((dz_term[1] for dz_term in dz_terms), default=0)
         self.kmax_fit = max((dz_term[0] for dz_term in dz_terms), default=0)
 
     @lru_cache(maxsize=1000)
-    def _atm1(self, dx, dy, fwhm):
-        obj = galsim.Kolmogorov(fwhm=fwhm).shift(dx, dy)
-        img = obj.drawImage(nx=self.no2, ny=self.no2, scale=self.sky_scale)
-        return img.array
-
-    @lru_cache(maxsize=1000)
     def _opt1(self, aberrations, thx, thy):
         return self.factory.image(
-            aberrations=aberrations, thx=thx, thy=thy, npix=self.npix
+            aberrations=tuple(aberrations), thx=thx, thy=thy, npix=self.npix
         )
 
     def _model1(
@@ -351,16 +406,9 @@ class MultiDonutModel:
         thx, thy, *,
         sky_level=None, flux=None
     ):
-        atm = self._atm1(dx, dy, fwhm)
+        atm = self._atm_kernel(dx, dy, fwhm)
         opt = self._opt1(tuple(aberrations), thx, thy)
-        arr = convolve(opt, atm)
-        img = galsim.Image(arr)  # Does this make a copy?
-        if flux is not None:
-            img.array[:] *= flux/np.sum(img.array)
-        if sky_level is not None:
-            pn = galsim.PoissonNoise(self.gsrng, sky_level=sky_level)
-            img.addNoise(pn)
-        return img.array
+        return self._assemble_image(opt, atm, flux, sky_level)
 
     def _dz(self, dz_fit):
         dzarr = np.zeros((self.kmax_fit+1, self.jmax_fit+1))
@@ -464,14 +512,12 @@ class MultiDonutModel:
         mods = self.model(dxs, dys, fwhm, dz_fit)
         chis = np.empty((self.nstar, self.npix, self.npix))
         for i, (mod, datum) in enumerate(zip(mods, data)):
-            mod *= np.sum(datum)/np.sum(mod)
-            chis[i] = (datum-mod)/np.sqrt(vars[i] + mod)
+            chis[i] = self._chi_single(mod, datum, vars[i]).reshape(self.npix, self.npix)
         return chis.ravel()
 
     def _chi1(self, dx, dy, fwhm, aberrations, thx, thy, datum, var):
         mod1 = self._model1(dx, dy, fwhm, aberrations, thx, thy)
-        mod1 *= np.sum(datum)/np.sum(mod1)
-        return ((datum-mod1)/np.sqrt(var+mod1)).ravel()
+        return self._chi_single(mod1, datum, var)
 
     def jac(
         self, params, data, vars
@@ -547,7 +593,7 @@ class MultiDonutModel:
         return out
 
 
-class DZModeDonutModel:
+class VModeDonutModel(BaseDonutModel):
     """ Model multiple donuts using modes of double Zernike coefficients.
 
     Parameters
@@ -589,14 +635,7 @@ class DZModeDonutModel:
         self.kmax = sensitivity.shape[1]-1
         self.jmax = sensitivity.shape[2]-1
 
-        self.factory = factory
-        # arcseconds per pixel
-        # As with SingleDonutModel, we only use the scale here for the
-        # atmospheric part, and the kernel is isotropic in pixel coordinates,
-        # ignoring distortion.
-        self.sky_scale = (
-            3600*np.rad2deg(1/factory.focal_length)*factory.pixel_scale
-        )
+        super().__init__(factory, npix, seed)
 
         if dz_ref is None and z_refs is None:
             raise ValueError("Must provide dz_ref or z_refs")
@@ -612,16 +651,7 @@ class DZModeDonutModel:
         self.field_radius = field_radius
         self.thxs = thxs
         self.thys = thys
-        self.npix = npix
-        self.no2 = (npix-1)//2
-        self.gsrng = galsim.BaseDeviate(seed)
         self.nstar = len(thxs)
-
-    @lru_cache(maxsize=1000)
-    def _atm1(self, dx, dy, fwhm):
-        obj = galsim.Kolmogorov(fwhm=fwhm).shift(dx, dy)
-        img = obj.drawImage(nx=self.no2, ny=self.no2, scale=self.sky_scale)
-        return img.array
 
     @lru_cache(maxsize=1000)
     def _opt1(self, aberrations, thx, thy):
@@ -635,16 +665,9 @@ class DZModeDonutModel:
         thx, thy, *,
         sky_level=None, flux=None
     ):
-        atm = self._atm1(dx, dy, fwhm)
+        atm = self._atm_kernel(dx, dy, fwhm)
         opt = self._opt1(tuple(aberrations), thx, thy)
-        arr = convolve(opt, atm)
-        img = galsim.Image(arr)  # Does this make a copy?
-        if flux is not None:
-            img.array[:] *= flux/np.sum(img.array)
-        if sky_level is not None:
-            pn = galsim.PoissonNoise(self.gsrng, sky_level=sky_level)
-            img.addNoise(pn)
-        return img.array
+        return self._assemble_image(opt, atm, flux, sky_level)
 
     def model(
         self, dxs, dys, fwhm, mode_fit, *, sky_levels=None, fluxes=None
@@ -746,14 +769,12 @@ class DZModeDonutModel:
         mods = self.model(dxs, dys, fwhm, mode_fit)
         chis = np.empty((self.nstar, self.npix, self.npix))
         for i, (mod, datum) in enumerate(zip(mods, data)):
-            mod *= np.sum(datum)/np.sum(mod)
-            chis[i] = (datum-mod)/np.sqrt(vars[i] + mod)
+            chis[i] = self._chi_single(mod, datum, vars[i]).reshape(self.npix, self.npix)
         return chis.ravel()
 
     def _chi1(self, dx, dy, fwhm, aberrations, thx, thy, datum, var):
         mod1 = self._model1(dx, dy, fwhm, aberrations, thx, thy)
-        mod1 *= np.sum(datum)/np.sum(mod1)
-        return ((datum-mod1)/np.sqrt(var+mod1)).ravel()
+        return self._chi_single(mod1, datum, var)
 
     def jac(
         self, params, data, vars
