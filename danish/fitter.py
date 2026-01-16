@@ -397,7 +397,7 @@ class MultiDonutModel(BaseDonutModel):
     @lru_cache(maxsize=1000)
     def _opt1(self, aberrations, thx, thy):
         return self.factory.image(
-            aberrations=tuple(aberrations), thx=thx, thy=thy, npix=self.npix
+            aberrations=aberrations, thx=thx, thy=thy, npix=self.npix
         )
 
     def _model1(

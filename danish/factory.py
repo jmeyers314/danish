@@ -808,6 +808,9 @@ class DonutFactory:
     mask_params : dict
         Nested dictionary containing the mask model. See the notes below
         for details on the format.
+    spider_angle: float, optional
+        Additional rotation for spider struts around optic axis in degrees.  If None,
+        then don't model the spider shadows.
     focal_length : float
         Focal length in meters.
     pixel_scale : float
@@ -878,12 +881,13 @@ class DonutFactory:
         self, *,
         R_outer=4.18, R_inner=2.5498,
         mask_params=None,
+        spider_angle=None,
         focal_length=10.31, pixel_scale=10e-6
     ):
         self.R_outer = R_outer
         self.R_inner = R_inner
-
         self.mask_params = mask_params
+        self.spider_angle = spider_angle
         self.focal_length = focal_length
         self.pixel_scale = pixel_scale
 
@@ -891,7 +895,7 @@ class DonutFactory:
         self, *,
         Z=None, aberrations=None,
         x_offset=None, y_offset=None,
-        thx=0, thy=0, spider_angle=0,
+        thx=0, thy=0,
         npix=181,
         prefit_order=2, maxiter=20, tol=1e-5, strict=False
     ):
@@ -908,8 +912,6 @@ class DonutFactory:
             series.
         thx, thy : float
             Field angles in radians.
-        spider_angle : float
-            Additional rotation for spider struts around optic axis in degrees.
         npix : int
             Number of pixels along image edge.  Must be odd.
         prefit_order : int
@@ -1004,11 +1006,13 @@ class DonutFactory:
             thr_deg = np.rad2deg(thr)
             for item, val in self.mask_params.items():
                 if item == "Spider_3D":
+                    if self.spider_angle is None:
+                        continue
                     for vane in val:
                         p1x, p1y, sth1, cth1, p2x, p2y, sth2, cth2 = _project_spider_vane(
                             vane["r0"], vane["v0"],
                             vane["width"], vane["length"],
-                            vane["angle"]+spider_angle, thx, thy
+                            vane["angle"]+self.spider_angle, thx, thy
                         )
                         enc = _strut_masked_fraction(
                             x[w], y[w],
