@@ -1,4 +1,4 @@
-# Copyright (c) 2021, Lawrence Livermore National Laboratory, LLC.
+# Copyright (c) 2021-2026, Lawrence Livermore National Laboratory, LLC.
 # All rights reserved.
 # LLNL-CODE-826307
 
