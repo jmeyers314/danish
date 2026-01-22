@@ -443,6 +443,8 @@ class BaseMultiDonutModel(BaseDonutModel):
         the field radius will be inferred from dz_ref.
     thxs, thys : float
         Field angles in radians.
+    wavefront_step : float, optional
+        Step size for wavefront parameters.
     npix : int
         Number of pixels along image edge.  Must be odd.
     seed : int
@@ -456,6 +458,7 @@ class BaseMultiDonutModel(BaseDonutModel):
         z_refs=None,
         field_radius=None,
         thxs=None, thys=None,
+        wavefront_step=1e-8,
         npix=181,
         seed=577215
     ):
@@ -476,6 +479,7 @@ class BaseMultiDonutModel(BaseDonutModel):
         self.thxs = thxs
         self.thys = thys
         self.nstar = len(thxs)
+        self.wavefront_step = wavefront_step
 
     def model(
         self, fluxes, dxs, dys, fwhm, wavefront_params, *,
@@ -756,12 +760,11 @@ class BaseMultiDonutModel(BaseDonutModel):
         out[:, 3*nstar] = (chi_fwhm - chi0)/dfwhm
 
         # Wavefront terms
-        dwavefront = 1e-8
         for i in range(3*nstar+1, 3*nstar+1+nwavefront):
             params1 = np.array(params)
-            params1[i] += dwavefront
+            params1[i] += self.wavefront_step
             chi1 = self.chi(params1, data, vars)
-            out[:, i] = (chi1-chi0)/dwavefront
+            out[:, i] = (chi1-chi0)/self.wavefront_step
 
         # Background terms.  These are sparse too
         dbkg = 0.01
@@ -792,7 +795,7 @@ class BaseMultiDonutModel(BaseDonutModel):
         step += [0.01]*nstar  # dx
         step += [0.01]*nstar  # dy
         step += [0.01]        # fwhm
-        step += [1e-8]*nwavefront  # wavefront terms
+        step += [self.wavefront_step]*nwavefront  # wavefront terms
         step += [0.01]*nbkg*nstar  # background terms
 
         chi0 = self.chi(params, data, vars)
