@@ -54,12 +54,17 @@ def main():
         fitter = danish.SingleDonutModel(
             factory, z_ref=z_ref*wavelength, z_terms=z_terms, thx=thx, thy=thy
         )
-        guess = [0.0, 0.0, 0.7] + [0.0]*19
+        guess = [np.sum(img), 0.0, 0.0, 0.7] + [0.0]*19
+        lb = [-np.inf]*len(guess)
+        ub = [np.inf]*len(guess)
+        lb[0] = 0.0  # flux
+        lb[3] = 0.1  # fwhm
 
         result = least_squares(
             fitter.chi, guess, jac=fitter.jac,
             ftol=1e-3, xtol=1e-3, gtol=1e-3,
             max_nfev=20, verbose=0,
+            bounds=(lb, ub),
             args=(img, sky_level)
         )
 
@@ -74,6 +79,7 @@ def main():
         #     binned_fitter.chi, guess, jac=binned_fitter.jac,
         #     ftol=1e-3, xtol=1e-3, gtol=1e-3,
         #     max_nfev=20, verbose=0,
+        #     bounds=(lb, ub),
         #     args=(binned_img, 4*sky_level)
         # )
     prof.disable()

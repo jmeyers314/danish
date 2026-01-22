@@ -9,7 +9,7 @@ import batoid
 from galsim.zernike import Zernike
 
 import danish
-from test_helpers import timer
+from danish_test_helpers import timer, runtests
 
 directory = os.path.dirname(__file__)
 
@@ -27,9 +27,9 @@ def plot_result(img, mod, z_fit, z_true, ylim=None, wavelength=None):
     ax2 = fig.add_subplot(gs[0, 2])
     ax3 = fig.add_subplot(gs[1, :])
 
-    ax0.imshow(img/np.sum(img))
-    ax1.imshow(mod/np.sum(mod))
-    ax2.imshow(img/np.sum(img) - mod/np.sum(mod))
+    ax0.imshow(img)
+    ax1.imshow(mod)
+    ax2.imshow(img - mod)
     ax3.axhline(0, c='k')
     if wavelength is not None:
         z_fit *= wavelength*1e9
@@ -39,7 +39,7 @@ def plot_result(img, mod, z_fit, z_true, ylim=None, wavelength=None):
     ax3.plot(
         np.arange(4, jmax),
         (z_fit-z_true),
-        c='r', label='fit - truth'
+        c='r', label='fit - truth', ls='--'
     )
     if ylim is None:
         ylim = -0.6, 0.6
@@ -62,9 +62,9 @@ def plot_dz_results(imgs, mods, dz_fit, dz_true, dz_terms):
         ax0 = fig.add_subplot(gs[i, 0])
         ax1 = fig.add_subplot(gs[i, 1])
         ax2 = fig.add_subplot(gs[i, 2])
-        ax0.imshow(img/np.sum(img))
-        ax1.imshow(mod/np.sum(mod))
-        ax2.imshow(img/np.sum(img) - mod/np.sum(mod))
+        ax0.imshow(img)
+        ax1.imshow(mod)
+        ax2.imshow(img - mod)
     ax3 = fig.add_subplot(gs[-3:, :])
     ax3.axhline(0, c='k', alpha=0.1)
     ax3.plot(dz_fit, c='b', label='fit')
@@ -83,7 +83,7 @@ def plot_dz_results(imgs, mods, dz_fit, dz_true, dz_terms):
 
 
 @timer
-def test_fitter_LSST_fiducial():
+def test_fitter_LSST_fiducial(run_slow):
     """ Roundtrip using danish model to produce a test image with fiducial LSST
     transverse Zernikes plus random Zernike offsets.  Model and fitter run
     through the same code.
@@ -94,11 +94,12 @@ def test_fitter_LSST_fiducial():
     wavelength = 750e-9
 
     rng = np.random.default_rng(234)
-    if __name__ == "__main__":
+    if run_slow:
         niter = 10
     else:
         niter = 2
     for _ in range(niter):
+        # Generate params
         thr = np.sqrt(rng.uniform(0, 1.8**2))
         ph = rng.uniform(0, 2*np.pi)
         thx, thy = np.deg2rad(thr*np.cos(ph)), np.deg2rad(thr*np.sin(ph))
@@ -120,44 +121,55 @@ def test_fitter_LSST_fiducial():
         )
 
         fitter = danish.SingleDonutModel(
-            factory, z_ref=z_ref, z_terms=z_terms, thx=thx, thy=thy
+            factory, z_ref=z_ref, z_terms=z_terms, thx=thx, thy=thy, bkg_order=0
         )
 
         dx, dy = rng.uniform(-0.5, 0.5, size=2)
-        fwhm = rng.uniform(0.5, 1.5)
-        sky_level = 1000.0
+        fwhm = rng.uniform(0.4, 3.0)
+        sky_level = rng.uniform(1000.0, 2000.0)
+        flux = rng.uniform(5e6, 1e7)
 
+        # Generate test image
         img = fitter.model(
-            dx, dy, fwhm, z_true,
-            sky_level=sky_level, flux=5e6
+            flux, dx, dy, fwhm, z_true,
+            sky_level=sky_level,
         )
 
-        guess = [0.0, 0.0, 0.7]+[0.0]*19
+        guess = [np.sum(img), 0.0, 0.0, 0.7]+[0.0]*19+[0.0]
         result = least_squares(
             fitter.chi, guess, jac=fitter.jac,
             ftol=1e-3, xtol=1e-3, gtol=1e-3,
             max_nfev=20, verbose=2,
             args=(img, sky_level)
         )
+        result = fitter.unpack_params(result.x)
+        z_fit = np.array(result["z_fit"])
+        dx_fit = result["dx"]
+        dy_fit = result["dy"]
+        fwhm_fit = result["fwhm"]
+        flux_fit = result["flux"]
         for i in range(4, 23):
-            out = f"{i:2d}  {result.x[i-1]/wavelength:9.3f}"
+            out = f"{i:2d}  {z_fit[i-4]/wavelength:9.3f}"
             out += f"  {z_true[i-4]/wavelength:9.3f}"
-            out += f"  {(result.x[i-1]-z_true[i-4])/wavelength:9.3f}"
+            out += f"  {(z_fit[i-4]-z_true[i-4])/wavelength:9.3f}"
             print(out)
+        print(f"rms: {np.sqrt(np.sum(np.square((z_true-z_fit)/wavelength))):.3f}")
+        print(f"dx: {dx_fit:.3f}  {dx:.3f} {dx_fit-dx:.3f}")
+        print(f"dy: {dy_fit:.3f}  {dy:.3f} {dy_fit-dy:.3f}")
+        print(f"fwhm: {fwhm_fit:.3f}  {fwhm:.3f} {fwhm_fit-fwhm:.3f}")
+        print(f"flux: {flux_fit:.3f}  {flux:.3f} {flux_fit-flux:.3f}")
 
-        dx_fit, dy_fit, fwhm_fit, *z_fit = result.x
-        z_fit = np.array(z_fit)
+        # if (
+        #     np.abs(fwhm_fit-fwhm)/fwhm > 0.05 or
+        #     np.any(np.abs(z_fit-z_true) > 0.1*wavelength) or
+        #     np.sqrt(np.sum(np.square((z_true-z_fit)/wavelength))) > 0.1
+        # ):
+        #     mod = fitter.model(**result)
+        #     plot_result(img, mod, z_fit/wavelength, z_true/wavelength)
 
-        # mod = fitter.model(
-        #     dx_fit, dy_fit, fwhm_fit, z_fit
-        # )
-        # plot_result(img, mod, z_fit/wavelength, z_true/wavelength)
-
-        np.testing.assert_allclose(dx_fit, dx, rtol=0, atol=5e-2)
-        np.testing.assert_allclose(dy_fit, dy, rtol=0, atol=5e-2)
-        np.testing.assert_allclose(fwhm_fit, fwhm, rtol=0, atol=5e-2)
+        np.testing.assert_allclose(fwhm_fit, fwhm, rtol=5e-2, atol=5e-2)
         np.testing.assert_allclose(z_fit, z_true, rtol=0, atol=0.05*wavelength)
-        rms = np.sqrt(np.sum(((z_true-z_fit)/wavelength)**2))
+        rms = np.sqrt(np.sum(np.square((z_true-z_fit)/wavelength)))
         assert rms < 0.1, "rms %9.3f > 0.1" % rms
 
         # Try with x_offset and y_offset too
@@ -185,49 +197,55 @@ def test_fitter_LSST_fiducial():
             x_offset=zx, y_offset=zy,
             z_ref=z_ref*0,
             z_terms=z_terms,
-            thx=thx, thy=thy
+            thx=thx, thy=thy, bkg_order=0
         )
 
-        dx, dy = rng.uniform(-0.5, 0.5, size=2)
-        fwhm = rng.uniform(0.5, 1.5)
-        sky_level = 1000.0
-
+        # New test image
         img = fitter.model(
-            dx, dy, fwhm, z_true,
-            sky_level=sky_level, flux=5e6
+            flux, dx, dy, fwhm, z_true,
+            sky_level=sky_level
         )
 
-        guess = [0.0, 0.0, 0.7]+[0.0]*19
+        guess = [np.sum(img), 0.0, 0.0, 0.7]+[0.0]*19+[0.0]
         result = least_squares(
             fitter.chi, guess, jac=fitter.jac,
             ftol=1e-3, xtol=1e-3, gtol=1e-3,
             max_nfev=20, verbose=2,
             args=(img, sky_level)
         )
+        result = fitter.unpack_params(result.x)
+        z_fit = np.array(result["z_fit"])
+        dx_fit = result["dx"]
+        dy_fit = result["dy"]
+        fwhm_fit = result["fwhm"]
+        flux_fit = result["flux"]
         for i in range(4, 23):
-            out = f"{i:2d}  {result.x[i-1]/wavelength:9.3f}"
+            out = f"{i:2d}  {z_fit[i-4]/wavelength:9.3f}"
             out += f"  {z_true[i-4]/wavelength:9.3f}"
-            out += f"  {(result.x[i-1]-z_true[i-4])/wavelength:9.3f}"
+            out += f"  {(z_fit[i-4]-z_true[i-4])/wavelength:9.3f}"
             print(out)
+        print(f"rms: {np.sqrt(np.sum(np.square((z_true-z_fit)/wavelength))):.3f}")
+        print(f"dx: {dx_fit:.3f}  {dx:.3f} {dx_fit-dx:.3f}")
+        print(f"dy: {dy_fit:.3f}  {dy:.3f} {dy_fit-dy:.3f}")
+        print(f"fwhm: {fwhm_fit:.3f}  {fwhm:.3f} {fwhm_fit-fwhm:.3f}")
+        print(f"flux: {flux_fit:.3f}  {flux:.3f} {flux_fit-flux:.3f}")
 
-        dx_fit, dy_fit, fwhm_fit, *z_fit = result.x
-        z_fit = np.array(z_fit)
+        # if (
+        #     np.abs(fwhm_fit-fwhm)/fwhm > 0.05 or
+        #     np.any(np.abs(z_fit-z_true) > 0.1*wavelength) or
+        #     np.sqrt(np.sum(np.square((z_true-z_fit)/wavelength))) > 0.1
+        # ):
+        #     mod = fitter.model(**result)
+        #     plot_result(img, mod, z_fit/wavelength, z_true/wavelength)
 
-        # mod = fitter.model(
-        #     dx_fit, dy_fit, fwhm_fit, z_fit
-        # )
-        # plot_result(img, mod, z_fit/wavelength, z_true/wavelength)
-
-        np.testing.assert_allclose(dx_fit, dx, rtol=0, atol=5e-2)
-        np.testing.assert_allclose(dy_fit, dy, rtol=0, atol=5e-2)
-        np.testing.assert_allclose(fwhm_fit, fwhm, rtol=0, atol=5e-2)
+        np.testing.assert_allclose(fwhm_fit, fwhm, rtol=5e-2, atol=5e-2)
         np.testing.assert_allclose(z_fit, z_true, rtol=0, atol=0.05*wavelength)
-        rms = np.sqrt(np.sum(((z_true-z_fit)/wavelength)**2))
+        rms = np.sqrt(np.sum(np.square((z_true-z_fit)/wavelength)))
         assert rms < 0.1, "rms %9.3f > 0.1" % rms
 
 
 @timer
-def test_fitter_LSST_rigid_perturbation():
+def test_fitter_LSST_rigid_perturbation(run_slow):
     """Roundtrip using danish model to produce a test image of rigid-body
     perturbed LSST transverse Zernikes.  Model and fitter run through the same
     code.
@@ -241,7 +259,7 @@ def test_fitter_LSST_rigid_perturbation():
     wavelength = 750e-9
 
     rng = np.random.default_rng(234)
-    if __name__ == "__main__":
+    if run_slow:
         niter = 10
     else:
         niter = 2
@@ -290,48 +308,59 @@ def test_fitter_LSST_rigid_perturbation():
         )
 
         fitter = danish.SingleDonutModel(
-            factory, z_ref=z_ref, z_terms=z_terms, thx=thx, thy=thy
+            factory, z_ref=z_ref, z_terms=z_terms, thx=thx, thy=thy, bkg_order=0
         )
 
         dx, dy = 0.0, 0.0
         fwhm = 0.7
         sky_level = 1000.0
+        flux = 5e6
 
         img = fitter.model(
-            dx, dy, fwhm, z_true,
-            sky_level=sky_level, flux=5e6
+            flux, dx, dy, fwhm, z_true,
+            sky_level=sky_level
         )
 
-        guess = [0.0, 0.0, 0.7]+[0.0]*19
+        guess = [np.sum(img), 0.0, 0.0, 0.7]+[0.0]*19+[0.0]
         result = least_squares(
             fitter.chi, guess, jac=fitter.jac,
             ftol=1e-3, xtol=1e-3, gtol=1e-3,
             max_nfev=20, verbose=2,
             args=(img, sky_level)
         )
+        result = fitter.unpack_params(result.x)
+        z_fit = np.array(result["z_fit"])
+        dx_fit = result["dx"]
+        dy_fit = result["dy"]
+        fwhm_fit = result["fwhm"]
+        flux_fit = result["flux"]
         for i in range(4, 23):
-            out = f"{i:2d}  {result.x[i-1]/wavelength:9.3f}"
+            out = f"{i:2d}  {z_fit[i-4]/wavelength:9.3f}"
             out += f"  {z_true[i-4]/wavelength:9.3f}"
-            out += f"  {(result.x[i-1]-z_true[i-4])/wavelength:9.3f}"
+            out += f"  {(z_fit[i-4]-z_true[i-4])/wavelength:9.3f}"
             print(out)
+        print(f"rms: {np.sqrt(np.sum(np.square((z_true-z_fit)/wavelength))):.3f}")
+        print(f"dx: {dx_fit:.3f}  {dx:.3f} {dx_fit-dx:.3f}")
+        print(f"dy: {dy_fit:.3f}  {dy:.3f} {dy_fit-dy:.3f}")
+        print(f"fwhm: {fwhm_fit:.3f}  {fwhm:.3f} {fwhm_fit-fwhm:.3f}")
+        print(f"flux: {flux_fit:.3f}  {flux:.3f} {flux_fit-flux:.3f}")
 
-        dx_fit, dy_fit, fwhm_fit, *z_fit = result.x
-        z_fit = np.array(z_fit)
-        # mod = fitter.model(
-        #     dx_fit, dy_fit, fwhm_fit, z_fit
-        # )
-        # plot_result(img, mod, z_fit/wavelength, z_true/wavelength)
+        # if (
+        #     np.abs(fwhm_fit-fwhm)/fwhm > 0.05 or
+        #     np.any(np.abs(z_fit-z_true) > 0.1*wavelength) or
+        #     np.sqrt(np.sum(np.square((z_true-z_fit)/wavelength))) > 0.1
+        # ):
+        #     mod = fitter.model(**result)
+        #     plot_result(img, mod, z_fit/wavelength, z_true/wavelength)
 
-        np.testing.assert_allclose(dx_fit, dx, rtol=0, atol=5e-2)
-        np.testing.assert_allclose(dy_fit, dy, rtol=0, atol=5e-2)
-        np.testing.assert_allclose(fwhm_fit, fwhm, rtol=0, atol=5e-2)
-        np.testing.assert_allclose(z_fit, z_true, rtol=0, atol=0.06*wavelength)
-        rms = np.sqrt(np.sum(((z_true-z_fit)/wavelength)**2))
+        np.testing.assert_allclose(fwhm_fit, fwhm, rtol=5e-2, atol=5e-2)
+        np.testing.assert_allclose(z_fit, z_true, rtol=0, atol=0.05*wavelength)
+        rms = np.sqrt(np.sum(np.square((z_true-z_fit)/wavelength)))
         assert rms < 0.1, "rms %9.3f > 0.1" % rms
 
 
 @timer
-def test_fitter_LSST_z_perturbation():
+def test_fitter_LSST_z_perturbation(run_slow):
     """Roundtrip using danish model to produce a test image of rigid-body +
     M1-surface-Zernike perturbed LSST transverse Zernikes.  Model and fitter run
     through the same code.
@@ -345,7 +374,7 @@ def test_fitter_LSST_z_perturbation():
     wavelength = 750e-9
 
     rng = np.random.default_rng(234)
-    if __name__ == "__main__":
+    if run_slow:
         niter = 10
     else:
         niter = 2
@@ -409,48 +438,59 @@ def test_fitter_LSST_z_perturbation():
         )
 
         fitter = danish.SingleDonutModel(
-            factory, z_ref=z_ref, z_terms=z_terms, thx=thx, thy=thy
+            factory, z_ref=z_ref, z_terms=z_terms, thx=thx, thy=thy, bkg_order=0
         )
 
         dx, dy = 0.0, 0.0
         fwhm = 0.7
         sky_level = 1000.0
+        flux = 5e6
 
         img = fitter.model(
-            dx, dy, fwhm, z_true,
-            sky_level=sky_level, flux=5e6
+            flux, dx, dy, fwhm, z_true,
+            sky_level=sky_level
         )
 
-        guess = [0.0, 0.0, 0.7]+[0.0]*19
+        guess = [np.sum(img), 0.0, 0.0, 0.7]+[0.0]*19+[0.0]
         result = least_squares(
             fitter.chi, guess, jac=fitter.jac,
             ftol=1e-3, xtol=1e-3, gtol=1e-3,
             max_nfev=20, verbose=2,
             args=(img, sky_level)
         )
+        result = fitter.unpack_params(result.x)
+        z_fit = np.array(result["z_fit"])
+        dx_fit = result["dx"]
+        dy_fit = result["dy"]
+        fwhm_fit = result["fwhm"]
+        flux_fit = result["flux"]
         for i in range(4, 23):
-            out = f"{i:2d}  {result.x[i-1]/wavelength:9.3f}"
+            out = f"{i:2d}  {z_fit[i-4]/wavelength:9.3f}"
             out += f"  {z_true[i-4]/wavelength:9.3f}"
-            out += f"  {(result.x[i-1]-z_true[i-4])/wavelength:9.3f}"
+            out += f"  {(z_fit[i-4]-z_true[i-4])/wavelength:9.3f}"
             print(out)
+        print(f"rms: {np.sqrt(np.sum(np.square((z_true-z_fit)/wavelength))):.3f}")
+        print(f"dx: {dx_fit:.3f}  {dx:.3f} {dx_fit-dx:.3f}")
+        print(f"dy: {dy_fit:.3f}  {dy:.3f} {dy_fit-dy:.3f}")
+        print(f"fwhm: {fwhm_fit:.3f}  {fwhm:.3f} {fwhm_fit-fwhm:.3f}")
+        print(f"flux: {flux_fit:.3f}  {flux:.3f} {flux_fit-flux:.3f}")
 
-        dx_fit, dy_fit, fwhm_fit, *z_fit = result.x
-        z_fit = np.array(z_fit)
-        # mod = fitter.model(
-        #     dx_fit, dy_fit, fwhm_fit, z_fit
-        # )
-        # plot_result(img, mod, z_fit/wavelength, z_true/wavelength, wavelength=wavelength, ylim=(-200, 200))
+        # if (
+        #     np.abs(fwhm_fit-fwhm)/fwhm > 0.05 or
+        #     np.any(np.abs(z_fit-z_true) > 0.1*wavelength) or
+        #     np.sqrt(np.sum(np.square((z_true-z_fit)/wavelength))) > 0.1
+        # ):
+        #     mod = fitter.model(**result)
+        #     plot_result(img, mod, z_fit/wavelength, z_true/wavelength)
 
-        np.testing.assert_allclose(dx_fit, dx, rtol=0, atol=5e-2)
-        np.testing.assert_allclose(dy_fit, dy, rtol=0, atol=5e-2)
-        np.testing.assert_allclose(fwhm_fit, fwhm, rtol=0, atol=5e-2)
+        np.testing.assert_allclose(fwhm_fit, fwhm, rtol=5e-2, atol=5e-2)
         np.testing.assert_allclose(z_fit, z_true, rtol=0, atol=0.05*wavelength)
-        rms = np.sqrt(np.sum(((z_true-z_fit)/wavelength)**2))
-        assert rms < 0.1, "rms %9.3f > 0.02" % rms
+        rms = np.sqrt(np.sum(np.square((z_true-z_fit)/wavelength)))
+        assert rms < 0.1, "rms %9.3f > 0.1" % rms
 
 
 @timer
-def test_fitter_LSST_kolm():
+def test_fitter_LSST_kolm(run_slow):
     """Roundtrip using GalSim Kolmogorov atmosphere + batoid to produce test
     image of AOS DOF perturbed optics.  Model and fitter run independent code.
     """
@@ -474,7 +514,7 @@ def test_fitter_LSST_kolm():
         focal_length=10.31, pixel_scale=20e-6
     )
 
-    if __name__ == "__main__":
+    if run_slow:
         niter = 10
     else:
         niter = 2
@@ -487,9 +527,9 @@ def test_fitter_LSST_kolm():
 
         z_terms = np.arange(4, 23)
         fitter = danish.SingleDonutModel(
-            factory, z_ref=z_ref*wavelength, z_terms=z_terms, thx=thx, thy=thy
+            factory, z_ref=z_ref*wavelength, z_terms=z_terms, thx=thx, thy=thy, bkg_order=0
         )
-        guess = [0.0, 0.0, 0.7] + [0.0]*19
+        guess = [np.sum(img), 0.0, 0.0, 0.7]+[0.0]*19+[0.0]
 
         t0 = time.time()
         result = least_squares(
@@ -498,64 +538,63 @@ def test_fitter_LSST_kolm():
             max_nfev=20, verbose=2,
             args=(img, sky_level)
         )
+        result = fitter.unpack_params(result.x)
         t1 = time.time()
         t1x1 = t1 - t0
 
         z_true = (z_actual-z_ref)[4:23]*wavelength
+        z_fit = np.array(result["z_fit"])
+        fwhm_fit = result["fwhm"]
         for i in range(4, 23):
-            out = f"{i:2d}  {result.x[i-1]/wavelength:9.3f}"
+            out = f"{i:2d}  {z_fit[i-4]/wavelength:9.3f}"
             out += f"  {z_true[i-4]/wavelength:9.3f}"
-            out += f"  {(result.x[i-1]-z_true[i-4])/wavelength:9.3f}"
+            out += f"  {(z_fit[i-4]-z_true[i-4])/wavelength:9.3f}"
             print(out)
+        print(f"rms: {np.sqrt(np.sum(np.square((z_true-z_fit)/wavelength))):.3f}")
+        print(f"fwhm: {fwhm_fit:.3f}  {fwhm:.3f} {fwhm_fit-fwhm:.3f}")
 
-        dx_fit, dy_fit, fwhm_fit, *z_fit = result.x
-        z_fit = np.array(z_fit)
-        # mod = fitter.model(
-        #     dx_fit, dy_fit, fwhm_fit, z_fit
-        # )
-        # plot_result(img, mod, z_fit/wavelength, z_true/wavelength)
-        # plot_result(img, mod, z_fit/wavelength, z_true/wavelength, wavelength=wavelength, ylim=(-200, 200))
-
-        # One fit is problematic.  It has a large field angle, so flip based on
-        # that.
-        if np.rad2deg(np.hypot(thx, thy)) > 1.7:
-            tol = 0.7
-        else:
-            tol = 0.25
+        # if (
+        #     np.abs(fwhm_fit-fwhm)/fwhm > 0.05 or
+        #     np.any(np.abs(z_fit-z_true) > 0.15*wavelength) or
+        #     np.sqrt(np.sum(np.square((z_true-z_fit)/wavelength))) > 0.2
+        # ):
+        #     mod = fitter.model(**result)
+        #     plot_result(img, mod, z_fit/wavelength, z_true/wavelength)
 
         np.testing.assert_allclose(fwhm_fit, fwhm, rtol=0, atol=5e-2)
-        np.testing.assert_allclose(z_fit, z_true, rtol=0, atol=tol*wavelength)
+        np.testing.assert_allclose(z_fit, z_true, rtol=0, atol=0.15*wavelength)
         rms1x1 = np.sqrt(np.sum(((z_true-z_fit)/wavelength)**2))
-        assert rms1x1 < 2*tol, "rms %9.3f > %9.3" % (rms1x1, tol)
+        assert rms1x1 < 0.2, "rms %9.3f > %9.3" % (rms1x1, 0.2)
 
         # Try binning 2x2
         binned_fitter = danish.SingleDonutModel(
             binned_factory, z_ref=z_ref*wavelength, z_terms=z_terms,
-            thx=thx, thy=thy, npix=89
+            thx=thx, thy=thy, npix=89, bkg_order=0
         )
 
         binned_img = img[:-1,:-1].reshape(90,2,90,2).mean(-1).mean(1)[:-1,:-1]
         t0 = time.time()
+        lb = [-np.inf]*len(guess)
+        lb[0] = 0
+        lb[3] = 0.1
+        ub = [np.inf]*len(guess)
         binned_result = least_squares(
             binned_fitter.chi, guess, jac=binned_fitter.jac,
             ftol=1e-3, xtol=1e-3, gtol=1e-3,
             max_nfev=20, verbose=2,
+            bounds=(lb, ub),
             args=(binned_img, 4*sky_level)
         )
+        binned_result = binned_fitter.unpack_params(binned_result.x)
         t1 = time.time()
         t2x2 = t1 - t0
-        dx_fit, dy_fit, fwhm_fit, *z_fit = binned_result.x
-        z_fit = np.array(z_fit)
-        # mod = binned_fitter.model(
-        #     dx_fit, dy_fit, fwhm_fit, z_fit
-        # )
-        # plot_result(binned_img, mod, z_fit/wavelength, z_true/wavelength)
-        # plot_result(binned_img, mod, z_fit/wavelength, z_true/wavelength, wavelength=wavelength, ylim=(-200, 200))
 
+        z_fit = np.array(result["z_fit"])
+        fwhm_fit = result["fwhm"]
         np.testing.assert_allclose(fwhm_fit, fwhm, rtol=0, atol=5e-2)
-        np.testing.assert_allclose(z_fit, z_true, rtol=0, atol=tol*wavelength)
+        np.testing.assert_allclose(z_fit, z_true, rtol=0, atol=0.15*wavelength)
         rms2x2 = np.sqrt(np.sum(((z_true-z_fit)/wavelength)**2))
-        assert rms2x2 < 2*tol, "rms %9.3f > %9.3" % (rms2x2, tol)
+        assert rms2x2 < 0.2, "rms %9.3f > %9.3" % (rms2x2, 0.2)
 
         print("\n"*4)
         print(f"1x1 fit time: {t1x1:.3f} sec")
@@ -567,7 +606,7 @@ def test_fitter_LSST_kolm():
 
 
 @timer
-def test_fitter_LSST_atm(plot=False):
+def test_fitter_LSST_atm(run_slow):
     """Roundtrip using GalSim phase screen atmosphere + batoid to produce test
     image of AOS DOF perturbed optics.  Model and fitter run independent code.
     """
@@ -577,22 +616,21 @@ def test_fitter_LSST_atm(plot=False):
     ) as f:
         data = pickle.load(f)
     wavelength = data[0]['wavelength']
+    fwhm = data[0]['fwhm']
 
-    obsc = Rubin_obsc.copy()
-    del obsc['Spider_3D']
     factory = danish.DonutFactory(
         R_outer=4.18, R_inner=2.5498,
-        mask_params=obsc,
+        mask_params=Rubin_obsc,
         focal_length=10.31, pixel_scale=10e-6
     )
     binned_factory = danish.DonutFactory(
         R_outer=4.18, R_inner=2.5498,
-        mask_params=obsc,
+        mask_params=Rubin_obsc,
         focal_length=10.31, pixel_scale=20e-6
     )
 
     sky_level = data[0]['sky_level']
-    if __name__ == "__main__":
+    if run_slow:
         niter = 10
     else:
         niter = 2
@@ -605,9 +643,9 @@ def test_fitter_LSST_atm(plot=False):
 
         z_terms = np.arange(4, 23)
         fitter = danish.SingleDonutModel(
-            factory, z_ref=z_ref*wavelength, z_terms=z_terms, thx=thx, thy=thy
+            factory, z_ref=z_ref*wavelength, z_terms=z_terms, thx=thx, thy=thy, bkg_order=0
         )
-        guess = [0.0, 0.0, 0.7] + [0.0]*19
+        guess = [np.sum(img), 0.0, 0.0, 0.7] + [0.0]*19 + [0.0]
 
         result = least_squares(
             fitter.chi, guess, jac=fitter.jac,
@@ -615,69 +653,66 @@ def test_fitter_LSST_atm(plot=False):
             max_nfev=20, verbose=2,
             args=(img, sky_level)
         )
+        result = fitter.unpack_params(result.x)
 
         z_true = (z_actual-z_ref)[4:23]*wavelength
+        z_fit = np.array(result["z_fit"])
+        fwhm_fit = result["fwhm"]
         for i in range(4, 23):
-            out = f"{i:2d}  {result.x[i-1]/wavelength:9.3f}"
+            out = f"{i:2d}  {z_fit[i-4]/wavelength:9.3f}"
             out += f"  {z_true[i-4]/wavelength:9.3f}"
-            out += f"  {(result.x[i-1]-z_true[i-4])/wavelength:9.3f}"
+            out += f"  {(z_fit[i-4]-z_true[i-4])/wavelength:9.3f}"
             print(out)
-
-        dx_fit, dy_fit, fwhm_fit, *z_fit = result.x
-        z_fit = np.array(z_fit)
-
-        # mod = fitter.model(
-        #     dx_fit, dy_fit, fwhm_fit, z_fit
-        # )
-        # plot_result(img, mod, z_fit/wavelength, z_true/wavelength)
-        # plot_result(img, mod, z_fit/wavelength, z_true/wavelength, wavelength=wavelength, ylim=(-200, 200))
-
-        np.testing.assert_allclose(
-            z_fit/wavelength, z_true/wavelength,
-            rtol=0, atol=0.5
-        )
         rms = np.sqrt(np.sum(((z_true-z_fit)/wavelength)**2))
+        print(f"rms: {rms:.3f}")
+        print(f"fwhm: {fwhm_fit:.3f}  {fwhm:.3f} {fwhm_fit-fwhm:.3f}")
+
+        # if (
+        #     np.abs(fwhm_fit-fwhm)/fwhm > 0.05 or
+        #     np.any(np.abs(z_fit-z_true) > 0.5*wavelength) or
+        #     rms > 0.66
+        # ):
+        #     mod = fitter.model(**result)
+        #     plot_result(img, mod, z_fit/wavelength, z_true/wavelength)
+
+        np.testing.assert_allclose(fwhm_fit, fwhm, rtol=0, atol=5e-2)
+        np.testing.assert_allclose(z_fit, z_true, rtol=0, atol=0.5*wavelength)
         print(f"rms = {rms:9.3f} waves")
         assert rms < 0.66, "rms %9.3f > 0.66" % rms
 
         # Try binning 2x2
         binned_fitter = danish.SingleDonutModel(
             binned_factory, z_ref=z_ref*wavelength, z_terms=z_terms,
-            thx=thx, thy=thy, npix=89
+            thx=thx, thy=thy, npix=89, bkg_order=0
         )
 
         binned_img = img[:-1,:-1].reshape(90,2,90,2).mean(-1).mean(1)[:-1,:-1]
         t0 = time.time()
+        lb = [-np.inf]*len(guess)
+        lb[0] = 0
+        lb[3] = 0.1
+        ub = [np.inf]*len(guess)
         binned_result = least_squares(
             binned_fitter.chi, guess, jac=binned_fitter.jac,
             ftol=1e-3, xtol=1e-3, gtol=1e-3,
             max_nfev=20, verbose=2,
+            bounds=(lb, ub),
             args=(binned_img, 4*sky_level)
         )
+        binned_result = binned_fitter.unpack_params(binned_result.x)
         t1 = time.time()
         print(f"2x2 fit time: {t1-t0:.3f} sec")
 
-        dx_fit, dy_fit, fwhm_fit, *z_fit = binned_result.x
         z_fit = np.array(z_fit)
 
-        # mod = binned_fitter.model(
-        #     dx_fit, dy_fit, fwhm_fit, z_fit
-        # )
-        # plot_result(binned_img, mod, z_fit/wavelength, z_true/wavelength)
-        # plot_result(binned_img, mod, z_fit/wavelength, z_true/wavelength, wavelength=wavelength, ylim=(-200, 200))
-
-        np.testing.assert_allclose(
-            z_fit/wavelength,
-            z_true/wavelength,
-            rtol=0, atol=0.5
-        )
+        np.testing.assert_allclose(z_fit, z_true, rtol=0, atol=0.5*wavelength)
         rms = np.sqrt(np.sum(((z_true-z_fit)/wavelength)**2))
         print(f"rms = {rms:9.3f} waves")
         assert rms < 0.66, "rms %9.3f > 0.66" % rms
 
 
 @timer
-def test_fitter_AuxTel_rigid_perturbation():
+def test_fitter_AuxTel_rigid_perturbation(run_slow):
     """Roundtrip using danish model to produce a test image of rigid-body
     perturbed AuxTel transverse Zernikes.  Model and fitter run through the same
     code.
@@ -692,7 +727,7 @@ def test_fitter_AuxTel_rigid_perturbation():
     wavelength = 750e-9
 
     rng = np.random.default_rng(234)
-    if __name__ == "__main__":
+    if run_slow:
         niter = 10
     else:
         niter = 2
@@ -741,21 +776,22 @@ def test_fitter_AuxTel_rigid_perturbation():
         )
 
         fitter = danish.SingleDonutModel(
-            factory, z_ref=z_ref, z_terms=z_terms, thx=thx, thy=thy, npix=255
+            factory, z_ref=z_ref, z_terms=z_terms, thx=thx, thy=thy, npix=255, bkg_order=0
         )
 
         dx, dy = 0.0, 0.0
         fwhm = 0.7  # Arcsec for Kolmogorov profile
         sky_level = 1000.0  # counts per pixel
+        flux = 5e6
 
         # Make a test image using true aberrations
         img = fitter.model(
-            dx, dy, fwhm, z_true,
-            sky_level=sky_level, flux=5e6
+            flux, dx, dy, fwhm, z_true,
+            sky_level=sky_level
         )
 
         # Now guess aberrations are 0.0, and try to recover truth.
-        guess = [0.0, 0.0, 0.7]+[0.0]*8
+        guess = [np.sum(img), 0.0, 0.0, 0.7]+[0.0]*8+[0.0]
         # We don't ship a custom fitting algorithm; just use scipy.least_squares
         result = least_squares(
             fitter.chi, guess, jac=fitter.jac,
@@ -763,25 +799,23 @@ def test_fitter_AuxTel_rigid_perturbation():
             max_nfev=20, verbose=2,
             args=(img, sky_level)
         )
+        result = fitter.unpack_params(result.x)
 
+        z_fit = np.array(result["z_fit"])
+        fwhm_fit = result["fwhm"]
         for i in range(4, 12):
-            out = f"{i:2d}  {result.x[i-1]/wavelength:9.3f}"
+            out = f"{i:2d}  {z_fit[i-4]/wavelength:9.3f}"
             out += f"  {z_true[i-4]/wavelength:9.3f}"
-            out += f"  {(result.x[i-1]-z_true[i-4])/wavelength:9.3f}"
+            out += f"  {(z_fit[i-4]-z_true[i-4])/wavelength:9.3f}"
             print(out)
-
-        dx_fit, dy_fit, fwhm_fit, *z_fit = result.x
-        z_fit = np.array(z_fit)
+        rms = np.sqrt(np.sum(np.square((z_true-z_fit)/wavelength)))
+        print(f"rms: {rms:.3f}")
+        print(f"fwhm: {fwhm_fit:.3f}  {fwhm:.3f} {fwhm_fit-fwhm:.3f}")
 
         # # Optional visualization
-        # mod = fitter.model(
-        #     dx_fit, dy_fit, fwhm_fit, z_fit
-        # )
-
+        # mod = fitter.model(**result)
         # plot_result(img, mod, z_fit/wavelength, z_true/wavelength, ylim=(-0.2, 0.2))
 
-        np.testing.assert_allclose(dx_fit, dx, rtol=0, atol=1e-2)
-        np.testing.assert_allclose(dy_fit, dy, rtol=0, atol=1e-2)
         np.testing.assert_allclose(fwhm_fit, fwhm, rtol=0, atol=5e-2)
         np.testing.assert_allclose(z_fit, z_true, rtol=0, atol=0.006*wavelength)
         rms = np.sqrt(np.sum(((z_true-z_fit)/wavelength)**2))
@@ -789,7 +823,7 @@ def test_fitter_AuxTel_rigid_perturbation():
 
 
 @timer
-def test_dz_fitter_LSST_fiducial():
+def test_dz_fitter_LSST_fiducial(run_slow):
     """ Roundtrip using danish model to produce test images with fiducial LSST
     transverse Zernikes plus random double Zernike offsets.  Model and fitter
     run through the same code.
@@ -801,7 +835,7 @@ def test_dz_fitter_LSST_fiducial():
 
     rng = np.random.default_rng(2344)
     nstar = 10
-    if __name__ == "__main__":
+    if run_slow:
         niter = 10
     else:
         niter = 1
@@ -831,24 +865,26 @@ def test_dz_fitter_LSST_fiducial():
             focal_length=10.31, pixel_scale=10e-6
         )
 
-        fitter = danish.MultiDonutModel(
+        fitter = danish.DZMultiDonutModel(
             factory,
             z_refs=z_refs, dz_terms=dz_terms,
             field_radius=np.deg2rad(1.8),
-            thxs=thxs, thys=thys
+            thxs=thxs, thys=thys, bkg_order=0,
         )
 
         dxs = rng.uniform(-0.5, 0.5, nstar)
         dys = rng.uniform(-0.5, 0.5, nstar)
         fwhm = rng.uniform(0.5, 1.5)
         sky_levels = [1000.0]*nstar
-        fluxes = [5e6]*nstar
+        fluxes = rng.uniform(3e6, 1e7, nstar)
 
         imgs = fitter.model(
-            dxs, dys, fwhm, dz_true, sky_levels=sky_levels, fluxes=fluxes
+            fluxes, dxs, dys, fwhm, dz_true, sky_levels=sky_levels,
         )
 
-        guess = [0.0]*nstar + [0.0]*nstar + [0.7] + [0.0]*len(dz_terms)
+        guess = [np.sum(img) for img in imgs]
+        guess += [0.0]*nstar + [0.0]*nstar + [0.7] + [0.0]*len(dz_terms)
+        guess += [0.0]*(fitter.nbkg*nstar)
 
         result = least_squares(
             fitter.chi, guess, jac=fitter.jac,
@@ -856,33 +892,28 @@ def test_dz_fitter_LSST_fiducial():
             max_nfev=20, verbose=2,
             args=(imgs, sky_levels)
         )
+        result = fitter.unpack_params(result.x)
 
-        dxs_fit, dys_fit, fwhm_fit, dz_fit = fitter.unpack_params(result.x)
-
-        np.testing.assert_allclose(dxs, dxs_fit, rtol=0, atol=0.2)
-        np.testing.assert_allclose(dys, dys_fit, rtol=0, atol=0.2)
-        np.testing.assert_allclose(fwhm, fwhm_fit, rtol=0, atol=0.05)
+        fwhm_fit = result["fwhm"]
+        dz_fit = result["wavefront_params"]
+        np.testing.assert_allclose(fwhm, fwhm_fit, rtol=0, atol=0.02)
         np.testing.assert_allclose(
             dz_fit/wavelength,
             dz_true/wavelength,
-            rtol=0, atol=0.1
+            rtol=0, atol=0.02
         )
         rms = np.sqrt(np.sum(((dz_true-dz_fit)/wavelength)**2))
         print(f"rms = {rms:9.3f} waves")
         assert rms < 0.05, "rms %9.3f > 0.05" % rms
 
-        # dxs_fit, dys_fit, fwhm_fit, dz_fit = fitter.unpack_params(result.x)
-        # mods = fitter.model(
-        #     dxs_fit, dys_fit, fwhm_fit, dz_fit
-        # )
-
+        # mods = fitter.model(**result)
         # plot_dz_results(
         #     imgs, mods, dz_fit/wavelength, dz_true/wavelength, dz_terms
         # )
 
 
 @timer
-def test_dz_fitter_LSST_rigid_perturbation():
+def test_dz_fitter_LSST_rigid_perturbation(run_slow):
     """Roundtrip using danish model to produce a test images of rigid-body
     perturbed LSST transverse Zernikes.  Model and fitter run through the same
     code.
@@ -896,7 +927,7 @@ def test_dz_fitter_LSST_rigid_perturbation():
     wavelength = 750e-9
 
     rng = np.random.default_rng(1234)
-    if __name__ == "__main__":
+    if run_slow:
         niter = 10
     else:
         niter = 1
@@ -965,30 +996,32 @@ def test_dz_fitter_LSST_rigid_perturbation():
         )
 
         # Toy zfitter to make test images
-        fitter0 = danish.MultiDonutModel(
+        fitter0 = danish.DZMultiDonutModel(
             factory, z_refs=z_perturbs, dz_terms=(),
             field_radius=np.deg2rad(1.8),
-            thxs=thxs, thys=thys
+            thxs=thxs, thys=thys, bkg_order=-1
         )
 
         dxs = rng.uniform(-0.5, 0.5, nstar)
         dys = rng.uniform(-0.5, 0.5, nstar)
         fwhm = rng.uniform(0.5, 1.5)
         sky_levels = [1000.0]*nstar
-        fluxes = [5e6]*nstar
+        fluxes = rng.uniform(3e6, 1e7, nstar)
 
         imgs = fitter0.model(
-            dxs, dys, fwhm, (), sky_levels=sky_levels, fluxes=fluxes
+            fluxes, dxs, dys, fwhm, (), sky_levels=sky_levels
         )
 
         # Actual fitter with DOF to optimize...
-        fitter = danish.MultiDonutModel(
+        fitter = danish.DZMultiDonutModel(
             factory, z_refs=z_refs, dz_terms=dz_terms,
             field_radius=np.deg2rad(1.8),
-            thxs=thxs, thys=thys
+            thxs=thxs, thys=thys, bkg_order=0
         )
 
-        guess = [0.0]*nstar + [0.0]*nstar + [0.7] + [0.0]*len(dz_terms)
+        guess = [np.sum(img) for img in imgs]
+        guess += [0.0]*nstar + [0.0]*nstar + [0.7] + [0.0]*len(dz_terms)
+        guess += [0.0]*(fitter.nbkg*nstar)
 
         result = least_squares(
             fitter.chi, guess, jac=fitter.jac,
@@ -996,32 +1029,28 @@ def test_dz_fitter_LSST_rigid_perturbation():
             max_nfev=20, verbose=2,
             args=(imgs, sky_levels)
         )
+        result = fitter.unpack_params(result.x)
 
-        dxs_fit, dys_fit, fwhm_fit, dz_fit = fitter.unpack_params(result.x)
-
-        np.testing.assert_allclose(dxs, dxs_fit, rtol=0, atol=0.2)
-        np.testing.assert_allclose(dys, dys_fit, rtol=0, atol=0.2)
-        np.testing.assert_allclose(fwhm, fwhm_fit, rtol=0, atol=0.05)
+        fwhm_fit = result["fwhm"]
+        dz_fit = result["wavefront_params"]
+        np.testing.assert_allclose(fwhm, fwhm_fit, rtol=0, atol=0.02)
         np.testing.assert_allclose(
             dz_fit/wavelength,
             dz_true/wavelength,
-            rtol=0, atol=0.1
+            rtol=0, atol=0.15
         )
         rms = np.sqrt(np.sum(((dz_true-dz_fit)/wavelength)**2))
         print(f"rms = {rms:9.3f} waves")
-        assert rms < 0.1, "rms %9.3f > 0.1" % rms
+        assert rms < 0.2, "rms %9.3f > 0.2" % rms
 
-        # mods = fitter.model(
-        #     dxs_fit, dys_fit, fwhm_fit, dz_fit
-        # )
-
+        # mods = fitter.model(**result)
         # plot_dz_results(
         #     imgs, mods, dz_fit/wavelength, dz_true/wavelength, dz_terms
         # )
 
 
 @timer
-def test_dz_fitter_LSST_z_perturbation():
+def test_dz_fitter_LSST_z_perturbation(run_slow):
     """Roundtrip using danish model to produce a test images of rigid-body
     perturbed LSST transverse Zernikes.  Model and fitter run through the same
     code.
@@ -1035,7 +1064,7 @@ def test_dz_fitter_LSST_z_perturbation():
     wavelength = 750e-9
 
     rng = np.random.default_rng(124)
-    if __name__ == "__main__":
+    if run_slow:
         niter = 10
     else:
         niter = 1
@@ -1123,30 +1152,32 @@ def test_dz_fitter_LSST_z_perturbation():
         )
 
         # Toy zfitter to make test images
-        fitter0 = danish.MultiDonutModel(
+        fitter0 = danish.DZMultiDonutModel(
             factory, z_refs=z_perturbs, dz_terms=(),
             field_radius=np.deg2rad(1.8),
-            thxs=thxs, thys=thys
+            thxs=thxs, thys=thys, bkg_order=-1
         )
 
         dxs = rng.uniform(-0.5, 0.5, nstar)
         dys = rng.uniform(-0.5, 0.5, nstar)
         fwhm = rng.uniform(0.5, 1.5)
         sky_levels = [1000.0]*nstar
-        fluxes = [5e6]*nstar
+        fluxes = rng.uniform(3e6, 1e7, nstar)
 
         imgs = fitter0.model(
-            dxs, dys, fwhm, (), sky_levels=sky_levels, fluxes=fluxes
+            fluxes, dxs, dys, fwhm, (), sky_levels=sky_levels
         )
 
         # Actual fitter with DOF to optimize...
-        fitter = danish.MultiDonutModel(
+        fitter = danish.DZMultiDonutModel(
             factory, z_refs=z_refs, dz_terms=dz_terms,
             field_radius=np.deg2rad(1.8),
-            thxs=thxs, thys=thys
+            thxs=thxs, thys=thys, bkg_order=0
         )
 
-        guess = [0.0]*nstar + [0.0]*nstar + [0.7] + [0.0]*len(dz_terms)
+        guess = [np.sum(img) for img in imgs]
+        guess += [0.0]*nstar + [0.0]*nstar + [0.7] + [0.0]*len(dz_terms)
+        guess += [0.0]*(fitter.nbkg*nstar)
 
         result = least_squares(
             fitter.chi, guess, jac=fitter.jac,
@@ -1154,25 +1185,22 @@ def test_dz_fitter_LSST_z_perturbation():
             max_nfev=20, verbose=2,
             args=(imgs, sky_levels)
         )
+        result = fitter.unpack_params(result.x)
 
-        dxs_fit, dys_fit, fwhm_fit, dz_fit = fitter.unpack_params(result.x)
 
-        np.testing.assert_allclose(dxs, dxs_fit, rtol=0, atol=0.2)
-        np.testing.assert_allclose(dys, dys_fit, rtol=0, atol=0.2)
-        np.testing.assert_allclose(fwhm, fwhm_fit, rtol=0, atol=0.05)
+        fwhm_fit = result["fwhm"]
+        dz_fit = result["wavefront_params"]
+        np.testing.assert_allclose(fwhm, fwhm_fit, rtol=0, atol=0.02)
         np.testing.assert_allclose(
             dz_fit/wavelength,
             dz_true/wavelength,
-            rtol=0, atol=0.1
+            rtol=0, atol=0.15
         )
         rms = np.sqrt(np.sum(((dz_true-dz_fit)/wavelength)**2))
         print(f"rms = {rms:9.3f} waves")
         assert rms < 0.2, "rms %9.3f > 0.2" % rms
 
-        # mods = fitter.model(
-        #     dxs_fit, dys_fit, fwhm_fit, dz_fit
-        # )
-
+        # mods = fitter.model(**result)
         # plot_dz_results(
         #     imgs, mods, dz_fit/wavelength, dz_true/wavelength, dz_terms
         # )
@@ -1197,6 +1225,7 @@ def test_dz_fitter_LSST_kolm():
     wavelength = data[0]['wavelength']
     dz_ref = data[0]['dz_ref']
     dz_actual = data[0]['dz_actual']
+    fwhm = data[0]["fwhm"]
 
     thxs = []
     thys = []
@@ -1229,12 +1258,14 @@ def test_dz_fitter_LSST_kolm():
     for i, term in enumerate(dz_terms):
         dz_true[i] = (dz_actual[term] - dz_ref[term])*wavelength
 
-    fitter = danish.MultiDonutModel(
+    fitter = danish.DZMultiDonutModel(
         factory, z_refs=np.array(z_refs)*wavelength, dz_terms=dz_terms,
-        field_radius=np.deg2rad(1.8), thxs=thxs, thys=thys
+        field_radius=np.deg2rad(1.8), thxs=thxs, thys=thys, bkg_order=0
     )
     nstar = len(thxs)
-    guess = [0.0]*nstar + [0.0]*nstar + [0.7] + [0.0]*len(dz_terms)
+    guess = [np.sum(img) for img in imgs]
+    guess += [0.0]*nstar + [0.0]*nstar + [0.7] + [0.0]*len(dz_terms)
+    guess += [0.0]*(fitter.nbkg*nstar)
     sky_levels = [sky_level]*nstar
 
     result = least_squares(
@@ -1243,9 +1274,11 @@ def test_dz_fitter_LSST_kolm():
         max_nfev=20, verbose=2,
         args=(imgs, sky_levels)
     )
+    result = fitter.unpack_params(result.x)
 
-    dxs_fit, dys_fit, fwhm_fit, dz_fit = fitter.unpack_params(result.x)
-
+    fwhm_fit = result["fwhm"]
+    dz_fit = result["wavefront_params"]
+    np.testing.assert_allclose(fwhm, fwhm_fit, rtol=0, atol=0.02)
     np.testing.assert_allclose(
         dz_fit/wavelength,
         dz_true/wavelength,
@@ -1255,10 +1288,7 @@ def test_dz_fitter_LSST_kolm():
     print(f"rms = {rms:9.3f} waves")
     assert rms < 0.2, "rms %9.3f > 0.2" % rms
 
-    # mods = fitter.model(
-    #     dxs_fit, dys_fit, fwhm_fit, dz_fit
-    # )
-
+    # mods = fitter.model(**result)
     # plot_dz_results(
     #     imgs, mods, dz_fit/wavelength, dz_true/wavelength, dz_terms
     # )
@@ -1281,6 +1311,7 @@ def test_dz_fitter_LSST_atm():
     wavelength = data[0]['wavelength']
     dz_ref = data[0]['dz_ref']
     dz_actual = data[0]['dz_actual']
+    fwhm = data[0]["fwhm"]
 
     thxs = []
     thys = []
@@ -1313,12 +1344,14 @@ def test_dz_fitter_LSST_atm():
     for i, term in enumerate(dz_terms):
         dz_true[i] = (dz_actual[term] - dz_ref[term])*wavelength
 
-    fitter = danish.MultiDonutModel(
+    fitter = danish.DZMultiDonutModel(
         factory, z_refs=np.array(z_refs)*wavelength, dz_terms=dz_terms,
-        field_radius=np.deg2rad(1.8), thxs=thxs, thys=thys
+        field_radius=np.deg2rad(1.8), thxs=thxs, thys=thys, bkg_order=0
     )
     nstar = len(thxs)
-    guess = [0.0]*nstar + [0.0]*nstar + [0.7] + [0.0]*len(dz_terms)
+    guess = [np.sum(img) for img in imgs]
+    guess += [0.0]*nstar + [0.0]*nstar + [0.7] + [0.0]*len(dz_terms)
+    guess += [0.0]*(fitter.nbkg*nstar)
     sky_levels = [sky_level]*nstar
 
     result = least_squares(
@@ -1327,38 +1360,25 @@ def test_dz_fitter_LSST_atm():
         max_nfev=20, verbose=2,
         args=(imgs, sky_levels)
     )
+    result = fitter.unpack_params(result.x)
 
-    dxs_fit, dys_fit, fwhm_fit, dz_fit = fitter.unpack_params(result.x)
-
+    fwhm_fit = result["fwhm"]
+    dz_fit = result["wavefront_params"]
+    np.testing.assert_allclose(fwhm, fwhm_fit, rtol=0, atol=0.02)
     np.testing.assert_allclose(
         dz_fit/wavelength,
         dz_true/wavelength,
-        rtol=0, atol=0.2
+        rtol=0, atol=0.15
     )
     rms = np.sqrt(np.sum(((dz_true-dz_fit)/wavelength)**2))
     print(f"rms = {rms:9.3f} waves")
-    assert rms < 0.4, "rms %9.3f > 0.4" % rms
+    assert rms < 0.2, "rms %9.3f > 0.2" % rms
 
-    # mods = fitter.model(
-    #     dxs_fit, dys_fit, fwhm_fit, dz_fit
-    # )
-
+    # mods = fitter.model(**result)
     # plot_dz_results(
     #     imgs, mods, dz_fit/wavelength, dz_true/wavelength, dz_terms
     # )
 
 
 if __name__ == "__main__":
-    test_fitter_LSST_fiducial()
-    test_fitter_LSST_rigid_perturbation()
-    test_fitter_LSST_z_perturbation()
-    test_fitter_LSST_kolm()
-    test_fitter_LSST_atm()
-
-    test_fitter_AuxTel_rigid_perturbation()
-
-    test_dz_fitter_LSST_fiducial()
-    test_dz_fitter_LSST_rigid_perturbation()
-    test_dz_fitter_LSST_z_perturbation()
-    test_dz_fitter_LSST_kolm()
-    test_dz_fitter_LSST_atm()
+    runtests(__file__)

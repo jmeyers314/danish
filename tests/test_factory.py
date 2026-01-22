@@ -6,7 +6,7 @@ import numpy as np
 
 import danish
 from galsim.zernike import Zernike
-from test_helpers import timer
+from danish_test_helpers import timer, runtests
 
 Rubin_obsc = yaml.safe_load(open(os.path.join(danish.datadir, 'RubinObsc.yaml')))
 
@@ -472,7 +472,7 @@ def test_focal_plane_hits_fiducial():
 
 
 @timer
-def test_focal_plane_hits_perturbed():
+def test_focal_plane_hits_perturbed(run_slow):
     """Test that polynomial model for ray aberrations produces the correct
     ray hit locations on the focal plane.
     """
@@ -488,7 +488,7 @@ def test_focal_plane_hits_perturbed():
     # Loop over a few perturbations
     # Use a phase screen as the perturbation
     with ExitStack() as stack:
-        if __name__ == "__main__":
+        if run_slow:
             from tqdm import tqdm
             pbar = stack.enter_context(tqdm(total=400))
         else:
@@ -708,10 +708,4 @@ def test_focal_plane_hits_perturbed():
 
 
 if __name__ == "__main__":
-    test_coord_roundtrip()
-    test_LSST()
-    test_LSST_aberrated()
-    test_factory_offsets()
-    test_curly_offsets()
-    test_focal_plane_hits_fiducial()
-    test_focal_plane_hits_perturbed()
+    runtests(__file__)
