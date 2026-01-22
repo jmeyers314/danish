@@ -103,6 +103,22 @@ class BaseDonutModel:
         thx, thy,
         x_offset=None, y_offset=None,
     ):
+        """Compute optical kernel.
+
+        Parameters
+        ----------
+        zk : array of float
+            Zernike coefficients.
+        thx, thy : float
+            Field angle in radians.
+        x_offset, y_offset : galsim.zernike.Zernike, optional
+            Additional pupil distortion coefficients.
+
+        Returns
+        -------
+        array of float
+            Optical kernel array.
+        """
         result = self.factory.image(
             aberrations=zk,
             x_offset=x_offset, y_offset=y_offset,
@@ -116,6 +132,18 @@ class BaseDonutModel:
         self,
         bkg
     ):
+        """Compute background model.
+
+        Parameters
+        ----------
+        bkg : array of float
+            Background polynomial coefficients.
+
+        Returns
+        -------
+        array of float
+            Background model array.
+        """
         no2 = self.no2
         zkbkg = galsim.zernike.Zernike([0]+list(bkg), R_outer=no2)
         result = zkbkg(*np.mgrid[-no2:no2+1, -no2:no2+1][::-1])
@@ -129,6 +157,32 @@ class BaseDonutModel:
         x_offset=None, y_offset=None,
         sky_level=None
     ):
+        """Compute model image.
+
+        Parameters
+        ----------
+        flux : float
+            Flux level at which to set image.
+        dx, dy : float
+            Offset in arcseconds.
+        fwhm : float
+            Full width half maximum of Kolmogorov kernel.
+        zk : array of float
+            Zernike coefficients.
+        bkg : array of float
+            Background polynomial coefficients.
+        thx, thy : float
+            Field angle in radians.
+        x_offset, y_offset : galsim.zernike.Zernike, optional
+            Additional pupil distortion coefficients.
+        sky_level : float, optional
+            Sky level to use when adding Poisson noise to image.
+
+        Returns
+        -------
+        array of float
+            Model image array.
+        """
         atm = self._atm_kernel(dx, dy, fwhm)
         opt = self._opt_kernel(zk, thx, thy, x_offset=x_offset, y_offset=y_offset)
         arr = convolve(opt, atm)
@@ -151,6 +205,22 @@ class BaseDonutModel:
         model,
         var
     ):
+        """Compute chi = (data - model)/error.
+
+        Parameters
+        ----------
+        data : array of float
+            Observed image data.
+        model : array of float
+            Model image data.
+        var : array of float
+            Variance of the observed data.
+
+        Returns
+        -------
+        array of float
+            Chi values for each pixel.
+        """
         result = ((data-model)/np.sqrt(var+model)).ravel()
         return result
 
@@ -238,9 +308,42 @@ class SingleDonutModel(BaseDonutModel):
         )
 
     def pack_params(self, *, flux, dx, dy, fwhm, z_fit, bkg=()):
+        """Pack parameters into a single tuple for optimization.
+
+        Parameters
+        ----------
+        flux : float
+            Flux level at which to set image.
+        dx, dy : float
+            Offset in arcseconds.
+        fwhm : float
+            Full width half maximum of Kolmogorov kernel.
+        z_fit : array of float
+            Zernike perturbations.
+        bkg : array of float
+            Background polynomial coefficients.
+
+        Returns
+        -------
+        tuple of float
+            Packed parameters.
+        """
         return (flux, dx, dy, fwhm, *z_fit, *bkg)
 
     def unpack_params(self, params):
+        """
+        Unpack parameters from the single tuple used for optimization.
+
+        Parameters
+        ----------
+        params : sequence of float
+            Packed parameters tuple as returned by `pack_params`.
+
+        Returns
+        -------
+        dict
+            Dictionary with keys 'flux', 'dx', 'dy', 'fwhm', 'z_fit', and 'bkg'.
+        """
         flux, dx, dy, fwhm, *rest = params
         out = dict(
             flux=flux,
@@ -263,7 +366,7 @@ class SingleDonutModel(BaseDonutModel):
         Parameters
         ----------
         params : sequence of float
-            Order is: (dx, dy, fwhm, *z_fit, *bkg)
+            Order is: (flux, dx, dy, fwhm, *z_fit, *bkg)
         data : array of float (npix, npix)
             Image against which to compute chi.
         var : float or array of float (npix, npix)
@@ -296,7 +399,7 @@ class SingleDonutModel(BaseDonutModel):
         Returns
         -------
         jac : array of float
-            Jacobian array d(chi)/d(param).  First dimension is chi, second
+            Jacobian array d(chi)/d(param).  First dimension is pixels, second
             dimension is param.
         """
         out = np.zeros((self.npix**2, len(params)))
@@ -378,6 +481,30 @@ class BaseMultiDonutModel(BaseDonutModel):
         self, fluxes, dxs, dys, fwhm, wavefront_params, *,
         bkgs=None, sky_levels=None
     ):
+        """Compute the model image for a single set of parameters.
+
+        Parameters
+        ----------
+        fluxes : sequence of float
+            Flux levels at which to set images.
+        dxs : sequence of float
+            Offsets in arcseconds along the x-axis.
+        dys : sequence of float
+            Offsets in arcseconds along the y-axis.
+        fwhm : float
+            Full width half maximum of Kolmogorov kernel. (Same for all donuts).
+        wavefront_params : sequence of float
+            Wavefront parameters for the model.
+        bkgs : tuple of tuple of float, optional
+            Background polynomial coefficients for each donut.
+        sky_levels : sequence of float, optional
+            Sky levels to use when adding Poisson noise to images.
+
+        Returns
+        -------
+        imgs : array of float
+            Model images for each donut.
+        """
         z_fits = self._get_z_fits(wavefront_params)
         return self.model_many(fluxes, dxs, dys, fwhm, z_fits, bkgs=bkgs, sky_levels=sky_levels)
 
@@ -395,12 +522,12 @@ class BaseMultiDonutModel(BaseDonutModel):
         dxs, dys : float
             Offsets in arcseconds.
         fwhm : float
-            Full width half maximum of Kolmogorov kernel.
+            Full width half maximum of Kolmogorov kernel. (Same for all donuts).
         z_fits : sequence of tuple of float
             Single Zernike perturbations for each donut.
         bkgs : tuple of tuple of float
-            Background polynomial coefficients.
-        sky_levels : sequence of float
+            Background polynomial coefficients for each donut.
+        sky_levels : sequence of float, optional
             Sky levels to use when adding Poisson noise to images.
 
         Returns
@@ -431,7 +558,54 @@ class BaseMultiDonutModel(BaseDonutModel):
             )
         return out
 
+    def pack_params(
+        self, *, fluxes, dxs, dys, fwhm, wavefront_params, bkgs=None
+    ):
+        """Pack parameters into a single tuple for optimization.
+
+        Parameters
+        ----------
+        fluxes : sequence of float
+            Flux levels at which to set images.
+        dxs, dys : sequence of float
+            Offsets in arcseconds.
+        fwhm : float
+            Full width half maximum of Kolmogorov kernel. (Same for all donuts).
+        wavefront_params : sequence of float
+            Wavefront parameters for the model.
+        bkgs : tuple of tuple of float, optional
+            Background polynomial coefficients for each donut.
+
+        Returns
+        -------
+        params : tuple of float
+            Packed parameters.
+        """
+        if bkgs is None:
+            bkgs = [()] * self.nstar
+        params = []
+        params.extend(fluxes)
+        params.extend(dxs)
+        params.extend(dys)
+        params.append(fwhm)
+        params.extend(wavefront_params)
+        for bkg in bkgs:
+            params.extend(bkg)
+        return tuple(params)
+
     def unpack_params(self, params):
+        """Unpack parameters from the single tuple used for optimization.
+
+        Parameters
+        ----------
+        params : sequence of float
+            Packed parameters tuple as returned by `pack_params`.
+
+        Returns
+        -------
+        dict
+            Dictionary with keys 'fluxes', 'dxs', 'dys', 'fwhm', 'wavefront_params', 'bkgs'.
+        """
         nstar = self.nstar
         fluxes = params[:nstar]
         dxs = params[nstar:2*nstar]
@@ -465,21 +639,6 @@ class BaseMultiDonutModel(BaseDonutModel):
         )
         return out
 
-    def pack_params(
-        self, *, fluxes, dxs, dys, fwhm, wavefront_params, bkgs=None
-    ):
-        if bkgs is None:
-            bkgs = [()] * self.nstar
-        params = []
-        params.extend(fluxes)
-        params.extend(dxs)
-        params.extend(dys)
-        params.append(fwhm)
-        params.extend(wavefront_params)
-        for bkg in bkgs:
-            params.extend(bkg)
-        return tuple(params)
-
     def chi(
         self, params, data, vars
     ):
@@ -490,7 +649,7 @@ class BaseMultiDonutModel(BaseDonutModel):
         Parameters
         ----------
         params : sequence of float
-            Order is: (flux, dx, dy, fwhm, *z_fit, *bkg)
+            Order is: (fluxes, dxs, dys, fwhm, *wavefront_params, *bkgs)
         data : array of float.  Shape: (nstar, npix, npix)
             Images against which to compute chi.
         vars : sequence of array (npix, npix) or sequence of float
@@ -519,9 +678,9 @@ class BaseMultiDonutModel(BaseDonutModel):
         Parameters
         ----------
         params : sequence of float
-            Order is: (dx, dy, fwhm, *z_fit)
+            Order is: (fluxes, dxs, dys, fwhm, *wavefront_params, *bkgs)
         data : array of float.  Shape: (nstar, npix, npix)
-            Image against which to compute chi.
+            Images against which to compute chi.
         vars : sequence of array (npix, npix) or sequence of float
             Variances of the sky only.  Do not include Poisson contribution of
             the signal, as this will be added from the current model.
@@ -529,7 +688,7 @@ class BaseMultiDonutModel(BaseDonutModel):
         Returns
         -------
         jac : array of float
-            Jacobian array d(chi)/d(param).  First dimenison is chi, second
+            Jacobian array d(chi)/d(param).  First dimension is pixels, second
             dimension is param.
         """
         # We don't know the exact parameterization here (see .chi() above).
@@ -620,7 +779,8 @@ class BaseMultiDonutModel(BaseDonutModel):
 
         return out
 
-    def jac2(self, params, data, vars):
+    # Simpler version of jac for testing.  Slightly slower.
+    def _jac2(self, params, data, vars):
         nstar = self.nstar
         npix = self.npix
         nbkg = self.nbkg
@@ -646,6 +806,33 @@ class BaseMultiDonutModel(BaseDonutModel):
 
 
 class DZMultiDonutModel(BaseMultiDonutModel):
+    """Multi donut model that uses double Zernike coefficients to paramterize the
+    wavefront.
+
+    Parameters
+    ----------
+    factory : DonutFactory
+    dz_terms : sequence of tuple of int
+        List of (k, j) indices specifying which double Zernike terms to use.
+    bkg_order : int, optional
+        Order of the background polynomial to fit.  If -1, no background.
+    dz_ref : DoubleZernike
+        Double Zernike coefficients to use for constructing Single Zernike
+        reference coefficients to use for each modeled donut.  Either this kwarg
+        or `z_refs` must be set.
+    z_refs : array of float
+        Single Zernike reference coefficients for each donut.  First dimension
+        is donut, second dimension is pupil Zernike coefficient.
+    field_radius : float
+        Field radius in radians.  If dz_ref is provided, then this is ignored and
+        the field radius will be inferred from dz_ref.
+    thxs, thys : float
+        Field angles in radians.
+    npix : int
+        Number of pixels along image edge.  Must be odd.
+    seed : int
+        Random seed for use when creating noisy donut images with this class.
+    """
     def __init__(self, *args, dz_terms=(), **kwargs):
         # Want dz_terms
         self.dz_terms = dz_terms
@@ -654,6 +841,19 @@ class DZMultiDonutModel(BaseMultiDonutModel):
         super().__init__(*args, **kwargs)
 
     def _get_z_fits(self, dz_fit):
+        """Convert this class's wavefront parameterization into individual donut
+        Zernike coefficients.
+
+        Parameters
+        ----------
+        dz_fit : array of float
+            Array of double Zernike coefficients for this model.
+
+        Returns
+        -------
+        z_fits : list of array of float
+            List of single Zernike coefficients for each donut.
+        """
         arr = np.zeros((self.k_max+1, self.j_max+1))
         for i, (k, j) in enumerate(self.dz_terms):
             arr[k, j] = dz_fit[i]
@@ -665,6 +865,34 @@ class DZMultiDonutModel(BaseMultiDonutModel):
 
 
 class DZBasisMultiDonutModel(BaseMultiDonutModel):
+    """Multi donut model that uses a sensitivity matrix to convert mode coefficients
+    into double Zernike coefficients to paramterize the wavefront.
+
+    Parameters
+    ----------
+    factory : DonutFactory
+    sensitivity : array of float
+        Sensitivity matrix that converts mode coefficients into double Zernike
+        coefficients.  Dimensions are (nmode, k_max+1, j_max+1)
+    bkg_order : int, optional
+        Order of the background polynomial to fit.  If -1, no background.
+    dz_ref : DoubleZernike
+        Double Zernike coefficients to use for constructing Single Zernike
+        reference coefficients to use for each modeled donut.  Either this kwarg
+        or `z_refs` must be set.
+    z_refs : array of float
+        Single Zernike reference coefficients for each donut.  First dimension
+        is donut, second dimension is pupil Zernike coefficient.
+    field_radius : float
+        Field radius in radians.  If dz_ref is provided, then this is ignored and
+        the field radius will be inferred from dz_ref.
+    thxs, thys : float
+        Field angles in radians.
+    npix : int
+        Number of pixels along image edge.  Must be odd.
+    seed : int
+        Random seed for use when creating noisy donut images with this class.
+    """
     def __init__(self, *args, sensitivity=None, **kwargs):
         if sensitivity is None:
             raise ValueError("Must provide sensitivity")
@@ -675,6 +903,19 @@ class DZBasisMultiDonutModel(BaseMultiDonutModel):
         super().__init__(*args, **kwargs)
 
     def _get_z_fits(self, mode_coefs):
+        """Convert this class's wavefront parameterization into individual donut
+        Zernike coefficients.
+
+        Parameters
+        ----------
+        mode_coefs : array of float
+            Array of mode coefficients for this model.
+
+        Returns
+        -------
+        z_fits : list of array of float
+            List of single Zernike coefficients for each donut.
+        """
         arr = np.einsum(
             "i,ikj->kj",
             mode_coefs,
