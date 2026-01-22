@@ -53,12 +53,14 @@ class BaseDonutModel:
     Parameters
     ----------
     factory : DonutFactory
+    bkg_order : int
+        Order of polynomial background model to use.  If -1, no background.
     npix : int
         Number of pixels along image edge. Must be odd.
     seed : int
         Random seed for use when creating noisy donut images.
     """
-    def __init__(self, factory, npix, seed):
+    def __init__(self, factory, npix, seed, bkg_order):
         assert npix % 2 == 1, "npix must be odd"
 
         self.factory = factory
@@ -71,6 +73,8 @@ class BaseDonutModel:
         self.sky_scale = (
             3600*np.rad2deg(1/factory.focal_length)*factory.pixel_scale
         )
+        self.bkg_order = bkg_order
+        self.nbkg = (bkg_order+1)*(bkg_order+2)//2
 
     @lru_cache(maxsize=1000)
     def _atm_kernel(self, dx, dy, fwhm):
@@ -79,7 +83,7 @@ class BaseDonutModel:
         Parameters
         ----------
         dx, dy : float
-            Offset in pixels.
+            Offset in arcseconds.
         fwhm : float
             Full width half maximum of Kolmogorov kernel.
 
@@ -92,54 +96,63 @@ class BaseDonutModel:
         img = obj.drawImage(nx=self.no2, ny=self.no2, scale=self.sky_scale)
         return img.array
 
-    def _assemble_image(self, opt, atm, flux=None, sky_level=None):
-        """Apply convolution and add optional noise.
+    @lru_cache(maxsize=1000)
+    def _opt_kernel(
+        self,
+        zk,
+        thx, thy,
+        x_offset=None, y_offset=None,
+    ):
+        result = self.factory.image(
+            aberrations=zk,
+            x_offset=x_offset, y_offset=y_offset,
+            thx=thx, thy=thy,
+            npix=self.npix
+        )
+        return result
 
-        Parameters
-        ----------
-        opt : array of float
-            Optical model array.
-        atm : array of float
-            Atmospheric kernel array.
-        flux : float, optional
-            Flux level at which to set image.
-        sky_level : float, optional
-            Sky level to use when adding Poisson noise.
+    @lru_cache(maxsize=1000)
+    def _bkg(
+        self,
+        bkg
+    ):
+        no2 = self.no2
+        zkbkg = galsim.zernike.Zernike([0]+list(bkg), R_outer=no2)
+        result = zkbkg(*np.mgrid[-no2:no2+1, -no2:no2+1][::-1])
+        return result
 
-        Returns
-        -------
-        array of float
-            Convolved and potentially noisy image array.
-        """
+    @lru_cache(maxsize=100)
+    def _model(
+        self,
+        flux, dx, dy, fwhm, zk, bkg,
+        thx, thy,
+        x_offset=None, y_offset=None,
+        sky_level=None
+    ):
+        atm = self._atm_kernel(dx, dy, fwhm)
+        opt = self._opt_kernel(zk, thx, thy, x_offset=x_offset, y_offset=y_offset)
         arr = convolve(opt, atm)
-        img = galsim.Image(arr)
-        if flux is not None:
-            img.array[:] *= flux/np.sum(img.array)
+        arr *= flux/np.sum(arr)
+
+        if bkg:
+            arr += self._bkg(bkg)
+
         if sky_level is not None:
             pn = galsim.PoissonNoise(self.gsrng, sky_level=sky_level)
+            img = galsim.Image(arr)
             img.addNoise(pn)
-        return img.array
+            arr = img.array
 
-    def _chi_single(self, model, datum, var):
-        """Compute chi for a single image.
+        return arr
 
-        Parameters
-        ----------
-        model : array of float
-            Model image.
-        datum : array of float
-            Data image.
-        var : float or array of float
-            Variance of the sky only.
-
-        Returns
-        -------
-        array of float
-            Flattened chi residuals.
-        """
-        model = model.copy()
-        model *= np.sum(datum)/np.sum(model)
-        return ((datum-model)/np.sqrt(var+model)).ravel()
+    def _chi(
+        self,
+        data,
+        model,
+        var
+    ):
+        result = ((data-model)/np.sqrt(var+model)).ravel()
+        return result
 
 
 class SingleDonutModel(BaseDonutModel):
@@ -149,12 +162,13 @@ class SingleDonutModel(BaseDonutModel):
     Parameters
     ----------
     factory : DonutFactory
+    bkg_order : int, optional
+        Order of polynomial background model to use.  If -1, no background.
     z_ref : array of float
         Constant reference Zernike coefs to add to fitted coefficients.
         [0] is ignored, [1] is piston, [4] is defocus, etc.
     x_offset, y_offset : galsim.zernike.Zernike, optional
-        Additional focal plane offsets (in meters) represented as Zernike
-        series.
+        Additional pupil distortion coefficients.
     z_terms : sequence of int
         Which Zernike coefficients to include in the fit.  E.g.,
         [4,5,6,11] will fit defocus, astigmatism, and spherical.
@@ -168,14 +182,15 @@ class SingleDonutModel(BaseDonutModel):
     def __init__(
         self,
         factory, *,
+        bkg_order=-1,
         z_ref=None,
         x_offset=None, y_offset=None,
         z_terms=(),
         thx=None, thy=None,
         npix=181,
-        seed=57721
+        seed=57721,
     ):
-        super().__init__(factory, npix, seed)
+        super().__init__(factory, npix, seed, bkg_order)
         self.z_ref = z_ref
         self.x_offset = x_offset
         self.y_offset = y_offset
@@ -183,46 +198,60 @@ class SingleDonutModel(BaseDonutModel):
         self.thx = thx
         self.thy = thy
 
-    @lru_cache(maxsize=1000)
-    def _opt_image(self, z_fit):
-        aberrations = np.array(self.z_ref)
-        for i, term in enumerate(self.z_terms):
-            aberrations[term] += z_fit[i]
-        return self.factory.image(
-            aberrations=aberrations,
-            x_offset=self.x_offset, y_offset=self.y_offset,
-            thx=self.thx, thy=self.thy,
-            npix=self.npix
-        )
-
     def model(
         self,
-        dx, dy, fwhm, z_fit, *,
-        sky_level=None, flux=None
+        flux, dx, dy, fwhm, z_fit, *,
+        bkg=(),
+        sky_level=None,
     ):
         """Compute donut model image.
 
         Parameters
         ----------
+        flux : float
+            Flux level at which to set image.
         dx, dy : float
-            Offset in pixels(?)
+            Offset in arcseconds.
         fwhm : float
             Full width half maximum of Kolmogorov kernel.
         z_fit : sequence of float
             Zernike perturbations.
+        bkg : sequence of float
+            Background polynomial coefficients.
         sky_level : float
             Sky level to use when adding Poisson noise to image.
-        flux : float
-            Flux level at which to set image.
 
         Returns
         -------
         img : array of float
             Model image.
         """
-        atm = self._atm_kernel(dx, dy, fwhm)
-        opt = self._opt_image(tuple(z_fit))
-        return self._assemble_image(opt, atm, flux, sky_level)
+        zk = np.array(self.z_ref)
+        for i, term in enumerate(self.z_terms):
+            zk[term] += z_fit[i]
+        return self._model(
+            flux, dx, dy, fwhm,
+            tuple(zk), tuple(bkg),
+            self.thx, self.thy,
+            x_offset=self.x_offset, y_offset=self.y_offset,
+            sky_level=sky_level
+        )
+
+    def pack_params(self, *, flux, dx, dy, fwhm, z_fit, bkg=()):
+        return (flux, dx, dy, fwhm, *z_fit, *bkg)
+
+    def unpack_params(self, params):
+        flux, dx, dy, fwhm, *rest = params
+        out = dict(
+            flux=flux,
+            dx=dx,
+            dy=dy,
+            fwhm=fwhm,
+        )
+        split = len(rest) - self.nbkg
+        out["z_fit"] = rest[:split]
+        out["bkg"] = rest[split:]
+        return out
 
     def chi(
         self, params, data, var
@@ -234,7 +263,7 @@ class SingleDonutModel(BaseDonutModel):
         Parameters
         ----------
         params : sequence of float
-            Order is: (dx, dy, fwhm, *z_fit)
+            Order is: (dx, dy, fwhm, *z_fit, *bkg)
         data : array of float (npix, npix)
             Image against which to compute chi.
         var : float or array of float (npix, npix)
@@ -246,9 +275,8 @@ class SingleDonutModel(BaseDonutModel):
         chi : array of float
             Flattened array of chi residuals.
         """
-        dx, dy, fwhm, *z_fit = params
-        mod = self.model(dx, dy, fwhm, z_fit)
-        return self._chi_single(mod, data, var)
+        mod = self.model(**self.unpack_params(params))
+        return self._chi(data, mod, var)
 
     def jac(
         self, params, data, var
@@ -258,7 +286,7 @@ class SingleDonutModel(BaseDonutModel):
         Parameters
         ----------
         params : sequence of float
-            Order is: (dx, dy, fwhm, *z_fit)
+            Order is: (flux, dx, dy, fwhm, *z_fit, *bkg)
         data : array of float
             Image against which to compute chi.
         var : float or array of float (npix, npix)
@@ -268,82 +296,38 @@ class SingleDonutModel(BaseDonutModel):
         Returns
         -------
         jac : array of float
-            Jacobian array d(chi)/d(param).  First dimenison is chi, second
+            Jacobian array d(chi)/d(param).  First dimension is chi, second
             dimension is param.
         """
         out = np.zeros((self.npix**2, len(params)))
         chi0 = self.chi(params, data, var)
 
-        step = [0.01, 0.01, 0.01]+[1e-9]*len(self.z_terms)
+        step = [
+            0.01, # flux
+            0.01, # dx
+            0.01, # dy
+            0.01  # fwhm
+        ]
+        step += [1e-8]*len(self.z_terms)  # Zernikes (in meters)
+        step += [0.01]*self.nbkg
+
         for i in range(len(params)):
             params1 = np.array(params)
             params1[i] += step[i]
             chi1 = self.chi(params1, data, var)
             out[:, i] = (chi1-chi0)/step[i]
+
         return out
 
 
-class DoubleZernike:
-    """Double Zernike model for including both pupil and field dependence of
-    wavefront.
-
-    Parameters
-    ----------
-    coefs : array of float
-        Double Zernike coefficients.
-    field_radius : float
-        Outer field radius to use to normalize coefficients.
-    """
-    def __init__(self, coefs, *, field_radius=1.0):
-        self.coefs = coefs
-        self.field_radius = field_radius
-
-        self.Zs = [
-            galsim.zernike.Zernike(coef, R_inner=0.0, R_outer=field_radius)
-            for coef in coefs.T
-        ]
-
-    def __call__(self, thx, thy):
-        """Return pupil Zernike coefficients.
-
-        Parameters
-        ----------
-        thx, thy : float
-            Field angles in radians.
-        """
-        return np.array([Z(thx, thy) for Z in self.Zs])
-
-    def __add__(self, rhs):
-        assert self.field_radius == rhs.field_radius
-        return DoubleZernike(
-            self.coefs+rhs.coefs,
-            field_radius=self.field_radius
-        )
-
-    def __mul__(self, rhs):
-        return DoubleZernike(
-            self.coefs*rhs,
-            field_radius=self.field_radius
-        )
-
-    @property
-    def jmax(self):
-        """Maximum Noll index for pupil dimension."""
-        return self.coefs.shape[1]-1
-
-    @property
-    def kmax(self):
-        """Maximum Noll index for field dimension."""
-        return self.coefs.shape[0]-1
-
-
-class MultiDonutModel(BaseDonutModel):
-    """Model double Zernikes on top of reference per-donut single Zernikes to
-    multiple donuts simultaneously.
+class BaseMultiDonutModel(BaseDonutModel):
+    """Model multiple donuts simultaneously.
 
     Parameters
     ----------
     factory : DonutFactory
+    bkg_order : int, optional
+        Order of the background polynomial to fit.  If -1, no background.
     dz_ref : DoubleZernike
         Double Zernike coefficients to use for constructing Single Zernike
         reference coefficients to use for each modeled donut.  Either this kwarg
@@ -352,9 +336,8 @@ class MultiDonutModel(BaseDonutModel):
         Single Zernike reference coefficients for each donut.  First dimension
         is donut, second dimension is pupil Zernike coefficient.
     field_radius : float
-        Field radius in radians.  Ignored if dz_ref is provided.
-    dz_terms : sequence of (int, int)
-        Which double Zernike coefficients to include in the fit.
+        Field radius in radians.  If dz_ref is provided, then this is ignored and
+        the field radius will be inferred from dz_ref.
     thxs, thys : float
         Field angles in radians.
     npix : int
@@ -365,75 +348,60 @@ class MultiDonutModel(BaseDonutModel):
     def __init__(
         self,
         factory, *,
+        bkg_order=-1,
         dz_ref=None,
         z_refs=None,
         field_radius=None,
-        dz_terms=(),
         thxs=None, thys=None,
         npix=181,
         seed=577215
     ):
-        super().__init__(factory, npix, seed)
+        super().__init__(factory, npix, seed, bkg_order)
 
         if dz_ref is None and z_refs is None:
             raise ValueError("Must provide dz_ref or z_refs")
         if dz_ref is not None and z_refs is not None:
             raise ValueError("Cannot provide both dz_ref and z_refs")
         if z_refs is None:
-            z_refs = dz_ref(thxs, thys)
+            z_refs = dz_ref.xycoef(thxs, thys)
         self.z_refs = z_refs
         if field_radius is None:
             if dz_ref is None:
                 raise ValueError("Must provide dz_ref or field_radius")
             field_radius = dz_ref.field_radius
         self.field_radius = field_radius
-        self.dz_terms = dz_terms
         self.thxs = thxs
         self.thys = thys
         self.nstar = len(thxs)
-        self.jmax_fit = max((dz_term[1] for dz_term in dz_terms), default=0)
-        self.kmax_fit = max((dz_term[0] for dz_term in dz_terms), default=0)
-
-    @lru_cache(maxsize=1000)
-    def _opt1(self, aberrations, thx, thy):
-        return self.factory.image(
-            aberrations=aberrations, thx=thx, thy=thy, npix=self.npix
-        )
-
-    def _model1(
-        self,
-        dx, dy, fwhm, aberrations,
-        thx, thy, *,
-        sky_level=None, flux=None
-    ):
-        atm = self._atm_kernel(dx, dy, fwhm)
-        opt = self._opt1(tuple(aberrations), thx, thy)
-        return self._assemble_image(opt, atm, flux, sky_level)
-
-    def _dz(self, dz_fit):
-        dzarr = np.zeros((self.kmax_fit+1, self.jmax_fit+1))
-        for i, zterm in enumerate(self.dz_terms):
-            dzarr[zterm] = dz_fit[i]
-        dz = DoubleZernike(dzarr, field_radius=self.field_radius)
-        return dz
 
     def model(
-        self, dxs, dys, fwhm, dz_fit, *, sky_levels=None, fluxes=None
+        self, fluxes, dxs, dys, fwhm, wavefront_params, *,
+        bkgs=None, sky_levels=None
     ):
-        """Compute model for all donuts.
+        z_fits = self._get_z_fits(wavefront_params)
+        return self.model_many(fluxes, dxs, dys, fwhm, z_fits, bkgs=bkgs, sky_levels=sky_levels)
+
+    def model_many(
+        self, fluxes, dxs, dys, fwhm, z_fits, *,
+        bkgs=None,
+        sky_levels=None
+    ):
+        """Compute models for all donuts.
 
         Parameters
         ----------
+        fluxes : float
+            Flux levels at which to set images.
         dxs, dys : float
-            Offsets in pixels(?)
+            Offsets in arcseconds.
         fwhm : float
             Full width half maximum of Kolmogorov kernel.
-        dz_fit : sequence of float
-            Double Zernike perturbations.
+        z_fits : sequence of tuple of float
+            Single Zernike perturbations for each donut.
+        bkgs : tuple of tuple of float
+            Background polynomial coefficients.
         sky_levels : sequence of float
             Sky levels to use when adding Poisson noise to images.
-        fluxes : sequence of float
-            Flux levels at which to set images.
 
         Returns
         -------
@@ -442,49 +410,75 @@ class MultiDonutModel(BaseDonutModel):
         """
         nstar = self.nstar
         npix = self.npix
+        if bkgs is None:
+            bkgs = [()] * nstar
         if sky_levels is None:
             sky_levels = [None]*nstar
-        if fluxes is None:
-            fluxes = [None]*nstar
 
         out = np.empty((nstar, npix, npix))
-        dz = self._dz(dz_fit)
 
-        for i, (thx, thy) in enumerate(zip(self.thxs, self.thys)):
+        for i in range(nstar):
             aberrations = np.array(self.z_refs[i])
-            z_fit = dz(thx, thy)
-            aberrations[:len(z_fit)] += z_fit
-            out[i] = self._model1(
+            aberrations[:len(z_fits[i])] += z_fits[i]
+            out[i] = self._model(
+                fluxes[i],
                 dxs[i], dys[i],
                 fwhm,
-                aberrations,
-                thx, thy,
-                sky_level=sky_levels[i], flux=fluxes[i]
+                tuple(aberrations),
+                bkgs[i],
+                thx=self.thxs[i], thy=self.thys[i],
+                sky_level=sky_levels[i],
             )
         return out
 
     def unpack_params(self, params):
-        """Utility method to unpack params list
+        nstar = self.nstar
+        fluxes = params[:nstar]
+        dxs = params[nstar:2*nstar]
+        dys = params[2*nstar:3*nstar]
+        fwhm = params[3*nstar]
 
-        Parameters
-        ----------
-        params : list
-            Parameter list to unpack
+        # Wavefront parameters
+        wavefront_slice = slice(
+            3*nstar+1,
+            len(params) - nstar * self.nbkg
+        )
+        wavefront_params = params[wavefront_slice]
 
-        Returns
-        -------
-        dxs, dys : list
-            Model position offsets.
-        fwhm : float
-            Model FWHM.
-        dz_fit : list
-            Model double Zernike coefficients.
-        """
-        dxs = params[:self.nstar]
-        dys = params[self.nstar:2*self.nstar]
-        fwhm = params[2*self.nstar]
-        dz_fit = params[2*self.nstar+1:]
-        return dxs, dys, fwhm, dz_fit
+        bkgs = []
+        for i in range(nstar):
+            bkg_slice = slice(
+                len(params) - nstar * self.nbkg + i * self.nbkg,
+                len(params) - nstar * self.nbkg + (i+1) * self.nbkg
+            )
+            bkgs.append(
+                tuple(params[bkg_slice])
+            )
+
+        out = dict(
+            fluxes=fluxes,
+            dxs=dxs,
+            dys=dys,
+            fwhm=fwhm,
+            wavefront_params=wavefront_params,
+            bkgs=bkgs
+        )
+        return out
+
+    def pack_params(
+        self, *, fluxes, dxs, dys, fwhm, wavefront_params, bkgs=None
+    ):
+        if bkgs is None:
+            bkgs = [()] * self.nstar
+        params = []
+        params.extend(fluxes)
+        params.extend(dxs)
+        params.extend(dys)
+        params.append(fwhm)
+        params.extend(wavefront_params)
+        for bkg in bkgs:
+            params.extend(bkg)
+        return tuple(params)
 
     def chi(
         self, params, data, vars
@@ -496,7 +490,7 @@ class MultiDonutModel(BaseDonutModel):
         Parameters
         ----------
         params : sequence of float
-            Order is: (dx, dy, fwhm, *z_fit)
+            Order is: (flux, dx, dy, fwhm, *z_fit, *bkg)
         data : array of float.  Shape: (nstar, npix, npix)
             Images against which to compute chi.
         vars : sequence of array (npix, npix) or sequence of float
@@ -508,16 +502,14 @@ class MultiDonutModel(BaseDonutModel):
         chi : array of float
             Flattened array of chi residuals.
         """
-        dxs, dys, fwhm, dz_fit = self.unpack_params(params)
-        mods = self.model(dxs, dys, fwhm, dz_fit)
+        # We don't know the exact parameterization here, since there are subclasses.
+        # Use self._format_params to convert to BaseMultiDonutModel.model expected
+        # parameters
+        mods = self.model(**self.unpack_params(params))
         chis = np.empty((self.nstar, self.npix, self.npix))
         for i, (mod, datum) in enumerate(zip(mods, data)):
-            chis[i] = self._chi_single(mod, datum, vars[i]).reshape(self.npix, self.npix)
+            chis[i] = self._chi(datum, mod, vars[i]).reshape(self.npix, self.npix)
         return chis.ravel()
-
-    def _chi1(self, dx, dy, fwhm, aberrations, thx, thy, datum, var):
-        mod1 = self._model1(dx, dy, fwhm, aberrations, thx, thy)
-        return self._chi_single(mod1, datum, var)
 
     def jac(
         self, params, data, vars
@@ -540,317 +532,156 @@ class MultiDonutModel(BaseDonutModel):
             Jacobian array d(chi)/d(param).  First dimenison is chi, second
             dimension is param.
         """
+        # We don't know the exact parameterization here (see .chi() above).
+        # We will make _some_ assumptions though.  The general order is:
+        # flux for each star
+        # dx for each star
+        # dy for each star
+        # single FWHM parameter
+        # wavefront parameters
+        # followed by [bkg1, bkg2, ...] for each star for the background polynomial
+
+        # For computing the jacobian, the flux, dx, dy and bkg parameters are sparse in
+        # which star is effected (i.e., only the parameters corresponding to that star
+        # will affect its chi)
+        # For the FWHM and wavefront parameters, all stars are affected by each
+        # parameter.
+
         nstar = self.nstar
         npix = self.npix
+        nbkg = self.nbkg
+        nwavefront = len(params) - nbkg*nstar - (3*nstar + 1)
 
         out = np.zeros((nstar*npix**2, len(params)))
-        dxs, dys, fwhm, dz_fit = self.unpack_params(params)
-        dz = self._dz(dz_fit)
+        chi0 = self.chi(params, data, vars)
 
-        chi0 = np.zeros(nstar*npix**2)
-
-        # Star dx, dy terms are sparse
-        for i in range(self.nstar):
-            thx, thy = self.thxs[i], self.thys[i]
-            aberrations = np.array(self.z_refs[i])
-            z_fit = dz(thx, thy)
-            aberrations[:len(z_fit)] += z_fit
+        # Flux
+        dflux = 0.01
+        dflux_params = np.array(params)  # Make a copy so we don't perturb the original
+        dflux_param_dict = self.unpack_params(dflux_params)
+        dflux_param_dict["fluxes"] += dflux
+        chi_flux = self.chi(self.pack_params(**dflux_param_dict), data, vars)
+        # We manipulated all fluxes at once above.  Need to separate each star's
+        # contribution for output here.
+        for i in range(nstar):
             s = slice(i*npix**2, (i+1)*npix**2)
+            out[s, i] = (chi_flux[s] - chi0[s]) / dflux
 
-            c0 = self._chi1(
-                dxs[i], dys[i], fwhm,
-                aberrations,
-                thx, thy, data[i], vars[i]
-            )
-            cx = self._chi1(
-                dxs[i]+0.01, dys[i], fwhm,
-                aberrations,
-                thx, thy, data[i], vars[i]
-            )
-            cy = self._chi1(
-                dxs[i], dys[i]+0.01, fwhm,
-                aberrations,
-                thx, thy, data[i], vars[i]
-            )
+        # Repeat for dx
+        dx = 0.01
+        dx_params = np.array(params)
+        dx_param_dict = self.unpack_params(dx_params)
+        dx_param_dict["dxs"] += dx
+        chi_dx = self.chi(self.pack_params(**dx_param_dict), data, vars)
+        for i in range(nstar):
+            s = slice(i*npix**2, (i+1)*npix**2)
+            out[s, nstar+i] = (chi_dx[s] - chi0[s]) / dx
 
-            out[s, i] = (cx-c0)/0.01
-            out[s, i+nstar] = (cy-c0)/0.01
-            chi0[s] = c0
+        # Repeat for dy
+        dy = 0.01
+        dy_params = np.array(params)
+        dy_param_dict = self.unpack_params(dy_params)
+        dy_param_dict["dys"] += dy
+        chi_dy = self.chi(self.pack_params(**dy_param_dict), data, vars)
+        for i in range(nstar):
+            s = slice(i*npix**2, (i+1)*npix**2)
+            out[s, 2*nstar+i] = (chi_dy[s] - chi0[s]) / dy
 
         # FWHM
-        params1 = np.array(params)
-        params1[2*nstar] += 0.001
-        chi1 = self.chi(params1, data, vars)
-        out[:, 2*nstar] = (chi1-chi0)/0.001
+        dfwhm = 0.01
+        dfwhm_params = np.array(params)
+        dfwhm_param_dict = self.unpack_params(dfwhm_params)
+        dfwhm_param_dict["fwhm"] += dfwhm
+        chi_fwhm = self.chi(self.pack_params(**dfwhm_param_dict), data, vars)
+        # This one is dense, so just insert full chi
+        out[:, 3*nstar] = (chi_fwhm - chi0)/dfwhm
 
-        # DZ terms
-        for i in range(2*nstar+1, len(params)):
+        # Wavefront terms
+        dwavefront = 1e-8
+        for i in range(3*nstar+1, 3*nstar+1+nwavefront):
             params1 = np.array(params)
-            params1[i] += 1e-8
+            params1[i] += dwavefront
             chi1 = self.chi(params1, data, vars)
-            out[:, i] = (chi1-chi0)/1e-8
+            out[:, i] = (chi1-chi0)/dwavefront
+
+        # Background terms.  These are sparse too
+        dbkg = 0.01
+        for i in range(nbkg):
+            bkg_params = np.array(params)
+            bkg_param_dict = self.unpack_params(bkg_params)
+            for j in range(nstar):
+                bkgj = list(bkg_param_dict["bkgs"][j])
+                bkgj[i] += dbkg
+                bkg_param_dict["bkgs"][j] = tuple(bkgj)
+            chi_bkg = self.chi(self.pack_params(**bkg_param_dict), data, vars)
+            for j in range(nstar):
+                s = slice(j*npix**2, (j+1)*npix**2)
+                out[s, 3*nstar+1+nwavefront+nbkg*j+i] = (chi_bkg[s] - chi0[s]) / dbkg
+
+        return out
+
+    def jac2(self, params, data, vars):
+        nstar = self.nstar
+        npix = self.npix
+        nbkg = self.nbkg
+        nwavefront = len(params) - nbkg*nstar - (3*nstar + 1)
+
+        out = np.empty((nstar*npix**2, len(params)))
+
+        step = [0.01]*nstar  # flux
+        step += [0.01]*nstar  # dx
+        step += [0.01]*nstar  # dy
+        step += [0.01]        # fwhm
+        step += [1e-8]*nwavefront  # wavefront terms
+        step += [0.01]*nbkg*nstar  # background terms
+
+        chi0 = self.chi(params, data, vars)
+        for i, step in enumerate(step):
+            params1 = np.array(params)
+            params1[i] += step
+            chi1 = self.chi(params1, data, vars)
+            out[:, i] = (chi1 - chi0)/step
 
         return out
 
 
-class VModeDonutModel(BaseDonutModel):
-    """ Model multiple donuts using modes of double Zernike coefficients.
+class DZMultiDonutModel(BaseMultiDonutModel):
+    def __init__(self, *args, dz_terms=(), **kwargs):
+        # Want dz_terms
+        self.dz_terms = dz_terms
+        self.k_max = max([term[0] for term in dz_terms], default=0)
+        self.j_max = max([term[1] for term in dz_terms], default=0)
+        super().__init__(*args, **kwargs)
 
-    Parameters
-    ----------
-    factory : DonutFactory
-    dz_ref : DoubleZernike
-        Double Zernike coefficients to use for constructing Single Zernike
-        reference coefficients to use for each modeled donut.  Either this kwarg or `z_refs` must be set.
-    z_refs : array of float
-        Single Zernike reference coefficients for each donut.  First dimension
-        is donut, second dimension is pupil Zernike coefficient.
-    field_radius : float
-        Field radius in radians.  Ignored if dz_ref is provided.
-    sensitivity : array of float
-        Matrix of shape (nmode, kmax+1, jmax+1) giving the linear combination of
-        double Zernike coefficients for each mode.
-    thxs, thys : float
-        Field angles in radians.
-    npix : int
-        Number of pixels along image edge.  Must be odd.
-    seed : int
-        Random seed for use when creating noisy donut images with this class.
-    """
-    def __init__(
-        self,
-        factory, *,
-        dz_ref=None,
-        z_refs=None,
-        field_radius=None,
-        sensitivity=None,
-        thxs=None, thys=None,
-        npix=181,
-        seed=5772156
-    ):
+    def _get_z_fits(self, dz_fit):
+        arr = np.zeros((self.k_max+1, self.j_max+1))
+        for i, (k, j) in enumerate(self.dz_terms):
+            arr[k, j] = dz_fit[i]
+        dz = galsim.zernike.DoubleZernike(arr, uv_outer=self.field_radius)
+        z_fits = []
+        for thx, thy in zip(self.thxs, self.thys):
+            z_fits.append(dz.xycoef(thx, thy))
+        return z_fits
+
+
+class DZBasisMultiDonutModel(BaseMultiDonutModel):
+    def __init__(self, *args, sensitivity=None, **kwargs):
         if sensitivity is None:
             raise ValueError("Must provide sensitivity")
         self.sensitivity = sensitivity
-        self.nmode = sensitivity.shape[0]
-        self.kmax = sensitivity.shape[1]-1
-        self.jmax = sensitivity.shape[2]-1
+        self.nmode = self.sensitivity.shape[0]
+        self.k_max = self.sensitivity.shape[1]
+        self.j_max = self.sensitivity.shape[2]
+        super().__init__(*args, **kwargs)
 
-        super().__init__(factory, npix, seed)
-
-        if dz_ref is None and z_refs is None:
-            raise ValueError("Must provide dz_ref or z_refs")
-        if dz_ref is not None and z_refs is not None:
-            raise ValueError("Cannot provide both dz_ref and z_refs")
-        if z_refs is None:
-            z_refs = dz_ref(thxs, thys)
-        self.z_refs = z_refs
-        if field_radius is None:
-            if dz_ref is None:
-                raise ValueError("Must provide dz_ref or field_radius")
-            field_radius = dz_ref.field_radius
-        self.field_radius = field_radius
-        self.thxs = thxs
-        self.thys = thys
-        self.nstar = len(thxs)
-
-    @lru_cache(maxsize=1000)
-    def _opt1(self, aberrations, thx, thy):
-        return self.factory.image(
-            aberrations=tuple(aberrations), thx=thx, thy=thy, npix=self.npix
-        )
-
-    def _model1(
-        self,
-        dx, dy, fwhm, aberrations,
-        thx, thy, *,
-        sky_level=None, flux=None
-    ):
-        atm = self._atm_kernel(dx, dy, fwhm)
-        opt = self._opt1(tuple(aberrations), thx, thy)
-        return self._assemble_image(opt, atm, flux, sky_level)
-
-    def model(
-        self, dxs, dys, fwhm, mode_fit, *, sky_levels=None, fluxes=None
-    ):
-        """Compute model for all donuts.
-
-        Parameters
-        ----------
-        dxs, dys : float
-            Offsets in pixels(?)
-        fwhm : float
-            Full width half maximum of Kolmogorov kernel.
-        mode_fit : sequence of float
-            Mode perturbations.
-        sky_levels : sequence of float
-            Sky levels to use when adding Poisson noise to images.
-        fluxes : sequence of float
-            Flux levels at which to set images.
-
-        Returns
-        -------
-        imgs : array of float.  Shape: (nstar, npix, npix)
-            Model images.
-        """
-        nstar = self.nstar
-        npix = self.npix
-        if sky_levels is None:
-            sky_levels = [None]*nstar
-        if fluxes is None:
-            fluxes = [None]*nstar
-
-        out = np.empty((nstar, npix, npix))
-        dzarr = np.einsum(
+    def _get_z_fits(self, mode_coefs):
+        arr = np.einsum(
             "i,ikj->kj",
-            mode_fit,
+            mode_coefs,
             self.sensitivity
         )
-        dz = DoubleZernike(dzarr, field_radius=self.field_radius)
-
-        for i, (thx, thy) in enumerate(zip(self.thxs, self.thys)):
-            aberrations = np.array(self.z_refs[i])
-            z_fit = dz(thx, thy)
-            aberrations[:len(z_fit)] += z_fit
-            out[i] = self._model1(
-                dxs[i], dys[i],
-                fwhm,
-                aberrations,
-                thx, thy,
-                sky_level=sky_levels[i], flux=fluxes[i]
-            )
-        return out
-
-    def unpack_params(self, params):
-        """Utility method to unpack params list
-
-        Parameters
-        ----------
-        params : list
-            Parameter list to unpack
-
-        Returns
-        -------
-        dxs, dys : list
-            Model position offsets.
-        fwhm : float
-            Model FWHM.
-        mode_fit : list
-            Model mode coefficients.
-        """
-        dxs = params[:self.nstar]
-        dys = params[self.nstar:2*self.nstar]
-        fwhm = params[2*self.nstar]
-        mode_fit = params[2*self.nstar+1:]
-        return dxs, dys, fwhm, mode_fit
-
-    def chi(
-        self, params, data, vars
-    ):
-        """Compute chi = (data - model)/error.
-
-        The error is modeled as sqrt(model + var) for each donut.
-
-        Parameters
-        ----------
-        params : sequence of float
-            Order is: (dx, dy, fwhm, *mode_fit)
-        data : array of float.  Shape: (nstar, npix, npix)
-            Images against which to compute chi.
-        vars : sequence of array (npix, npix) or sequence of float
-            Variances of the sky only.  Do not include Poisson contribution of
-            the signal, as this will be added from the current model.
-
-        Returns
-        -------
-        chi : array of float
-            Flattened array of chi residuals.
-        """
-        dxs, dys, fwhm, mode_fit = self.unpack_params(params)
-        mods = self.model(dxs, dys, fwhm, mode_fit)
-        chis = np.empty((self.nstar, self.npix, self.npix))
-        for i, (mod, datum) in enumerate(zip(mods, data)):
-            chis[i] = self._chi_single(mod, datum, vars[i]).reshape(self.npix, self.npix)
-        return chis.ravel()
-
-    def _chi1(self, dx, dy, fwhm, aberrations, thx, thy, datum, var):
-        mod1 = self._model1(dx, dy, fwhm, aberrations, thx, thy)
-        return self._chi_single(mod1, datum, var)
-
-    def jac(
-        self, params, data, vars
-    ):
-        """Compute jacobian d(chi)/d(param).
-
-        Parameters
-        ----------
-        params : sequence of float
-            Order is: (dx, dy, fwhm, *mode_fit)
-        data : array of float.  Shape: (nstar, npix, npix)
-            Image against which to compute chi.
-        vars : sequence of array (npix, npix) or sequence of float
-            Variances of the sky only.  Do not include Poisson contribution of
-            the signal, as this will be added from the current model.
-
-        Returns
-        -------
-        jac : array of float
-            Jacobian array d(chi)/d(param).  First dimenison is chi, second
-            dimension is param.
-        """
-        nstar = self.nstar
-        npix = self.npix
-
-        out = np.zeros((nstar*npix**2, len(params)))
-        dxs, dys, fwhm, mode_fit = self.unpack_params(params)
-
-        dzarr = np.einsum(
-            "i,ikj->kj",
-            mode_fit,
-            self.sensitivity
-        )
-        dz = DoubleZernike(dzarr, field_radius=self.field_radius)
-
-        chi0 = np.zeros(nstar*npix**2)
-
-        # Star dx, dy terms are sparse
-        for i in range(self.nstar):
-            thx, thy = self.thxs[i], self.thys[i]
-            aberrations = np.array(self.z_refs[i])
-            z_fit = dz(thx, thy)
-            aberrations[:len(z_fit)] += z_fit
-            s = slice(i*npix**2, (i+1)*npix**2)
-
-            c0 = self._chi1(
-                dxs[i], dys[i], fwhm,
-                aberrations,
-                thx, thy, data[i], vars[i]
-            )
-            cx = self._chi1(
-                dxs[i]+0.01, dys[i], fwhm,
-                aberrations,
-                thx, thy, data[i], vars[i]
-            )
-            cy = self._chi1(
-                dxs[i], dys[i]+0.01, fwhm,
-                aberrations,
-                thx, thy, data[i], vars[i]
-            )
-
-            out[s, i] = (cx-c0)/0.01
-            out[s, i+nstar] = (cy-c0)/0.01
-            chi0[s] = c0
-
-        # FWHM
-        params1 = np.array(params)
-        params1[2*nstar] += 0.001
-        chi1 = self.chi(params1, data, vars)
-        out[:, 2*nstar] = (chi1-chi0)/0.001
-
-        # Mode terms
-        for i in range(2*nstar+1, len(params)):
-            params1 = np.array(params)
-            params1[i] += 1e-8
-            chi1 = self.chi(params1, data, vars)
-            out[:, i] = (chi1-chi0)/1e-8
-
-        return out
+        dz = galsim.zernike.DoubleZernike(arr, uv_outer=self.field_radius)
+        z_fits = []
+        for thx, thy in zip(self.thxs, self.thys):
+            z_fits.append(dz.xycoef(thx, thy))
+        return z_fits
