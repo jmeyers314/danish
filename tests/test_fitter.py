@@ -84,7 +84,7 @@ def plot_dz_results(imgs, mods, dz_fit, dz_true, dz_terms):
 
 @timer
 def test_fitter_LSST_fiducial(run_slow):
-    """ Roundtrip using danish model to produce a test image with fiducial LSST
+    """Roundtrip using danish model to produce a test image with fiducial LSST
     transverse Zernikes plus random Zernike offsets.  Model and fitter run
     through the same code.
     """
@@ -824,7 +824,7 @@ def test_fitter_AuxTel_rigid_perturbation(run_slow):
 
 @timer
 def test_dz_fitter_LSST_fiducial(run_slow):
-    """ Roundtrip using danish model to produce test images with fiducial LSST
+    """Roundtrip using danish model to produce test images with fiducial LSST
     transverse Zernikes plus random double Zernike offsets.  Model and fitter
     run through the same code.
     """
@@ -1208,6 +1208,9 @@ def test_dz_fitter_LSST_z_perturbation(run_slow):
 
 @timer
 def test_dz_fitter_LSST_kolm():
+    """Roundtrip using GalSim Kolmogorov atmosphere + batoid to produce test
+    image of AOS DOF perturbed optics.  Model and fitter run independent code.
+    """
     with open(
         os.path.join(directory, "data", "test_kolm_donuts.pkl"),
         'rb'
@@ -1296,6 +1299,9 @@ def test_dz_fitter_LSST_kolm():
 
 @timer
 def test_dz_fitter_LSST_atm():
+    """Roundtrip using GalSim phase screen atmosphere + batoid to produce test
+    image of AOS DOF perturbed optics.  Model and fitter run independent code.
+    """
     with open(
         os.path.join(directory, "data", "test_atm_donuts.pkl"),
         'rb'
@@ -1378,6 +1384,171 @@ def test_dz_fitter_LSST_atm():
     # plot_dz_results(
     #     imgs, mods, dz_fit/wavelength, dz_true/wavelength, dz_terms
     # )
+
+
+@timer
+def test_basis_dz_fitter_rigid():
+    """Roundtrip using batoid to produce test images and a sensitivity matrix of
+    rigid body perturbations.
+    """
+    telescope = batoid.Optic.fromYaml("LSST_r.yaml")
+    intra = telescope.withGloballyShiftedOptic("LSSTCamera", [0,0,-1.5e-3])
+    wavelength = 620e-9
+
+    # First compute the sensitivity matrix
+    dz_kwargs = dict(field=np.deg2rad(1.8), wavelength=wavelength, kmax=3, jmax=11)
+    dz0 = batoid.doubleZernike(telescope, **dz_kwargs) * wavelength
+    sens = []
+
+    # Mode 0 : cam dz
+    perturbed = telescope.withGloballyShiftedOptic("LSSTCamera", [0,0,10e-6])
+    dz1 = batoid.doubleZernike(perturbed, **dz_kwargs) * wavelength
+    sens.append((dz1 - dz0)/10) # meters per micron
+
+    # Mode 1 : cam tip
+    perturbed = telescope.withGloballyRotatedOptic("LSSTCamera", batoid.RotX(np.deg2rad(10/3600)))
+    dz1 = batoid.doubleZernike(perturbed, **dz_kwargs) * wavelength
+    sens.append((dz1 - dz0)/10) # meters per arcsec
+
+    # Mode 2 : cam tilt
+    perturbed = telescope.withGloballyRotatedOptic("LSSTCamera", batoid.RotY(np.deg2rad(10/3600)))
+    dz1 = batoid.doubleZernike(perturbed, **dz_kwargs) * wavelength
+    sens.append((dz1 - dz0)/10) # meters per arcsec
+
+    # Mode 3 : M2 tip
+    perturbed = telescope.withGloballyRotatedOptic("M2", batoid.RotX(np.deg2rad(10/3600)))
+    dz1 = batoid.doubleZernike(perturbed, **dz_kwargs) * wavelength
+    sens.append((dz1 - dz0)/10) # meters per arcsec
+
+    # Mode 4 : M2 tilt
+    perturbed = telescope.withGloballyRotatedOptic("M2", batoid.RotY(np.deg2rad(10/3600)))
+    dz1 = batoid.doubleZernike(perturbed, **dz_kwargs) * wavelength
+    sens.append((dz1 - dz0)/10) # meters per arcsec
+
+    sens = np.array(sens)
+    sens[:,0] = 0
+    sens[...,:4] = 0
+
+    # Run some simulations...
+    rng = np.random.default_rng(57721)
+    for _ in range(10):
+        dz = rng.uniform(-20, 20) # microns
+        dcam_rx = rng.uniform(-20, 20) # arcsec
+        dcam_ry = rng.uniform(-20, 20) # arcsec
+        dm2_rx =  rng.uniform(-20, 20) # arcsec
+        dm2_ry =  rng.uniform(-20, 20) # arcsec
+        perturbation = np.array([dz, dcam_rx, dcam_ry, dm2_rx, dm2_ry])
+        perturbed = (
+            intra
+            .withGloballyShiftedOptic("LSSTCamera", [0,0,dz*1e-6])
+            .withGloballyRotatedOptic("LSSTCamera", batoid.RotX(np.deg2rad(dcam_rx/3600)))
+            .withGloballyRotatedOptic("LSSTCamera", batoid.RotY(np.deg2rad(dcam_ry/3600)))
+            .withGloballyRotatedOptic("M2", batoid.RotX(np.deg2rad(dm2_rx/3600)))
+            .withGloballyRotatedOptic("M2", batoid.RotY(np.deg2rad(dm2_ry/3600)))
+        )
+        nstar = 10
+        thr = np.sqrt(rng.uniform(0, 1.8**2, nstar))
+        ph = rng.uniform(0, 2*np.pi, nstar)
+        thxs = thr*np.cos(ph)
+        thys = thr*np.sin(ph)
+
+        z_refs = np.empty((nstar, 67))
+        z_perturbs = np.empty((nstar, 67))
+        for i, (thx, thy) in enumerate(zip(thxs, thys)):
+            z_refs[i] = batoid.zernikeTA(
+                intra, *np.deg2rad([thx, thy]), wavelength,
+                nrad=20, naz=120, reference='chief',
+                jmax=66, eps=0.61
+            )
+            z_perturbs[i] = batoid.zernikeTA(
+                perturbed, *np.deg2rad([thx, thy]), wavelength,
+                nrad=20, naz=120, reference='chief',
+                jmax=66, eps=0.61
+            )
+        z_refs *= wavelength
+        z_perturbs *= wavelength
+
+        factory = danish.DonutFactory(
+            R_outer=4.18, R_inner=2.5498,
+            mask_params=Rubin_obsc,
+            spider_angle=20,
+            focal_length=10.31,
+            pixel_scale=20e-6,  # Simulate binned pixels
+        )
+
+        dxs = rng.uniform(-0.5, 0.5, nstar)
+        dys = rng.uniform(-0.5, 0.5, nstar)
+        fwhm = rng.uniform(0.5, 1.5)
+        sky_levels = [1000.0]*nstar
+        fluxes = rng.uniform(3e6, 1e7, nstar)
+
+        imgs = []
+        for i in range(nstar):
+
+            # Use SingleDonutModel with zernikes above to simulate donuts.
+            sim_fitter = danish.SingleDonutModel(
+                factory,
+                z_terms=list(range(4, 12)),
+                z_ref=z_refs[i],
+                thx=np.deg2rad(thxs[i]),
+                thy=np.deg2rad(thys[i]),
+                npix=89
+            )
+
+            z_fit = (z_perturbs[i] - z_refs[i])[4:12]
+            imgs.append(
+                sim_fitter.model(
+                    fluxes[i], dxs[i], dys[i], fwhm, z_fit, sky_level=sky_levels[i],
+                )
+            )
+
+        # Now fit using the DZBasisMultiDonutModel
+        fitter = danish.DZBasisMultiDonutModel(
+            factory,
+            sensitivity=sens,
+            z_refs=z_refs,
+            field_radius=np.deg2rad(1.8),
+            thxs=np.deg2rad(thxs),
+            thys=np.deg2rad(thys),
+            npix=89,
+            bkg_order=0,
+            wavefront_step=0.1
+        )
+
+        guess = [np.sum(img) for img in imgs]
+        guess += [0.0]*nstar + [0.0]*nstar + [0.7] + [0.0]*len(perturbation)
+        guess += [0.0]*(fitter.nbkg*nstar)
+
+        result = least_squares(
+            fitter.chi, guess, jac=fitter.jac,
+            ftol=1e-3, xtol=1e-3, gtol=1e-3,
+            max_nfev=20, verbose=2,
+            args=(imgs, sky_levels)
+        )
+        result = fitter.unpack_params(result.x)
+
+        mods = fitter.model(**result)
+
+        for i, name in enumerate(["cam dz", "cam rx", "cam ry", "m2 rx", "m2 ry"]):
+            print(f"{name:10}  {perturbation[i]:6.2f} {result['wavefront_params'][i]:6.2f}")
+        print()
+
+        # Compare true/sim rms wavefront
+        dz_diff = np.einsum("ikj,i->kj", sens, perturbation - result["wavefront_params"])
+        rms = np.sqrt(np.sum(np.square(dz_diff)))
+        assert rms/wavelength < 0.65  # Not great, but okay for unit test
+
+        # import matplotlib.pyplot as plt
+        # fig, axs = plt.subplots(nstar, 3, figsize=(3, nstar))
+        # for i in range(nstar):
+        #     axs[i, 0].imshow(imgs[i], origin='lower')
+        #     axs[i, 1].imshow(mods[i], origin='lower')
+        #     axs[i, 2].imshow(imgs[i]-mods[i], origin='lower')
+        # for ax in axs.ravel():
+        #     ax.set_xticks([])
+        #     ax.set_yticks([])
+        # plt.show()
+
 
 
 if __name__ == "__main__":
