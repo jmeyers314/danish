@@ -1550,6 +1550,115 @@ def test_basis_dz_fitter_rigid():
         # plt.show()
 
 
+def test_multi_donut_model_jac():
+    telescope = batoid.Optic.fromYaml("LSST_i.yaml")
+    intra = telescope.withGloballyShiftedOptic("Detector", [0, 0, 0.0015])
+    wavelength = 750e-9
+
+    rng = np.random.default_rng(675849302)
+    nstar = 10
+    thr = np.sqrt(rng.uniform(0, 1.8**2, nstar))
+    ph = rng.uniform(0, 2*np.pi, nstar)
+    thxs, thys = np.deg2rad(thr*np.cos(ph)), np.deg2rad(thr*np.sin(ph))
+    z_refs = np.empty((nstar, 67))
+    for i, (thx, thy) in enumerate(zip(thxs, thys)):
+        z_refs[i] = batoid.zernikeTA(
+            intra, thx, thy, wavelength,
+            nrad=20, naz=120, reference='chief',
+            jmax=66, eps=0.61
+        )
+    z_refs *= wavelength
+    factory = danish.DonutFactory(
+        R_outer=4.18, R_inner=2.5498,
+        mask_params=Rubin_obsc,
+        focal_length=10.31, pixel_scale=10e-6
+    )
+
+    dz_terms = (
+        (1, 4),                          # defocus
+        (2, 4), (3, 4),                  # field tilt
+        (2, 5), (3, 5), (2, 6), (3, 6),  # linear astigmatism
+        (1, 7), (1, 8)                   # constant coma
+    )
+    dz_true = rng.uniform(-0.3, 0.3, size=len(dz_terms))*wavelength
+
+    fitter = danish.DZMultiDonutModel(
+        factory, z_refs=np.array(z_refs), dz_terms=dz_terms,
+        field_radius=np.deg2rad(1.8), thxs=thxs, thys=thys, bkg_order=0
+    )
+
+    dxs = rng.uniform(-0.5, 0.5, nstar)
+    dys = rng.uniform(-0.5, 0.5, nstar)
+    fwhm = rng.uniform(0.5, 1.5)
+    sky_levels = [1000.0]*nstar
+    fluxes = rng.uniform(3e6, 1e7, nstar)
+
+    imgs = fitter.model(
+        fluxes, dxs, dys, fwhm, dz_true, sky_levels=sky_levels,
+    )
+
+    guess = [np.sum(img) for img in imgs]
+    guess += [0.0]*nstar + [0.0]*nstar + [0.7] + [0.0]*len(dz_terms)
+    guess += [0.0]*(fitter.nbkg*nstar)
+
+    j1 = fitter.jac(guess, imgs, [1000]*nstar)
+    j2 = fitter._jac2(guess, imgs, [1000]*nstar)
+    np.testing.assert_array_equal(j1, j2)
+
+    # Try basis fitter too
+    # First compute the sensitivity matrix
+    dz_kwargs = dict(field=np.deg2rad(1.8), wavelength=wavelength, kmax=3, jmax=11)
+    dz0 = batoid.doubleZernike(telescope, **dz_kwargs) * wavelength
+    sens = []
+
+    # Mode 0 : cam dz
+    perturbed = telescope.withGloballyShiftedOptic("LSSTCamera", [0,0,10e-6])
+    dz1 = batoid.doubleZernike(perturbed, **dz_kwargs) * wavelength
+    sens.append((dz1 - dz0)/10) # meters per micron
+
+    # Mode 1 : cam tip
+    perturbed = telescope.withGloballyRotatedOptic("LSSTCamera", batoid.RotX(np.deg2rad(10/3600)))
+    dz1 = batoid.doubleZernike(perturbed, **dz_kwargs) * wavelength
+    sens.append((dz1 - dz0)/10) # meters per arcsec
+
+    # Mode 2 : cam tilt
+    perturbed = telescope.withGloballyRotatedOptic("LSSTCamera", batoid.RotY(np.deg2rad(10/3600)))
+    dz1 = batoid.doubleZernike(perturbed, **dz_kwargs) * wavelength
+    sens.append((dz1 - dz0)/10) # meters per arcsec
+
+    # Mode 3 : M2 tip
+    perturbed = telescope.withGloballyRotatedOptic("M2", batoid.RotX(np.deg2rad(10/3600)))
+    dz1 = batoid.doubleZernike(perturbed, **dz_kwargs) * wavelength
+    sens.append((dz1 - dz0)/10) # meters per arcsec
+
+    # Mode 4 : M2 tilt
+    perturbed = telescope.withGloballyRotatedOptic("M2", batoid.RotY(np.deg2rad(10/3600)))
+    dz1 = batoid.doubleZernike(perturbed, **dz_kwargs) * wavelength
+    sens.append((dz1 - dz0)/10) # meters per arcsec
+
+    sens = np.array(sens)
+    sens[:,0] = 0
+    sens[...,:4] = 0
+
+    fitter = danish.DZBasisMultiDonutModel(
+        factory,
+        sensitivity=sens,
+        z_refs=z_refs,
+        field_radius=np.deg2rad(1.8),
+        thxs=thxs,
+        thys=thys,
+        bkg_order=0,
+        wavefront_step=0.1
+    )
+
+    guess = [np.sum(img) for img in imgs]
+    guess += [0.0]*nstar + [0.0]*nstar + [0.7] + [0.0]*sens.shape[0]
+    guess += [0.0]*(fitter.nbkg*nstar)
+
+    j1 = fitter.jac(guess, imgs, [1000]*nstar)
+    j2 = fitter._jac2(guess, imgs, [1000]*nstar)
+    np.testing.assert_array_equal(j1, j2)
+
 
 if __name__ == "__main__":
     runtests(__file__)
