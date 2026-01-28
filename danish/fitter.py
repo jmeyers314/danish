@@ -809,7 +809,7 @@ class BaseMultiDonutModel(BaseDonutModel):
 
 
 class DZMultiDonutModel(BaseMultiDonutModel):
-    """Multi donut model that uses double Zernike coefficients to paramterize the
+    """Multi donut model that uses double Zernike coefficients to parameterize the
     wavefront.
 
     Parameters
@@ -869,7 +869,7 @@ class DZMultiDonutModel(BaseMultiDonutModel):
 
 class DZBasisMultiDonutModel(BaseMultiDonutModel):
     """Multi donut model that uses a sensitivity matrix to convert mode coefficients
-    into double Zernike coefficients to paramterize the wavefront.
+    into double Zernike coefficients to parameterize the wavefront.
 
     Parameters
     ----------
