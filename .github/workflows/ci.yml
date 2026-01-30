@@ -72,7 +72,7 @@ jobs:
 
       - name: Install GalSim + batoid
         run: |
-          python -m pip install GalSim~=2.7.0 batoid
+          python -m pip install galsim==2.8.2a3 batoid
 
       - name: Build danish
         run: python -m pip install -e .
