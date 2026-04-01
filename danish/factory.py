@@ -1147,3 +1147,80 @@ class DonutFactory:
             x0, y0 = x1, y1
         else:
             return False
+
+    def spots(
+        self, *,
+        Z=None, aberrations=None,
+        x_offset=None, y_offset=None,
+        thx=0, thy=0,
+        nrad=5, naz=None,
+    ):
+        """Compute aberrated spot diagram.
+
+        Parameters
+        ----------
+        Z : galsim.zernike.Zernike, optional
+            Aberrations in meters.
+        aberrations : array of float, optional
+            Aberrations in meters.
+        x_offset, y_offset : galsim.zernike.Zernike, optional
+            Additional focal plane offsets (in meters) represented as Zernike
+            series.
+        thx, thy : float
+            Field angles in radians.
+        nrad : int
+            Number of pupil radii to use between R_inner and R_outer.
+        naz : int, optional
+            Approximate number of azimuthal angles to use along the outer most radius.
+            See hexapolar for details.
+
+        Returns
+        -------
+        x_spots, y_spots, w_spots : array of float
+            Focal plane coordinates of spots and weights.
+        """
+        if Z is None:
+            Z = galsim.zernike.Zernike(
+                aberrations, R_outer=self.R_outer, R_inner=self.R_inner
+            )
+        Z1 = Z*self.focal_length
+
+        u, v = hexapolar(
+            outer=self.R_outer, inner=self.R_inner, nrad=nrad, naz=naz)
+        w = np.ones_like(u, dtype=bool)
+
+        if self.mask_params is not None:
+            thr = np.sqrt(thx*thx + thy*thy)
+            thr_deg = np.rad2deg(thr)
+            for item, val in self.mask_params.items():
+                if item == "Spider_3D":
+                    continue
+                    # if self.spider_angle is None:
+                    #     continue
+                    # for vane in val:
+                    #     p1x, p1y, sth1, cth1, p2x, p2y, sth2, cth2 = _project_spider_vane(
+                    #         vane["r0"], vane["v0"],
+                    #         vane["width"], vane["length"],
+                    #         vane["angle"]+self.spider_angle, thx, thy
+                    #     )
+                    #     # clip out spots inside the strut region
+                else:
+                    for edge, edge_params in val.items():
+                        if thr_deg < edge_params["thetaMin"] or thr_deg > edge_params["thetaMax"]:
+                            continue
+
+                        radius = np.polyval(edge_params["radius"], thr_deg)
+                        center = np.polyval(edge_params["center"], thr_deg)
+                        cx = center*thx/thr if thr > 0 else 0
+                        cy = center*thy/thr if thr > 0 else 0
+
+                        r = np.hypot(u-cx, v-cy)
+                        if edge_params["clear"]:
+                            w[r > radius] = False
+                        else:
+                            w[r < radius] = False
+        x, y = _pupil_to_focal(
+            u, v, Z1,
+            x_offset=x_offset, y_offset=y_offset
+        )
+        return x, y, w
