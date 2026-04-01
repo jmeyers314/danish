@@ -1224,3 +1224,63 @@ class DonutFactory:
             x_offset=x_offset, y_offset=y_offset
         )
         return x, y, w
+
+    def spot_image(
+        self, *,
+        Z=None, aberrations=None,
+        x_offset=None, y_offset=None,
+        thx=0, thy=0,
+        nrad=5, naz=None,
+        npix=15,
+        gq_kwargs=None,
+    ):
+        """Compute image from spots.
+
+        Parameters
+        ----------
+        Z : galsim.zernike.Zernike, optional
+            Aberrations in meters.
+        aberrations : array of float, optional
+            Aberrations in meters.
+        x_offset, y_offset : galsim.zernike.Zernike, optional
+            Additional focal plane offsets (in meters) represented as Zernike
+            series.
+        thx, thy : float
+            Field angles in radians.
+        nrad : int
+            Number of pupil radii to use between R_inner and R_outer.
+        naz : int, optional
+            Approximate number of azimuthal angles to use along the outer most radius.
+            See hexapolar for details.
+        npix : int
+            Number of pixels along image edge.  Must be odd.
+        gq_kwargs : dict, optional
+            Additional keyword arguments to pass to gq_points.
+
+        Returns
+        -------
+        img : array of float
+            Spot diagram image.
+        x, y : array of float
+            Focal plane coordinates of convolved spots.
+        w : array of float
+            Weights of convolved spots.
+        """
+        sx, sy, sw = self.spots(
+            Z=Z, aberrations=aberrations,
+            x_offset=x_offset, y_offset=y_offset,
+            thx=thx, thy=thy,
+            nrad=nrad, naz=naz
+        )
+        gx, gy, gw = gq_points(
+            **(gq_kwargs or {})
+        )
+        x = np.add.outer(sx, gx)
+        y = np.add.outer(sy, gy)
+        w = np.multiply.outer(sw, gw)
+
+        img = np.zeros((npix, npix))
+        no2 = (npix-1)//2
+        bds = np.linspace(-no2-0.5, no2+0.5, npix+1)*self.pixel_scale
+        H, *_ = np.histogram2d(y.ravel(), x.ravel(), bins=[bds, bds], weights=w.ravel(), density=False)
+        return H, x, y, w

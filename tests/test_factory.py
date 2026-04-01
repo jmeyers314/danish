@@ -811,6 +811,187 @@ def test_spots(run_slow):
             #     plt.show()
 
 
+@timer
+def test_spot_image():
+    fiducial = batoid.Optic.fromYaml("Rubin_v3.14_r.yaml")
+    fiducial = fiducial.withGloballyShiftedOptic("LSSTCamera", [0,0,30e-6])
+    wavelength = 622e-9
+    focal_length = 10.31
+    eps = 0.621
+
+    rng = np.random.default_rng(31415)
+    for _ in range(10):
+        # amplitude = 100e-9  # ~100 nm RMS perturbations
+        amplitude = 1500e-9  # ~1000 nm RMS perturbations
+        jmax = 15
+        coefs = rng.uniform(-1, 1, size=jmax+1)*amplitude/np.sqrt(jmax+1)
+        coefs[:4] = 0.0  # No PTT
+        perturbed = fiducial.withInsertedOptic(
+            before="M1",
+            item=batoid.OPDScreen(
+                name='Screen',
+                surface=batoid.Plane(),
+                screen=batoid.Zernike(
+                    coefs,
+                    R_outer=4.18,
+                    R_inner=4.18*eps,
+                ),
+                coordSys=fiducial.stopSurface.coordSys,
+                obscuration=fiducial['M1'].obscuration,
+            )
+        )
+
+        for __ in range(1):
+            thr = np.deg2rad(np.sqrt(rng.uniform(0, 1.8**2)))
+            ph = rng.uniform(0, 2*np.pi)
+            thx, thy = thr*np.cos(ph), thr*np.sin(ph)
+            nrad = 40
+            zTA = batoid.zernikeTA(
+                perturbed,
+                thx, thy,
+                wavelength,
+                nrad=20, naz=120, reference='mean',
+                jmax=66, eps=eps,
+                focal_length=focal_length,
+            ) * wavelength
+            zTA[:4] = 0.0
+
+            # Random atm ellipticity and size
+            # size = rng.uniform(0.5, 1.5)/2.35
+            size = 0.5/2.35
+            e = np.sqrt(rng.uniform(0, 0.2**2))
+            phi = rng.uniform(0, 2*np.pi)
+            e1 = e*np.cos(phi)
+            e2 = e*np.sin(phi)
+            sigma = size*5*10e-6
+            s = sigma**2
+            den = np.sqrt(1-e1**2-e2**2)
+            Ixx = s * (1 + e1) / den
+            Iyy = s * (1 - e1) / den
+            Ixy = s * e2 / den
+            cov = np.array([[Ixx, Ixy], [Ixy, Iyy]])
+
+            factory = danish.DonutFactory(
+                R_outer=4.18, R_inner=4.18*eps,
+                mask_params=Rubin_obsc,
+                focal_length=focal_length, pixel_scale=10e-6
+            )
+            sx, sy, sw = factory.spots(
+                aberrations=zTA,
+                thx=thx, thy=thy,
+                nrad=nrad
+            )
+            simg, sx1, sy1, sw1 = factory.spot_image(
+                aberrations=zTA,
+                thx=thx, thy=thy,
+                nrad=nrad,
+                gq_kwargs=dict(cov=cov, rmax=3.5)
+            )
+            simg2, sx2, sy2, sw2 = factory.spot_image(
+                aberrations=zTA,
+                thx=thx, thy=thy,
+                nrad=nrad,
+                gq_kwargs=dict(cov=cov, nrad=10, rmax=3.5)
+            )
+
+            import galsim
+            from galsim.hsm import FindAdaptiveMom
+            mom = FindAdaptiveMom(galsim.Image(simg))
+            mom2 = FindAdaptiveMom(galsim.Image(simg2))
+
+            s1 = (mom.moments_sigma)**2
+            den_1 = np.sqrt(1 - mom.observed_shape.e1**2 - mom.observed_shape.e2**2)
+            Ixx_1 = s1 * (1 + mom.observed_shape.e1) / den_1
+            Iyy_1 = s1 * (1 - mom.observed_shape.e1) / den_1
+            Ixy_1 = s1 * mom.observed_shape.e2 / den_1
+
+            s2 = (mom2.moments_sigma)**2
+            den_2 = np.sqrt(1 - mom2.observed_shape.e1**2 - mom2.observed_shape.e2**2)
+            Ixx_2 = s2 * (1 + mom2.observed_shape.e1) / den_2
+            Iyy_2 = s2 * (1 - mom2.observed_shape.e1) / den_2
+            Ixy_2 = s2 * mom2.observed_shape.e2 / den_2
+
+            # Need to account for the atmosphere and the pixel for the spots.
+            Ixx_s0 = (np.var(sx[sw]) + cov[0,0]) / (10e-6)**2 + 1/12
+            Iyy_s0 = (np.var(sy[sw]) + cov[1,1]) / (10e-6)**2 + 1/12
+            Ixy_s0 = (np.mean(sx[sw]*sy[sw]) + cov[0,1]) / (10e-6)**2
+
+            Ix_s1 = np.sum(sx1*sw1)/np.sum(sw1)
+            Iy_s1 = np.sum(sy1*sw1)/np.sum(sw1)
+            Ixx_s1 = np.sum((sx1-Ix_s1)**2*sw1)/np.sum(sw1) / (10e-6)**2 + 1/12
+            Iyy_s1 = np.sum((sy1-Iy_s1)**2*sw1)/np.sum(sw1) / (10e-6)**2 + 1/12
+            Ixy_s1 = np.sum((sx1-Ix_s1)*(sy1-Iy_s1)*sw1)/np.sum(sw1) / (10e-6)**2
+
+            Ix_s2 = np.sum(sx2*sw2)/np.sum(sw2)
+            Iy_s2 = np.sum(sy2*sw2)/np.sum(sw2)
+            Ixx_s2 = np.sum((sx2-Ix_s2)**2*sw2)/np.sum(sw2) / (10e-6)**2 + 1/12
+            Iyy_s2 = np.sum((sy2-Iy_s2)**2*sw2)/np.sum(sw2) / (10e-6)**2 + 1/12
+            Ixy_s2 = np.sum((sx2-Ix_s2)*(sy2-Iy_s2)*sw2)/np.sum(sw2) / (10e-6)**2
+
+            # TODO: Add an actual test here.
+
+            # import matplotlib.pyplot as plt
+            # fig, axs = plt.subplots(ncols=5, figsize=(20, 4), constrained_layout=True)
+            # axs[0].scatter(sx, sy, s=0.02, c='k')
+            # axs[0].scatter(sx[~sw], sy[~sw], s=0.02, c='r')
+            # axs[1].scatter(sx1.ravel(), sy1.ravel(), s=0.02, alpha=sw1.ravel())
+            # axs[1].scatter(sx1[0], sy1[0], s=0.2, c='r')
+            # axs[2].scatter(sx2.ravel(), sy2.ravel(), s=0.02, alpha=sw2.ravel()*3)
+            # axs[2].scatter(sx2[0], sy2[0], s=0.2, c='r')
+
+            # im = axs[3].imshow(
+            #     simg, origin='lower', vmin=0, vmax=np.nanmax(simg),
+            #     extent=[-7.5*10e-6, 7.5*10e-6, -7.5*10e-6, 7.5*10e-6],
+            # )
+            # fig.colorbar(im, ax=axs[3], label='Spot intensity (arbitrary units)')
+            # im2 = axs[4].imshow(
+            #     simg2, origin='lower', vmin=0, vmax=np.nanmax(simg2),
+            #     extent=[-7.5*10e-6, 7.5*10e-6, -7.5*10e-6, 7.5*10e-6],
+            # )
+            # fig.colorbar(im2, ax=axs[4], label='Spot intensity (arbitrary units)')
+            # axs[0].set_title("Factory spot locations")
+            # axs[1].set_title("Convolved spot locations")
+            # axs[2].set_title("Convolved spot locations (high density)")
+            # axs[3].set_title("Factory spot image")
+            # axs[4].set_title("Factory spot image (high density)")
+            # axs[0].text(
+            #     0.03, 0.95, f"Ixx={Ixx_s0:.2f} Iyy={Iyy_s0:.2f} Ixy={Ixy_s0:.2f}",
+            #     transform=axs[0].transAxes, fontsize=8, verticalalignment='top'
+            # )
+            # axs[1].text(
+            #     0.03, 0.95, f"Ixx={Ixx_s1:.2f} Iyy={Iyy_s1:.2f} Ixy={Ixy_s1:.2f}",
+            #     transform=axs[1].transAxes, fontsize=8, verticalalignment='top'
+            # )
+            # axs[2].text(
+            #     0.03, 0.95, f"Ixx={Ixx_s2:.2f} Iyy={Iyy_s2:.2f} Ixy={Ixy_s2:.2f}",
+            #     transform=axs[2].transAxes, fontsize=8, verticalalignment='top'
+            # )
+            # axs[3].text(
+            #     0.03, 0.95, f"Ixx={Ixx_1:.2f} Iyy={Iyy_1:.2f} Ixy={Ixy_1:.2f}",
+            #     transform=axs[3].transAxes, fontsize=8, verticalalignment='top',
+            #     c="w"
+
+            # )
+            # axs[4].text(
+            #     0.03, 0.95, f"Ixx={Ixx_2:.2f} Iyy={Iyy_2:.2f} Ixy={Ixy_2:.2f}",
+            #     transform=axs[4].transAxes, fontsize=8, verticalalignment='top',
+            #     c="w"
+            # )
+
+            # for ax in axs:
+            #     ax.set_xlim(-75e-6, 75e-6)
+            #     ax.set_ylim(-75e-6, 75e-6)
+            #     ax.set_aspect('equal')
+            #     ax.axhline(0, color='k', ls='--')
+            #     ax.axvline(0, color='k', ls='--')
+            #     ax.grid(True, which='major', c='gray', ls='-', alpha=0.2)
+            #     ax.set_xticks([5e-6+i*10e-6 for i in range(-8, 8)])
+            #     ax.set_yticks([5e-6+i*10e-6 for i in range(-8, 8)])
+            #     ax.set_xticklabels([])
+            #     ax.set_yticklabels([])
+            # plt.show()
+
+
 
 if __name__ == "__main__":
     runtests(__file__)
