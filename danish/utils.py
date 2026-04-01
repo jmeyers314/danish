@@ -65,30 +65,48 @@ def hexapolar(outer=1.0, inner=0.0, nrad=5, naz=None, kfold=6, rth=False):
 
 
 def gq_points(
-    nrings: int = 2,
-    nphi: int = 6,
+    nrad: int = 2,
+    naz: int | None = None,
+    kfold: int = 6,
     cov: NDArray | None = None,
     center: bool = False,
+    rmax: float | None = None,
 ) -> tuple[NDArray, NDArray, NDArray]:
     """Deterministic weighted point set whose moments match a 2D Gaussian.
 
     Builds concentric rings of equally-spaced points whose radii and
-    per-ring weights are set by Gauss-Laguerre quadrature on the radial
-    variable `s = r²/2`.  All moments ``E[x^a y^b]`` of the target
-    Gaussian are reproduced exactly through total degree
+    per-ring weights are set by quadrature on the radial variable.
 
-        D = min(nphi - 1, 4 * nrings - 2)
+    When *rmax* is ``None`` (the default), Gauss-Laguerre quadrature is
+    used on `s = r²/2`, placing nodes over the full ``[0, ∞)`` range.
+    All moments ``E[x^a y^b]`` of the target Gaussian are reproduced
+    exactly through total degree
 
-    For the default ``nrings=2, nphi=6`` (12 points) this gives D = 5,
+        D = min(naz - 1, 4 * nrad - 2)
+
+    For the default ``nrad=2, naz=6`` (12 points) this gives D = 5,
     i.e. all moments through 5th order are exact.
+
+    When *rmax* is given, Gauss-Legendre quadrature is used on the
+    radial CDF interval ``[0, u_max]`` where ``u_max = 1 - exp(-rmax²/2)``,
+    so that all rings lie within *rmax* sigma.  The small amount of
+    probability mass beyond *rmax* is discarded and the weights are
+    renormalized to sum to 1.  This places nodes more densely in the
+    interior and is better suited for UKF-style applications where
+    many rings are desired without reaching far into the tails.
 
     Parameters
     ----------
-    nrings : int
+    nrad : int
         Number of concentric rings (default 2).
-    nphi : int
-        Points per ring (default 6).  Even values give point symmetry
-        ``(x, y) ↔ (-x, -y)``.
+    naz : int
+        Approximate number of azimuthal angles uniformly spaced along the
+        outermost ring.  Each ring is constrained to have a multiple of kfold
+        azimuths, so the realized value may be slightly different than the
+        input value here.  Inner rings will have fewer azimuths in proportion
+        to their radius, but will still be constrained to a multiple of kfold.
+    kfold : int, optional
+        Each ring will have a multiple of this many azimuths.  Default: 6.
     cov : (2, 2) array_like or None
         Target covariance matrix.  Defaults to the 2x2 identity
         (standard normal).  For a general covariance the standard-normal
@@ -98,32 +116,62 @@ def gq_points(
         (The Gauss-Laguerre rule always assigns zero weight to r = 0
         because the radial density r·exp(-r²/2) vanishes there, but a
         centre point can still be useful as a structural reference.)
+    rmax : float or None
+        Maximum radius (in units of sigma) for the outermost ring.  When
+        set, Gauss-Legendre quadrature on the radial CDF is used instead
+        of Gauss-Laguerre, keeping all points within *rmax*.
 
     Returns
     -------
     x, y : ndarray, shape ``(N,)``
-        Sample positions, where ``N = nrings * nphi (+ 1 if center)``.
+        Sample positions, where ``N = nrad * naz (+ 1 if center)``.
     w : ndarray, shape ``(N,)``
         Non-negative weights summing to 1.
     """
-    # Gauss–Laguerre nodes t_j and weights omega_j for  ∫ f(t) exp(−t) dt
-    # on [0, ∞).  An n-point rule integrates polynomials of degree ≤ 2n−1.
-    t, omega = np.polynomial.laguerre.laggauss(nrings)
+    if rmax is not None:
+        # Gauss-Legendre on the radial CDF interval [0, u_max].
+        # CDF substitution: u = 1 - exp(-r²/2), r = √(-2 ln(1 - u))
+        u_max = 1.0 - np.exp(-0.5 * rmax**2)
+        xi, omega_leg = np.polynomial.legendre.leggauss(nrad)
+        # Map Legendre nodes from [-1, 1] to [0, u_max]
+        u = u_max * 0.5 * (xi + 1.0)
+        # Radial weights, renormalized so they sum to 1
+        omega = 0.5 * omega_leg * u_max / u_max  # = omega_leg / 2
+        # (The u_max factors from the change-of-variable and the
+        #  renormalization cancel, leaving omega_leg / 2.)
+        omega = 0.5 * omega_leg
+        # Invert CDF to get radii
+        rhos = np.sqrt(-2.0 * np.log(1.0 - u))
+    else:
+        # Gauss–Laguerre nodes t_j and weights omega_j for
+        # ∫ f(t) exp(−t) dt on [0, ∞).
+        t, omega = np.polynomial.laguerre.laggauss(nrad)
+        # Map to radii: s = r²/2 = t  ⟹  r = √(2t)
+        rhos = np.sqrt(2.0 * t)
 
-    # Map to radii: s = r²/2 = t  ⟹  r = √(2t)
-    r = np.sqrt(2.0 * t)
+    if naz is None:
+        naz = int(2*np.pi*nrad)
 
-    # Split each ring weight equally among its azimuthal points.
-    w_per_point = omega / nphi
+    nphis = []
+    outer = np.max(rhos)
+    for rho in rhos:
+        nphi = int((naz*rho/outer)//kfold)*kfold
+        if nphi == 0:
+            nphi = kfold
+        nphis.append(nphi)
+    n = np.sum(nphis)
+    r = np.empty(n)
+    th = np.empty(n)
+    w = np.empty(n)
+    idx = 0
+    for rho, nphi, om in zip(rhos, nphis, omega):
+        r[idx:idx+nphi] = rho
+        th[idx:idx+nphi] = np.linspace(0, 2*np.pi, nphi, endpoint=False)
+        w[idx:idx+nphi] = om / nphi
+        idx += nphi
 
-    # Uniform azimuthal grid on each ring
-    theta = np.linspace(0, 2 * np.pi, nphi, endpoint=False)
-
-    # (nrings, nphi) outer product → flattened
-    x = (r[:, None] * np.cos(theta[None, :])).ravel()
-    y = (r[:, None] * np.sin(theta[None, :])).ravel()
-    w = np.repeat(w_per_point, nphi)
-
+    x = r * np.cos(th)
+    y = r * np.sin(th)
     if center:
         x = np.concatenate([[0.0], x])
         y = np.concatenate([[0.0], y])
