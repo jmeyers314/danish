@@ -493,7 +493,7 @@ def test_focal_plane_hits_perturbed(run_slow):
             pbar = stack.enter_context(tqdm(total=400))
         else:
             pbar = None
-        for _ in range(10):
+        for _ in range(10 if run_slow else 1):
             amplitude = 100e-9  # ~100 nm RMS perturbations
             jmax = 22
             coefs = rng.uniform(-1, 1, size=jmax+1)*amplitude/np.sqrt(jmax+1)
@@ -532,7 +532,7 @@ def test_focal_plane_hits_perturbed(run_slow):
             )
 
             # Now loop over some field angles
-            for __ in range(10):
+            for __ in range(10 if run_slow else 1):
                 thr = np.deg2rad(np.sqrt(rng.uniform(0, 1.8**2)))
                 ph = rng.uniform(0, 2*np.pi)
                 thx, thy = thr*np.cos(ph), thr*np.sin(ph)
