@@ -707,5 +707,110 @@ def test_focal_plane_hits_perturbed(run_slow):
                         pbar.update()
 
 
+@timer
+def test_spots(run_slow):
+    fiducial = batoid.Optic.fromYaml("Rubin_v3.14_r.yaml")
+    fiducial = fiducial.withGloballyShiftedOptic("LSSTCamera", [0,0,30e-6])
+    wavelength = 622e-9
+    focal_length = 10.31
+    eps = 0.621
+
+    rng = np.random.default_rng(31415)
+    for _ in range(30 if run_slow else 5):
+        amplitude = 1000e-9  # ~1000 nm RMS perturbations
+        jmax = 28
+        coefs = rng.uniform(-1, 1, size=jmax+1)*amplitude/np.sqrt(jmax+1)
+        coefs[:4] = 0.0  # No PTT
+        perturbed = fiducial.withInsertedOptic(
+            before="M1",
+            item=batoid.OPDScreen(
+                name='Screen',
+                surface=batoid.Plane(),
+                screen=batoid.Zernike(
+                    coefs,
+                    R_outer=4.18,
+                    R_inner=4.18*eps,
+                ),
+                coordSys=fiducial.stopSurface.coordSys,
+                obscuration=fiducial['M1'].obscuration,
+            )
+        )
+
+        for __ in range(30 if run_slow else 5):
+            thr = np.deg2rad(np.sqrt(rng.uniform(0, 1.8**2)))
+            ph = rng.uniform(0, 2*np.pi)
+            thx, thy = thr*np.cos(ph), thr*np.sin(ph)
+
+            nrad = 40
+            u, v = danish.hexapolar(outer=4.18, inner=4.18*eps, nrad=nrad)
+            rays = batoid.RayVector.fromStop(
+                u, v, optic=perturbed, wavelength=wavelength,
+                theta_x=thx, theta_y=thy,
+            )
+            rays = perturbed.trace(rays)
+            rx = rays.x
+            ry = rays.y
+            zTA = batoid.zernikeTA(
+                perturbed,
+                thx, thy,
+                wavelength,
+                nrad=20, naz=120, reference='mean',
+                jmax=66, eps=eps,
+                focal_length=focal_length,
+            ) * wavelength
+            zTA[:4] = 0.0
+
+            factory = danish.DonutFactory(
+                R_outer=4.18, R_inner=4.18*eps,
+                mask_params=Rubin_obsc,
+                focal_length=focal_length, pixel_scale=10e-6
+            )
+            sx, sy, sw = factory.spots(
+                aberrations=zTA,
+                thx=thx, thy=thy,
+                nrad=nrad
+            )
+
+            # Align the means
+            sx -= np.mean(sx[sw])
+            sy -= np.mean(sy[sw])
+            rx -= np.mean(rx[sw])
+            ry -= np.mean(ry[sw])
+
+            # No points worse than a pixel off
+            np.testing.assert_allclose(sx[sw], rx[sw], atol=3e-7, rtol=0)
+            np.testing.assert_allclose(sy[sw], ry[sw], atol=3e-7, rtol=0)
+            # and most points much better than a pixel off
+            assert np.nanquantile(np.hypot(sx[sw]-rx[sw], sy[sw]-ry[sw]), 0.9) < 5e-8
+
+            # if np.nanquantile(np.hypot(sx[sw]-rx[sw], sy[sw]-ry[sw]), 0.9) >= 5e-8:
+            #     import matplotlib.pyplot as plt
+            #     fig, axs = plt.subplots(ncols=3, figsize=(12, 4), constrained_layout=True)
+            #     axs[0].scatter(rx, ry, s=0.02, c='k')
+            #     axs[0].scatter(rx[rays.vignetted], ry[rays.vignetted], s=0.02, c='r')
+            #     axs[1].scatter(sx, sy, s=0.02, c='k')
+            #     axs[1].scatter(sx[~sw], sy[~sw], s=0.02, c='r')
+            #     Q = axs[2].quiver(
+            #         sx, sy, rx-sx, ry-sy,
+            #         angles='xy', scale_units='xy', scale=1, width=0.002, headwidth=3, headlength=4, headaxislength=3
+            #     )
+            #     axs[2].quiverkey(Q, 0.7, 0.9, 1e-6, "1 micron", labelpos='E')
+
+            #     axs[0].set_title("Batoid ray hits")
+            #     axs[1].set_title("Factory spot locations")
+            #     axs[2].set_title("Spot errors")
+            #     for ax in axs:
+            #         ax.set_aspect('equal')
+            #         ax.axhline(0, color='k', ls='--')
+            #         ax.axvline(0, color='k', ls='--')
+            #         ax.grid(True, which='major', c='gray', ls='-', alpha=0.2)
+            #         ax.set_xticks([i*10e-6 for i in range(-10, 11)])
+            #         ax.set_yticks([i*10e-6 for i in range(-10, 11)])
+            #         ax.set_xticklabels([])
+            #         ax.set_yticklabels([])
+            #     plt.show()
+
+
+
 if __name__ == "__main__":
     runtests(__file__)
