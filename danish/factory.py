@@ -30,6 +30,7 @@
 import numpy as np
 import galsim
 from functools import lru_cache
+from .utils import hexapolar, gq_points
 from ._danish import poly_grid_contains, pixel_frac, enclosed_circle, enclosed_strut
 
 

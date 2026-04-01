@@ -8,7 +8,7 @@ import danish
 from galsim.zernike import Zernike
 from danish_test_helpers import timer, runtests
 
-Rubin_obsc = yaml.safe_load(open(os.path.join(danish.datadir, 'RubinObsc.yaml')))
+Rubin_obsc = danish.load_mask_params("RubinObsc.yaml")
 
 
 @timer
