@@ -939,14 +939,16 @@ def test_spot_image():
             # axs[2].scatter(sx2.ravel(), sy2.ravel(), s=0.02, alpha=sw2.ravel()*3)
             # axs[2].scatter(sx2[0], sy2[0], s=0.2, c='r')
 
+            # npix = 45
+            # extent = [-npix*10e-6, npix*10e-6, -npix*10e-6, npix*10e-6]
             # im = axs[3].imshow(
             #     simg, origin='lower', vmin=0, vmax=np.nanmax(simg),
-            #     extent=[-7.5*10e-6, 7.5*10e-6, -7.5*10e-6, 7.5*10e-6],
+            #     extent=extent,
             # )
             # fig.colorbar(im, ax=axs[3], label='Spot intensity (arbitrary units)')
             # im2 = axs[4].imshow(
             #     simg2, origin='lower', vmin=0, vmax=np.nanmax(simg2),
-            #     extent=[-7.5*10e-6, 7.5*10e-6, -7.5*10e-6, 7.5*10e-6],
+            #     extent=extent,
             # )
             # fig.colorbar(im2, ax=axs[4], label='Spot intensity (arbitrary units)')
             # axs[0].set_title("Factory spot locations")
@@ -979,14 +981,15 @@ def test_spot_image():
             # )
 
             # for ax in axs:
-            #     ax.set_xlim(-75e-6, 75e-6)
-            #     ax.set_ylim(-75e-6, 75e-6)
+            #     lim = npix*10e-6/2
+            #     ax.set_xlim(-lim, lim)
+            #     ax.set_ylim(-lim, lim)
             #     ax.set_aspect('equal')
             #     ax.axhline(0, color='k', ls='--')
             #     ax.axvline(0, color='k', ls='--')
             #     ax.grid(True, which='major', c='gray', ls='-', alpha=0.2)
-            #     ax.set_xticks([5e-6+i*10e-6 for i in range(-8, 8)])
-            #     ax.set_yticks([5e-6+i*10e-6 for i in range(-8, 8)])
+            #     ax.set_xticks([5e-6+i*10e-6 for i in range(-npix, npix)])
+            #     ax.set_yticks([5e-6+i*10e-6 for i in range(-npix, npix)])
             #     ax.set_xticklabels([])
             #     ax.set_yticklabels([])
             # plt.show()
