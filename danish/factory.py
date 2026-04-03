@@ -1194,16 +1194,23 @@ class DonutFactory:
             thr_deg = np.rad2deg(thr)
             for item, val in self.mask_params.items():
                 if item == "Spider_3D":
-                    continue
-                    # if self.spider_angle is None:
-                    #     continue
-                    # for vane in val:
-                    #     p1x, p1y, sth1, cth1, p2x, p2y, sth2, cth2 = _project_spider_vane(
-                    #         vane["r0"], vane["v0"],
-                    #         vane["width"], vane["length"],
-                    #         vane["angle"]+self.spider_angle, thx, thy
-                    #     )
-                    #     # clip out spots inside the strut region
+                    if self.spider_angle is None:
+                        continue
+                    for vane in val:
+                        p1x, p1y, sth1, cth1, p2x, p2y, sth2, cth2 = _project_spider_vane(
+                            vane["r0"], vane["v0"],
+                            vane["width"], vane["length"],
+                            vane["angle"]+self.spider_angle, thx, thy
+                        )
+                        cu = 0.5 * (p1x + p2x)
+                        cv = 0.5 * (p1y + p2y)
+                        half_len = vane["length"] / 2
+                        du = u - cu
+                        dv = v - cv
+                        near = du*du + dv*dv < half_len*half_len
+                        left1 = cth1*(v - p1y) - sth1*(u - p1x) > 0
+                        left2 = cth2*(v - p2y) - sth2*(u - p2x) > 0
+                        w[near & ~left1 & left2] = False
                 else:
                     for edge, edge_params in val.items():
                         if thr_deg < edge_params["thetaMin"] or thr_deg > edge_params["thetaMax"]:
