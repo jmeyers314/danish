@@ -5,9 +5,14 @@ from .factory import (
     focal_to_pupil, enclosed_fraction, hexapolar
 )
 
-from .fitter import (
+from .donut_model import (
     SingleDonutModel, DZMultiDonutModel, DZBasisMultiDonutModel,
+)
+from .spot_model import (
     DZMultiSpotModel, DZBasisMultiSpotModel,
+)
+from .joint_model import (
+    DZJointModel, DZBasisJointModel,
 )
 from .utils import load_mask_params
 

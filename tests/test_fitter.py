@@ -2165,7 +2165,7 @@ def test_multi_spot_model_jac():
 
 def test_spot_image_regression():
     """Verify BaseSpotModel._model matches factory.spot_image for same inputs."""
-    from danish.fitter import BaseSpotModel
+    from danish.spot_model import BaseSpotModel
 
     fiducial = batoid.Optic.fromYaml("Rubin_v3.14_r.yaml")
     fiducial = fiducial.withGloballyShiftedOptic("LSSTCamera", [0,0,30e-6])
@@ -2254,6 +2254,385 @@ def test_spot_image_regression():
     factory_norm = factory_img / np.sum(factory_img)
     model_norm = model_img / np.sum(model_img)
     np.testing.assert_allclose(model_norm, factory_norm, atol=1e-10)
+
+
+def test_joint_model_jac():
+    """Verify JointModel.jac == JointModel._jac2."""
+    from danish.joint_model import DZJointModel, DZBasisJointModel
+
+    telescope = batoid.Optic.fromYaml("LSST_i.yaml")
+    intra = telescope.withGloballyShiftedOptic("Detector", [0, 0, 0.0015])
+    wavelength = 750e-9
+
+    rng = np.random.default_rng(675849302)
+    nstar = 4
+    thr = np.sqrt(rng.uniform(0, 1.8**2, nstar))
+    ph = rng.uniform(0, 2*np.pi, nstar)
+    thxs, thys = np.deg2rad(thr*np.cos(ph)), np.deg2rad(thr*np.sin(ph))
+    z_refs = np.empty((nstar, 67))
+    for i, (thx, thy) in enumerate(zip(thxs, thys)):
+        z_refs[i] = batoid.zernikeTA(
+            intra, thx, thy, wavelength,
+            nrad=20, naz=120, reference='chief',
+            jmax=66, eps=0.61
+        )
+    z_refs *= wavelength
+    factory = danish.DonutFactory(
+        R_outer=4.18, R_inner=2.5498,
+        mask_params=Rubin_obsc,
+        focal_length=10.31, pixel_scale=10e-6
+    )
+
+    dz_terms = (
+        (1, 4),
+        (2, 4), (3, 4),
+        (2, 5), (3, 5), (2, 6), (3, 6),
+        (1, 7), (1, 8)
+    )
+
+    # Use first 2 stars for donuts, last 2 for spots
+    nd = 2
+    ns = nstar - nd
+
+    donut_model = danish.DZMultiDonutModel(
+        factory,
+        z_refs=np.array(z_refs[:nd]),
+        dz_terms=dz_terms,
+        field_radius=np.deg2rad(1.8),
+        thxs=thxs[:nd], thys=thys[:nd],
+        bkg_order=0,
+    )
+    spot_model = danish.DZMultiSpotModel(
+        factory,
+        z_refs=np.array(z_refs[nd:]),
+        dz_terms=dz_terms,
+        field_radius=np.deg2rad(1.8),
+        thxs=thxs[nd:], thys=thys[nd:],
+        bkg_order=0,
+        spot_nrad=40, gq_kwargs=dict(rmax=3.5),
+    )
+
+    joint = DZJointModel(donut_model, spot_model, spot_weight=2.0)
+
+    dz_true = rng.uniform(-0.3, 0.3, size=len(dz_terms)) * wavelength
+    fwhm = 0.7
+    d_fluxes = rng.uniform(3e6, 1e7, nd)
+    s_fluxes = rng.uniform(3e6, 1e7, ns)
+    d_dxs = rng.uniform(-0.3, 0.3, nd)
+    d_dys = rng.uniform(-0.3, 0.3, nd)
+    s_dxs = rng.uniform(-0.3, 0.3, ns)
+    s_dys = rng.uniform(-0.3, 0.3, ns)
+
+    # Generate data
+    d_imgs = donut_model.model(
+        d_fluxes, d_dxs, d_dys, fwhm, dz_true,
+        sky_levels=[1000.0]*nd,
+    )
+    s_imgs = spot_model.model(
+        s_fluxes, s_dxs, s_dys, fwhm, dz_true,
+        sky_levels=[1000.0]*ns,
+    )
+
+    guess = joint.pack_params(
+        d_fluxes=[np.sum(img) for img in d_imgs],
+        d_dxs=[0.0]*nd, d_dys=[0.0]*nd,
+        s_fluxes=[np.sum(img) for img in s_imgs],
+        s_dxs=[0.0]*ns, s_dys=[0.0]*ns,
+        fwhm=0.7,
+        wavefront_params=[0.0]*len(dz_terms),
+        d_bkgs=[(0.0,)]*nd,
+        s_bkgs=[(0.0,)]*ns,
+    )
+
+    d_vars = [1000.0]*nd
+    s_vars = [1000.0]*ns
+
+    j1 = joint.jac(guess, d_imgs, d_vars, s_imgs, s_vars)
+    j2 = joint._jac2(guess, d_imgs, d_vars, s_imgs, s_vars)
+    np.testing.assert_allclose(j1, j2, atol=1e-10)
+
+    # --- Also test DZBasisJointModel ---
+    dz_kwargs = dict(field=np.deg2rad(1.8), wavelength=wavelength, kmax=3, jmax=11)
+    dz0 = batoid.doubleZernike(telescope, **dz_kwargs) * wavelength
+    sens = []
+    for mode_name, optic, transform in [
+        ("cam_dz", "LSSTCamera", lambda t: t.withGloballyShiftedOptic("LSSTCamera", [0,0,10e-6])),
+        ("cam_rx", "LSSTCamera", lambda t: t.withGloballyRotatedOptic("LSSTCamera", batoid.RotX(np.deg2rad(10/3600)))),
+        ("cam_ry", "LSSTCamera", lambda t: t.withGloballyRotatedOptic("LSSTCamera", batoid.RotY(np.deg2rad(10/3600)))),
+    ]:
+        perturbed = transform(telescope)
+        dz1 = batoid.doubleZernike(perturbed, **dz_kwargs) * wavelength
+        sens.append((dz1 - dz0) / 10)
+    sens = np.array(sens)
+    sens[:, 0] = 0
+    sens[..., :4] = 0
+
+    donut_basis = danish.DZBasisMultiDonutModel(
+        factory,
+        sensitivity=sens,
+        z_refs=z_refs[:nd],
+        field_radius=np.deg2rad(1.8),
+        thxs=thxs[:nd], thys=thys[:nd],
+        bkg_order=0,
+        wavefront_step=0.1,
+    )
+    spot_basis = danish.DZBasisMultiSpotModel(
+        factory,
+        sensitivity=sens,
+        z_refs=z_refs[nd:],
+        field_radius=np.deg2rad(1.8),
+        thxs=thxs[nd:], thys=thys[nd:],
+        bkg_order=0,
+        spot_nrad=40, gq_kwargs=dict(rmax=3.5),
+        wavefront_step=0.1,
+    )
+
+    joint_basis = DZBasisJointModel(donut_basis, spot_basis, spot_weight=2.0)
+
+    guess_basis = joint_basis.pack_params(
+        d_fluxes=[np.sum(img) for img in d_imgs],
+        d_dxs=[0.0]*nd, d_dys=[0.0]*nd,
+        s_fluxes=[np.sum(img) for img in s_imgs],
+        s_dxs=[0.0]*ns, s_dys=[0.0]*ns,
+        fwhm=0.7,
+        wavefront_params=[0.0]*sens.shape[0],
+        d_bkgs=[(0.0,)]*nd,
+        s_bkgs=[(0.0,)]*ns,
+    )
+
+    j1b = joint_basis.jac(guess_basis, d_imgs, d_vars, s_imgs, s_vars)
+    j2b = joint_basis._jac2(guess_basis, d_imgs, d_vars, s_imgs, s_vars)
+    np.testing.assert_allclose(j1b, j2b, atol=1e-10)
+
+
+@timer
+def test_dz_joint_model_roundtrip():
+    """Joint fit of intra-focal donut, extra-focal donut, and in-focus spot
+    from the same field position.  Verify recovery of Zernike wavefront.
+    """
+    fiducial = batoid.Optic.fromYaml("LSST_i.yaml")
+    fiducial = fiducial.withGloballyShiftedOptic("Detector", [0, 0, 100e-6])
+    wavelength = 750e-9
+
+    # Apply a rigid-body perturbation
+    rng = np.random.default_rng(9876)
+    M2_dx, M2_dy = rng.uniform(-300e-6, 300e-6, size=2)
+    M2_rx, M2_ry = rng.uniform(-30, 30, size=2)
+    M2_dz = rng.uniform(-20e-6, 20e-6)
+    cam_dx, cam_dy = rng.uniform(-2000e-6, 2000e-6, size=2)
+    cam_dz = rng.uniform(-20e-6, 20e-6)
+    perturbed = (
+        fiducial
+        .withGloballyShiftedOptic("M2", [M2_dx, M2_dy, M2_dz])
+        .withGloballyRotatedOptic("M2", batoid.RotX(np.deg2rad(M2_rx/3600)))
+        .withGloballyRotatedOptic("M2", batoid.RotY(np.deg2rad(M2_ry/3600)))
+        .withGloballyShiftedOptic("LSSTCamera", [cam_dx, cam_dy, cam_dz])
+    )
+
+    # Stars at a single field position
+    nstar = 1
+    thx = np.deg2rad(1.5)
+    thy = np.deg2rad(0.3)
+    thxs = [thx]
+    thys = [thy]
+
+    # Compute reference zernikes for intra, extra, and in-focus
+    intra_fiducial = fiducial.withGloballyShiftedOptic(
+        "Detector", [0, 0, 0.0015]
+    )
+    extra_fiducial = fiducial.withGloballyShiftedOptic(
+        "Detector", [0, 0, -0.0015]
+    )
+    intra_perturbed = perturbed.withGloballyShiftedOptic(
+        "Detector", [0, 0, 0.0015]
+    )
+    extra_perturbed = perturbed.withGloballyShiftedOptic(
+        "Detector", [0, 0, -0.0015]
+    )
+
+    zk_kwargs = dict(
+        wavelength=wavelength,
+        nrad=20, naz=120, reference='chief',
+        jmax=66, eps=0.61
+    )
+    z_ref_intra = batoid.zernikeTA(
+        intra_fiducial, thx, thy, **zk_kwargs
+    ) * wavelength
+    z_ref_extra = batoid.zernikeTA(
+        extra_fiducial, thx, thy, **zk_kwargs
+    ) * wavelength
+    z_ref_spot = batoid.zernikeTA(
+        fiducial, thx, thy, **zk_kwargs
+    ) * wavelength
+    z_perturb_intra = batoid.zernikeTA(
+        intra_perturbed, thx, thy, **zk_kwargs
+    ) * wavelength
+    z_perturb_extra = batoid.zernikeTA(
+        extra_perturbed, thx, thy, **zk_kwargs
+    ) * wavelength
+    z_perturb_spot = batoid.zernikeTA(
+        perturbed, thx, thy, **zk_kwargs
+    ) * wavelength
+
+    # DZ terms with k=1 only (constant across field)
+    dz_terms = (
+        (1, 4),                  # defocus
+        (1, 5), (1, 6),         # astigmatism
+        (1, 7), (1, 8),         # coma
+        (1, 9), (1, 10),        # trefoil
+        (1, 11),                # spherical
+    )
+
+    # Compute ground truth DZ coefficients
+    dz_ref_fiducial = batoid.analysis.doubleZernike(
+        fiducial, np.deg2rad(1.8), wavelength, rings=10,
+        kmax=10, jmax=66, eps=0.61
+    )
+    dz_perturbed = batoid.analysis.doubleZernike(
+        perturbed, np.deg2rad(1.8), wavelength, rings=10,
+        kmax=10, jmax=66, eps=0.61
+    )
+    dz_true = np.empty(len(dz_terms))
+    for i, (k, j) in enumerate(dz_terms):
+        dz_true[i] = (dz_perturbed[k, j] - dz_ref_fiducial[k, j]) * wavelength
+
+    factory = danish.DonutFactory(
+        R_outer=4.18, R_inner=2.5498,
+        mask_params=Rubin_obsc,
+        focal_length=10.31, pixel_scale=10e-6
+    )
+
+    fwhm = 0.5
+    sky_level_donut = 1000.0
+    sky_level_spot = 1000.0
+    flux_donut = 5e7
+    flux_spot = 5e6
+
+    # --- Generate synthetic intra-focal donut ---
+    fitter0_intra = danish.DZMultiDonutModel(
+        factory, z_refs=z_perturb_intra[np.newaxis], dz_terms=(),
+        field_radius=np.deg2rad(1.8),
+        thxs=thxs, thys=thys, bkg_order=-1
+    )
+    intra_img = fitter0_intra.model(
+        [flux_donut], [0.0], [0.0], fwhm, (),
+        sky_levels=[sky_level_donut]
+    )
+
+    # --- Generate synthetic extra-focal donut ---
+    fitter0_extra = danish.DZMultiDonutModel(
+        factory, z_refs=z_perturb_extra[np.newaxis], dz_terms=(),
+        field_radius=np.deg2rad(1.8),
+        thxs=thxs, thys=thys, bkg_order=-1
+    )
+    extra_img = fitter0_extra.model(
+        [flux_donut], [0.0], [0.0], fwhm, (),
+        sky_levels=[sky_level_donut]
+    )
+
+    # Stack intra + extra as 2-donut dataset
+    donut_imgs = np.concatenate([intra_img, extra_img], axis=0)
+    donut_vars = [sky_level_donut, sky_level_donut]
+
+    # --- Generate synthetic in-focus spot ---
+    fitter0_spot = danish.DZMultiSpotModel(
+        factory, z_refs=z_perturb_spot[np.newaxis], dz_terms=(),
+        field_radius=np.deg2rad(1.8),
+        thxs=thxs, thys=thys, bkg_order=-1,
+        spot_nrad=40,
+        gq_kwargs=dict(nrad=10, rmax=3.5),
+    )
+    spot_img = fitter0_spot.model(
+        [flux_spot], [0.0], [0.0], fwhm, (),
+        sky_levels=[sky_level_spot]
+    )
+    spot_vars = [sky_level_spot]
+
+    # --- Build the donut sub-model (intra + extra as 2 stars) ---
+    # The donut model uses intra/extra z_refs for two "stars" at the same field
+    donut_model = danish.DZMultiDonutModel(
+        factory,
+        z_refs=np.stack([z_ref_intra, z_ref_extra]),
+        dz_terms=dz_terms,
+        field_radius=np.deg2rad(1.8),
+        thxs=thxs*2, thys=thys*2,
+        bkg_order=0,
+    )
+
+    # --- Build the spot sub-model ---
+    spot_model = danish.DZMultiSpotModel(
+        factory,
+        z_refs=z_ref_spot[np.newaxis],
+        dz_terms=dz_terms,
+        field_radius=np.deg2rad(1.8),
+        thxs=thxs, thys=thys,
+        bkg_order=-1,
+        spot_nrad=40,
+        gq_kwargs=dict(nrad=10, rmax=3.5),
+    )
+
+    joint = danish.DZJointModel(donut_model, spot_model)
+
+    nd = donut_model.nstar  # 2
+    ns = spot_model.nstar   # 1
+
+    guess = joint.pack_params(
+        d_fluxes=[np.sum(donut_imgs[0]), np.sum(donut_imgs[1])],
+        d_dxs=[0.0]*nd, d_dys=[0.0]*nd,
+        s_fluxes=[np.sum(spot_img[0])],
+        s_dxs=[0.0]*ns, s_dys=[0.0]*ns,
+        fwhm=0.7,
+        wavefront_params=[0.0]*len(dz_terms),
+        d_bkgs=[(0.0,)]*nd,
+    )
+
+    print()
+    result = least_squares(
+        joint.chi, guess, jac=joint.jac,
+        ftol=1e-3, xtol=1e-3, gtol=1e-3,
+        max_nfev=30, verbose=2,
+        args=(donut_imgs, donut_vars, spot_img, spot_vars)
+    )
+    result = joint.unpack_params(result.x)
+
+    # donut_mods, spot_mod = joint.model(**result)
+    # import matplotlib.pyplot as plt
+    # fig, axs = plt.subplots(3, 3, figsize=(9, 9))
+    # axs[0, 0].imshow(donut_imgs[0], origin='lower')
+    # axs[0, 1].imshow(donut_mods[0], origin='lower')
+    # axs[0, 2].imshow(donut_imgs[0]-donut_mods[0], origin='lower')
+    # axs[1, 0].imshow(donut_imgs[1], origin='lower')
+    # axs[1, 1].imshow(donut_mods[1], origin='lower')
+    # axs[1, 2].imshow(donut_imgs[1]-donut_mods[1], origin='lower')
+    # axs[2, 0].imshow(spot_img[0], origin='lower')
+    # axs[2, 1].imshow(spot_mod[0], origin='lower')
+    # axs[2, 2].imshow(spot_img[0]-spot_mod[0], origin='lower')
+    # for ax in axs.ravel():
+    #     ax.set_xticks([])
+    #     ax.set_yticks([])
+    # plt.show()
+
+    dz_fit = np.array(result["wavefront_params"])
+    fwhm_fit = result["fwhm"]
+
+    print(f"fwhm: true={fwhm:.3f}  fit={fwhm_fit:.3f}")
+    for i, term in enumerate(dz_terms):
+        print(
+            f"  {term}  true={dz_true[i]*1e6:7.3f}  "
+            f"fit={dz_fit[i]*1e6:7.3f}  "
+            f"diff={(dz_fit[i]-dz_true[i])*1e6:7.3f}"
+        )
+
+    rms = np.sqrt(np.sum(((dz_true - dz_fit) * 1e6) ** 2))
+    print(f"joint rms = {rms:.3f} micron")
+
+    np.testing.assert_allclose(fwhm_fit, fwhm, rtol=0, atol=0.1)
+    np.testing.assert_allclose(
+        dz_fit * 1e6,
+        dz_true * 1e6,
+        rtol=0, atol=0.5,
+    )
+    assert rms < 0.5, f"rms {rms:.3f} > 0.5"
 
 
 if __name__ == "__main__":
