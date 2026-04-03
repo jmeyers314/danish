@@ -5,7 +5,10 @@ from .factory import (
     focal_to_pupil, enclosed_fraction, hexapolar
 )
 
-from .fitter import SingleDonutModel, DZMultiDonutModel, DZBasisMultiDonutModel
+from .fitter import (
+    SingleDonutModel, DZMultiDonutModel, DZBasisMultiDonutModel,
+    DZMultiSpotModel, DZBasisMultiSpotModel,
+)
 from .utils import load_mask_params
 
 import os
