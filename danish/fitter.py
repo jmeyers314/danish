@@ -64,7 +64,18 @@ class BaseDonutModel:
         Atmospheric PSF parameterization.  'fwhm' for scalar FWHM (default),
         'ixx' for second moment tensor (Ixx, Ixy, Iyy) in arcsec^2.
     """
-    KOLM_CONST = 0.651  # TODO: Compute this more precisely.
+    # I think Ixx might formally diverge for a Kolmogorov profile, but we need
+    # something to convert between FWHM and Ixx/Iyy for the atmospheric kernel,
+    # So we will just use the constant factor here.  This is computed from
+    # galsim.Kolmogorov(fwhm=1).calculateMomentRadius().  So we have:
+    #   sigma = KOLM_CONST * fwhm
+    #   Ixx = Iyy = sigma^2 = (KOLM_CONST * fwhm)^2
+    # and
+    #   fwhm = sigma / KOLM_CONST = sqrt(Ixx) / KOLM_CONST
+    # which we will generalize to
+    #   fwhm = sqrt((Ixx + Iyy) / 2) / KOLM_CONST
+
+    KOLM_CONST = 0.651
 
     def __init__(self, factory, npix, seed, bkg_order, atm_mode='fwhm'):
         assert npix % 2 == 1, "npix must be odd"
@@ -90,22 +101,25 @@ class BaseDonutModel:
         return 1 if self.atm_mode == 'fwhm' else 3
 
     @lru_cache(maxsize=1000)
-    def _atm_kernel(self, dx, dy, fwhm):
+    def _atm_kernel(self, dx, dy, Ixx, Ixy, Iyy):
         """Compute atmospheric kernel.
 
         Parameters
         ----------
         dx, dy : float
             Offset in arcseconds.
-        fwhm : float
-            Full width half maximum of Kolmogorov kernel.
+        Ixx, Ixy, Iyy : float, optional
+            Second moment tensor in arcsec^2.
 
         Returns
         -------
         array of float
             Atmospheric kernel array.
         """
-        obj = galsim.Kolmogorov(fwhm=fwhm).shift(dx, dy)
+        fwhm = np.sqrt((Ixx + Iyy) / 2) / self.KOLM_CONST
+        e1 = (Ixx - Iyy) / (Ixx + Iyy)
+        e2 = 2*Ixy / (Ixx + Iyy)
+        obj = galsim.Kolmogorov(fwhm=fwhm).shear(e1=e1, e2=e2).shift(dx, dy)
         img = obj.drawImage(nx=self.no2, ny=self.no2, scale=self.sky_scale)
         return img.array
 
@@ -165,7 +179,7 @@ class BaseDonutModel:
     @lru_cache(maxsize=100)
     def _model(
         self,
-        flux, dx, dy, fwhm, zk, bkg,
+        flux, dx, dy, Ixx, Ixy, Iyy, zk, bkg,
         thx, thy,
         x_offset=None, y_offset=None,
         sky_level=None
@@ -178,8 +192,8 @@ class BaseDonutModel:
             Flux level at which to set image.
         dx, dy : float
             Offset in arcseconds.
-        fwhm : float
-            Full width half maximum of Kolmogorov kernel.
+        Ixx, Ixy, Iyy : float
+            Second moment tensor in arcsec^2.
         zk : array of float
             Zernike coefficients.
         bkg : array of float
@@ -196,7 +210,7 @@ class BaseDonutModel:
         array of float
             Model image array.
         """
-        atm = self._atm_kernel(dx, dy, fwhm)
+        atm = self._atm_kernel(dx, dy, Ixx, Ixy, Iyy)
         opt = self._opt_kernel(zk, thx, thy, x_offset=x_offset, y_offset=y_offset)
         arr = convolve(opt, atm)
         arr *= flux/np.sum(arr)
@@ -309,11 +323,13 @@ class SingleDonutModel(BaseDonutModel):
         img : array of float
             Model image.
         """
+        Ixx = Iyy = (fwhm * self.KOLM_CONST) ** 2
+        Ixy = 0.0
         zk = np.array(self.z_ref)
         for i, term in enumerate(self.z_terms):
             zk[term] += z_fit[i]
         return self._model(
-            flux, dx, dy, fwhm,
+            flux, dx, dy, Ixx, Ixy, Iyy,
             tuple(zk), tuple(bkg),
             self.thx, self.thy,
             x_offset=self.x_offset, y_offset=self.y_offset,
@@ -526,13 +542,17 @@ class BaseMultiDonutModel(BaseDonutModel):
         imgs : array of float
             Model images for each donut.
         """
-        if self.atm_mode == 'ixx':
-            fwhm = np.sqrt((Ixx + Iyy) / 2) / self.KOLM_CONST
+        if self.atm_mode == 'fwhm':
+            Ixx = Iyy = (fwhm * self.KOLM_CONST) ** 2
+            Ixy = 0.0
         z_fits = self._get_z_fits(wavefront_params)
-        return self.model_many(fluxes, dxs, dys, fwhm, z_fits, bkgs=bkgs, sky_levels=sky_levels)
+        return self.model_many(
+            fluxes, dxs, dys, Ixx, Ixy, Iyy, z_fits,
+            bkgs=bkgs, sky_levels=sky_levels
+        )
 
     def model_many(
-        self, fluxes, dxs, dys, fwhm, z_fits, *,
+        self, fluxes, dxs, dys, Ixx, Ixy, Iyy, z_fits, *,
         bkgs=None,
         sky_levels=None
     ):
@@ -544,8 +564,8 @@ class BaseMultiDonutModel(BaseDonutModel):
             Flux levels at which to set images.
         dxs, dys : float
             Offsets in arcseconds.
-        fwhm : float
-            Full width half maximum of Kolmogorov kernel. (Same for all donuts).
+        Ixx, Ixy, Iyy : float
+            Second moment tensor in arcsec^2.
         z_fits : sequence of tuple of float
             Single Zernike perturbations for each donut.
         bkgs : tuple of tuple of float
@@ -573,7 +593,7 @@ class BaseMultiDonutModel(BaseDonutModel):
             out[i] = self._model(
                 fluxes[i],
                 dxs[i], dys[i],
-                fwhm,
+                Ixx, Ixy, Iyy,
                 tuple(aberrations),
                 bkgs[i],
                 thx=self.thxs[i], thy=self.thys[i],
