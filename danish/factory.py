@@ -256,6 +256,18 @@ def focal_to_pupil(
     )
 
 
+@lru_cache(maxsize=10)
+def _test_points(R_outer, R_inner):
+    utest = np.linspace(-R_outer, R_outer, 10)
+    utest, vtest = np.meshgrid(utest, utest)
+    r2test = utest**2 + vtest**2
+    w = r2test >= R_inner**2
+    w &= r2test <= R_outer**2
+    utest = utest[w]
+    vtest = vtest[w]
+    return utest, vtest
+
+
 def _focal_to_pupil(
     x, y, Z, *,
     focal_length=None,
@@ -264,13 +276,7 @@ def _focal_to_pupil(
     strict=False
 ):
     Z1 = Z * focal_length if focal_length else Z
-    utest = np.linspace(-Z1.R_outer, Z1.R_outer, 10)
-    utest, vtest = np.meshgrid(utest, utest)
-    r2test = utest**2 + vtest**2
-    w = r2test >= Z1.R_inner**2
-    w &= r2test <= Z1.R_outer**2
-    utest = utest[w]
-    vtest = vtest[w]
+    utest, vtest = _test_points(Z1.R_outer, Z1.R_inner)
     xtest, ytest = _pupil_to_focal(
         utest, vtest, Z1,
         x_offset=x_offset, y_offset=y_offset
@@ -302,8 +308,6 @@ def _focal_to_pupil(
             u, v, Z1, x_offset=x_offset, y_offset=y_offset
         )
         det = (dW2du2*dW2dv2 - dW2dudv*dW2dvdu)
-        # du = -(dW2dv2*dx - dW2dudv*dy)/det
-        # dv = -(-dW2dvdu*dx + dW2du2*dy)/det
         du = -(dW2dv2*dx - dW2dvdu*dy)/det
         dv = -(-dW2dudv*dx + dW2du2*dy)/det
         # If xy miss distance increased, then decrease duv by
