@@ -1,4 +1,3 @@
-# Copyright (c) 2021-2026, Lawrence Livermore National Laboratory, LLC.
 # All rights reserved.
 # LLNL-CODE-826307
 
@@ -815,6 +814,8 @@ class DonutFactory:
         Focal length in meters.
     pixel_scale : float
         Pixel scale in meters.
+    bandpass_filter : string
+        choose from: ['u','g','r','i','z','y',None]
 
     Notes
     -----
@@ -882,7 +883,9 @@ class DonutFactory:
         R_outer=4.18, R_inner=2.5498,
         mask_params=None,
         spider_angle=None,
-        focal_length=10.31, pixel_scale=10e-6
+        focal_length=10.31, 
+        pixel_scale=10e-6,
+        bandpass_filter = None,
     ):
         self.R_outer = R_outer
         self.R_inner = R_inner
@@ -890,6 +893,40 @@ class DonutFactory:
         self.spider_angle = spider_angle
         self.focal_length = focal_length
         self.pixel_scale = pixel_scale
+        self.bandpass_filter = bandpass_filter
+        if self.bandpass_filter is not None:
+            import json
+            import numpy as np
+            import os
+            import danish
+            # by default read in the json file 'Tbb_airmass_aoi_dep_integrals.json'
+            # which indexes throughputs by (filter band) (blackbody temperature) (airmass) 
+            # and (AOI).
+            
+            self.aoi_dep_file = os.path.join(danish.datadir,'Tbb_airmass_aoi_dep_integrals.json')
+            provisional_pars  = {'Tbb':'6000', 'airmass':'1.5'}
+            self.provisional_pars = provisional_pars
+            with open(self.aoi_dep_file,mode='r') as file:
+                thruput_catalog = json.load(file)
+            # band specified somewhere above
+            # print(f'bandpass_filter specified: {self.bandpass_filter}')
+            # use provisional_pars as hardcoded selection for now
+            Tbb    = provisional_pars['Tbb']
+            airmass= provisional_pars['airmass']
+            # print(f'selected Tbb {Tbb} airmass {airmass}')
+            thruput_catalog=thruput_catalog[bandpass_filter][Tbb][airmass]
+            # print(f'catalog comment: {thruput_catalog['_comment']}')
+            # display 2 columns for (aoi[deg],thruput)
+            lut=[{'aoi':float(ix),'thruput':thruput_catalog[ix]} for ix in thruput_catalog.keys() if ix != '_comment']
+            lut.sort(key=lambda x: x['aoi'])
+            thruput = {'aoi':   np.array([]), 
+                       'value': np.array([]),
+                       '_comment': thruput_catalog['_comment']}
+            for elem in lut:
+                thruput['aoi']  = np.append(thruput['aoi'],[elem['aoi']])
+                thruput['value']= np.append(thruput['value'],[elem['thruput']])
+            # this is the thruput we'll use: a short pair of arrays indexed by 'aoi' & 'value' within thruput:
+            self.thruput_by_aoi = thruput.copy()
 
     def image(
         self, *,
@@ -1072,7 +1109,40 @@ class DonutFactory:
         vw = v[w]
         inv_sb = Fx.gradX(uw, vw)*Fy.gradY(uw, vw) - Fx.gradY(uw, vw)*Fy.gradX(uw, vw)
         f[w] /= np.abs(inv_sb)
+        
+        # this is where any surface brigthness modification imparted by bandpass shifts should be
+        # placed, if specified:
+        if self.bandpass_filter is not None:
+            aoi_proxy = np.atan(np.sqrt(u**2+v**2)/self.focal_length)*180./np.pi
+            # now interpolate using self.thruput_by_aoi
+            tput = np.interp(aoi_proxy,self.thruput_by_aoi['aoi'],self.thruput_by_aoi['value'])
+            f[w] *= tput[w]
 
+        debug=False
+        if debug is True:
+            # make some plots and exit.
+            from matplotlib import pyplot as plt
+            sc=plt.scatter(x[w],y[w],c=aoi_proxy[w])
+            plt.title(f'atan [deg] of sqrt(u2+v2)/focal_length')
+            plt.colorbar(sc,label=f'AOI proxy')
+            plt.xlabel('x [m]')
+            plt.ylabel('y [m]')
+            plt.show()
+            sc=plt.scatter(x[w],y[w],c=tput[w]) 
+            plt.title(f'thruput for {self.bandpass_filter} filter')
+            plt.colorbar(sc,label=f'thruput calc (filter={self.bandpass_filter},Tbb={self.provisional_pars['Tbb']},X={self.provisional_pars['airmass']})')
+            plt.xlabel('x [m]')
+            plt.ylabel('y [m]')
+            plt.show()
+            sc=plt.scatter(x[w],y[w],c=f[w])
+            plt.title(f'donut modified by {self.bandpass_filter} filter tput')
+            plt.colorbar(sc,label='mod.donut')
+            plt.xlabel('x [m]')
+            plt.ylabel('y [m]')
+            plt.show()
+            stop
+        
+        
         f[w] /= np.max(f[w])
         img[ypix, xpix] = f
         return img
