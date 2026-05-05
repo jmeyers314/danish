@@ -28,11 +28,15 @@
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-import numpy as np
-import galsim
+import json
+import os
 from functools import lru_cache
-from .utils import hexapolar, gq_points
+
+import galsim
+import numpy as np
+
 from ._danish import poly_grid_contains, pixel_frac, enclosed_circle, enclosed_strut
+from .utils import hexapolar, gq_points
 
 
 def pupil_to_focal(
@@ -898,15 +902,12 @@ class DonutFactory:
         self.pixel_scale = pixel_scale
         self.bandpass_filter = bandpass_filter
         if self.bandpass_filter is not None:
-            import json
-            import numpy as np
-            import os
-            import danish
             # by default read in the json file 'Tbb_airmass_aoi_dep_integrals.json'
             # which indexes throughputs by (filter band) (blackbody temperature) (airmass)
             # and (AOI).
 
-            self.aoi_dep_file = os.path.join(danish.datadir,'Tbb_airmass_aoi_dep_integrals.json')
+            datadir = os.path.join(os.path.dirname(__file__), 'data')
+            self.aoi_dep_file = os.path.join(datadir, 'Tbb_airmass_aoi_dep_integrals.json')
             provisional_pars  = {'Tbb':'6000', 'airmass':'1.5'}
             self.provisional_pars = provisional_pars
             with open(self.aoi_dep_file,mode='r') as file:
