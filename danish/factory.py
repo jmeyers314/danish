@@ -821,8 +821,16 @@ class DonutFactory:
         Focal length in meters.
     pixel_scale : float
         Pixel scale in meters.
-    bandpass_filter : string
-        choose from: ['u','g','r','i','z','y',None]
+    bandpass_filter : string, optional
+        Bandpass filter name for AOI-dependent throughput correction.
+        Choose from: ['u','g','r','i','z','y']. If None (default), no
+        throughput correction is applied.
+    stellar_Tbb : float, optional
+        Blackbody temperature in Kelvin used to select the throughput
+        lookup. Must be in range 4000-10000 in steps of 200. Default 6000.
+    airmass : float, optional
+        Airmass used to select the throughput lookup. Must be in range
+        1.0-2.5 in steps of 0.1. Default 1.5.
 
     Notes
     -----
@@ -892,7 +900,9 @@ class DonutFactory:
         spider_angle=None,
         focal_length=10.31,
         pixel_scale=10e-6,
-        bandpass_filter = None,
+        bandpass_filter=None,
+        stellar_Tbb=6000,
+        airmass=1.5,
     ):
         self.R_outer = R_outer
         self.R_inner = R_inner
@@ -901,36 +911,21 @@ class DonutFactory:
         self.focal_length = focal_length
         self.pixel_scale = pixel_scale
         self.bandpass_filter = bandpass_filter
+        self.stellar_Tbb = stellar_Tbb
+        self.airmass = airmass
         if self.bandpass_filter is not None:
-            # by default read in the json file 'Tbb_airmass_aoi_dep_integrals.json'
-            # which indexes throughputs by (filter band) (blackbody temperature) (airmass)
-            # and (AOI).
-
-            datadir = os.path.join(os.path.dirname(__file__), 'data')
-            self.aoi_dep_file = os.path.join(datadir, 'Tbb_airmass_aoi_dep_integrals.json')
-            provisional_pars  = {'Tbb':'6000', 'airmass':'1.5'}
-            self.provisional_pars = provisional_pars
-            with open(self.aoi_dep_file,mode='r') as file:
-                thruput_catalog = json.load(file)
-            # band specified somewhere above
-            # print(f'bandpass_filter specified: {self.bandpass_filter}')
-            # use provisional_pars as hardcoded selection for now
-            Tbb    = provisional_pars['Tbb']
-            airmass= provisional_pars['airmass']
-            # print(f'selected Tbb {Tbb} airmass {airmass}')
-            thruput_catalog=thruput_catalog[bandpass_filter][Tbb][airmass]
-            # print(f'catalog comment: {thruput_catalog['_comment']}')
-            # display 2 columns for (aoi[deg],thruput)
-            lut=[{'aoi':float(ix),'thruput':thruput_catalog[ix]} for ix in thruput_catalog.keys() if ix != '_comment']
-            lut.sort(key=lambda x: x['aoi'])
-            thruput = {'aoi':   np.array([]),
-                       'value': np.array([]),
-                       '_comment': thruput_catalog['_comment']}
-            for elem in lut:
-                thruput['aoi']  = np.append(thruput['aoi'],[elem['aoi']])
-                thruput['value']= np.append(thruput['value'],[elem['thruput']])
-            # this is the thruput we'll use: a short pair of arrays indexed by 'aoi' & 'value' within thruput:
-            self.thruput_by_aoi = thruput.copy()
+            aoi_dep_file = os.path.join(os.path.dirname(__file__), 'data', 'Tbb_airmass_aoi_dep_integrals.json')
+            with open(aoi_dep_file, mode='r') as f:
+                thruput_catalog = json.load(f)
+            thruput_catalog = thruput_catalog[bandpass_filter][str(stellar_Tbb)][str(airmass)]
+            lut = sorted(
+                [{'aoi': float(k), 'thruput': v} for k, v in thruput_catalog.items() if k != '_comment'],
+                key=lambda x: x['aoi']
+            )
+            self.thruput_by_aoi = {
+                'aoi':   np.array([e['aoi']     for e in lut]),
+                'value': np.array([e['thruput'] for e in lut]),
+            }
 
     def image(
         self, *,
