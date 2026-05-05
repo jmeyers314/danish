@@ -1112,35 +1112,10 @@ class DonutFactory:
         # this is where any surface brigthness modification imparted by bandpass shifts should be
         # placed, if specified:
         if self.bandpass_filter is not None:
-            aoi_proxy = np.atan(np.sqrt(u**2+v**2)/self.focal_length)*180./np.pi
+            aoi_proxy = np.rad2deg(np.atan(np.sqrt(uw**2+vw**2)/self.focal_length))
             # now interpolate using self.thruput_by_aoi
             tput = np.interp(aoi_proxy,self.thruput_by_aoi['aoi'],self.thruput_by_aoi['value'])
-            f[w] *= tput[w]
-
-        debug=False
-        if debug is True:
-            # make some plots and exit.
-            from matplotlib import pyplot as plt
-            sc=plt.scatter(x[w],y[w],c=aoi_proxy[w])
-            plt.title(f'atan [deg] of sqrt(u2+v2)/focal_length')
-            plt.colorbar(sc,label=f'AOI proxy')
-            plt.xlabel('x [m]')
-            plt.ylabel('y [m]')
-            plt.show()
-            sc=plt.scatter(x[w],y[w],c=tput[w])
-            plt.title(f'thruput for {self.bandpass_filter} filter')
-            plt.colorbar(sc,label=f'thruput calc (filter={self.bandpass_filter},Tbb={self.provisional_pars['Tbb']},X={self.provisional_pars['airmass']})')
-            plt.xlabel('x [m]')
-            plt.ylabel('y [m]')
-            plt.show()
-            sc=plt.scatter(x[w],y[w],c=f[w])
-            plt.title(f'donut modified by {self.bandpass_filter} filter tput')
-            plt.colorbar(sc,label='mod.donut')
-            plt.xlabel('x [m]')
-            plt.ylabel('y [m]')
-            plt.show()
-            stop
-
+            f[w] *= tput
 
         f[w] /= np.max(f[w])
         img[ypix, xpix] = f
