@@ -1,3 +1,5 @@
+# Copyright (c) 2021-2026, Lawrence Livermore National Security, LLC. and
+# Stanford University.
 # All rights reserved.
 # LLNL-CODE-826307
 
@@ -884,7 +886,7 @@ class DonutFactory:
         R_outer=4.18, R_inner=2.5498,
         mask_params=None,
         spider_angle=None,
-        focal_length=10.31, 
+        focal_length=10.31,
         pixel_scale=10e-6,
         bandpass_filter = None,
     ):
@@ -901,9 +903,9 @@ class DonutFactory:
             import os
             import danish
             # by default read in the json file 'Tbb_airmass_aoi_dep_integrals.json'
-            # which indexes throughputs by (filter band) (blackbody temperature) (airmass) 
+            # which indexes throughputs by (filter band) (blackbody temperature) (airmass)
             # and (AOI).
-            
+
             self.aoi_dep_file = os.path.join(danish.datadir,'Tbb_airmass_aoi_dep_integrals.json')
             provisional_pars  = {'Tbb':'6000', 'airmass':'1.5'}
             self.provisional_pars = provisional_pars
@@ -920,7 +922,7 @@ class DonutFactory:
             # display 2 columns for (aoi[deg],thruput)
             lut=[{'aoi':float(ix),'thruput':thruput_catalog[ix]} for ix in thruput_catalog.keys() if ix != '_comment']
             lut.sort(key=lambda x: x['aoi'])
-            thruput = {'aoi':   np.array([]), 
+            thruput = {'aoi':   np.array([]),
                        'value': np.array([]),
                        '_comment': thruput_catalog['_comment']}
             for elem in lut:
@@ -1110,7 +1112,7 @@ class DonutFactory:
         vw = v[w]
         inv_sb = Fx.gradX(uw, vw)*Fy.gradY(uw, vw) - Fx.gradY(uw, vw)*Fy.gradX(uw, vw)
         f[w] /= np.abs(inv_sb)
-        
+
         # this is where any surface brigthness modification imparted by bandpass shifts should be
         # placed, if specified:
         if self.bandpass_filter is not None:
@@ -1129,7 +1131,7 @@ class DonutFactory:
             plt.xlabel('x [m]')
             plt.ylabel('y [m]')
             plt.show()
-            sc=plt.scatter(x[w],y[w],c=tput[w]) 
+            sc=plt.scatter(x[w],y[w],c=tput[w])
             plt.title(f'thruput for {self.bandpass_filter} filter')
             plt.colorbar(sc,label=f'thruput calc (filter={self.bandpass_filter},Tbb={self.provisional_pars['Tbb']},X={self.provisional_pars['airmass']})')
             plt.xlabel('x [m]')
@@ -1142,8 +1144,8 @@ class DonutFactory:
             plt.ylabel('y [m]')
             plt.show()
             stop
-        
-        
+
+
         f[w] /= np.max(f[w])
         img[ypix, xpix] = f
         return img
