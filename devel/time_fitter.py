@@ -1,3 +1,4 @@
+import argparse
 import os
 import galsim
 from cProfile import Profile
@@ -18,6 +19,15 @@ def main():
     """Roundtrip using GalSim Kolmogorov atmosphere + batoid to produce test
     image of AOS DOF perturbed optics.  Model and fitter run independent code.
     """
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        '--use-aoi', action='store_true',
+        help="Apply AOI-dependent throughput correction (bandpass_filter='r', default Tbb and airmass)"
+    )
+    args = parser.parse_args()
+
+    bandpass_filter = 'r' if args.use_aoi else None
+
     with open(
         os.path.join(directory, "..", "tests", "data", "test_kolm_donuts.pkl"),
         'rb'
@@ -30,13 +40,17 @@ def main():
     factory = danish.DonutFactory(
         R_outer=4.18, R_inner=2.5498,
         mask_params=Rubin_obsc,
-        focal_length=10.31, pixel_scale=10e-6
+        focal_length=10.31, pixel_scale=10e-6,
+        bandpass_filter=bandpass_filter,
     )
     binned_factory = danish.DonutFactory(
         R_outer=4.18, R_inner=2.5498,
         mask_params=Rubin_obsc,
-        focal_length=10.31, pixel_scale=20e-6
+        focal_length=10.31, pixel_scale=20e-6,
+        bandpass_filter=bandpass_filter,
     )
+
+    print(f"AOI dependence: {'ON (r-band, default Tbb/airmass)' if bandpass_filter else 'OFF'}")
 
     # start a profile
     t0 = time.time()
