@@ -149,6 +149,49 @@ def test_LSST_aberrated():
 
 
 @timer
+def test_bandpass_filter():
+    """Check that bandpass_filter='r' runs and produces a different image than
+    no filter.
+    """
+    import batoid
+    telescope = batoid.Optic.fromYaml("LSST_i.yaml")
+    telescope = telescope.withGloballyShiftedOptic("Detector", [0,0,0.0015])
+
+    wavelength = 750e-9
+    thx, thy = np.deg2rad(0.5), np.deg2rad(0.3)
+
+    zref = batoid.zernikeTA(
+        telescope,
+        thx, thy,
+        wavelength,
+        nrad=20, naz=120, reference='chief',
+        jmax=66, eps=0.61
+    )
+    aberrations = zref * wavelength
+
+    factory_no_filter = danish.DonutFactory(
+        R_outer=4.18, R_inner=2.5498,
+        mask_params=Rubin_obsc,
+        focal_length=10.31, pixel_scale=10e-6
+    )
+    factory_r = danish.DonutFactory(
+        R_outer=4.18, R_inner=2.5498,
+        mask_params=Rubin_obsc,
+        focal_length=10.31, pixel_scale=10e-6,
+        bandpass_filter='r'
+    )
+
+    img_no_filter = factory_no_filter.image(aberrations=aberrations, thx=thx, thy=thy)
+    img_r = factory_r.image(aberrations=aberrations, thx=thx, thy=thy)
+
+    # Both images should be non-trivial
+    assert np.any(img_no_filter != 0)
+    assert np.any(img_r != 0)
+    # AOI correction should change the result
+    assert not np.allclose(img_no_filter, img_r)
+
+
+@timer
 def test_factory_offsets():
     rng = np.random.default_rng(192837465)
     for _ in range(10):
