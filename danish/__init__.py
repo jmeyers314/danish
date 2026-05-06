@@ -14,6 +14,7 @@ from .spot_model import (
 from .joint_model import (
     DZJointModel, DZBasisJointModel,
 )
+from .loss import chi2_loss, systematic_loss
 from .utils import load_mask_params
 
 import os

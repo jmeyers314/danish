@@ -2635,5 +2635,30 @@ def test_dz_joint_model_roundtrip():
     assert rms < 0.5, f"rms {rms:.3f} > 0.5"
 
 
+def test_systematic_loss():
+    rng = np.random.default_rng(12345)
+    data = rng.poisson(100, size=(20, 20)).astype(float)
+    model = np.full((20, 20), 100.0)
+    var = np.full((20, 20), 5.0)
+
+    # systematic_loss(0) must equal chi2_loss (the default)
+    r0 = danish.systematic_loss(0)(data, model, var)
+    r_chi2 = danish.chi2_loss(data, model, var)
+    np.testing.assert_array_equal(r0, r_chi2)
+
+    # systematic_loss(alpha > 0) must produce smaller |residuals| than chi2_loss
+    r_sys = danish.systematic_loss(0.1)(data, model, var)
+    assert np.all(np.abs(r_sys) <= np.abs(r_chi2))
+
+    # A SingleDonutModel constructed with systematic_loss should store it correctly
+    factory = danish.DonutFactory(
+        R_outer=4.18, R_inner=2.5498,
+        focal_length=10.31, pixel_scale=10e-6
+    )
+    loss = danish.systematic_loss(0.05)
+    fitter = danish.SingleDonutModel(factory, loss_fn=loss)
+    assert fitter.loss_fn is loss
+
+
 if __name__ == "__main__":
     runtests(__file__)
