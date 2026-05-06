@@ -31,6 +31,7 @@ from functools import lru_cache
 
 import numpy as np
 import galsim
+from .loss import chi2_loss
 from .utils import gq_points
 
 
@@ -60,7 +61,7 @@ class BaseSpotModel:
 
     def __init__(
         self, factory, npix, seed, bkg_order, atm_mode='fwhm',
-        spot_nrad=5, spot_naz=None, gq_kwargs=None
+        spot_nrad=5, spot_naz=None, gq_kwargs=None, loss_fn=None
     ):
         assert npix % 2 == 1, "npix must be odd"
         assert atm_mode in ('fwhm', 'ixx'), "atm_mode must be 'fwhm' or 'ixx'"
@@ -79,6 +80,7 @@ class BaseSpotModel:
         self.spot_nrad = spot_nrad
         self.spot_naz = spot_naz
         self.gq_kwargs = gq_kwargs or {}
+        self.loss_fn = loss_fn if loss_fn is not None else chi2_loss
 
     @property
     def natm(self):
@@ -213,7 +215,7 @@ class BaseSpotModel:
 
     def _chi(self, data, model, var):
         """Compute chi = (data - model)/error."""
-        result = ((data-model)/np.sqrt(var+model)).ravel()
+        result = self.loss_fn(data, model, var).ravel()
         return result
 
 
@@ -264,12 +266,14 @@ class BaseMultiSpotModel(BaseSpotModel):
         spot_nrad=5,
         spot_naz=None,
         gq_kwargs=None,
+        loss_fn=None,
     ):
         super().__init__(
             factory, npix, seed, bkg_order,
             atm_mode=atm_mode,
             spot_nrad=spot_nrad, spot_naz=spot_naz,
             gq_kwargs=gq_kwargs,
+            loss_fn=loss_fn,
         )
 
         if dz_ref is None and z_refs is None:
