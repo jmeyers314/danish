@@ -1,0 +1,58 @@
+name: Deploy docs to GitHub Pages
+
+on:
+  push:
+    branches:
+      - doc
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version label (e.g. 1.1.0). Leave blank to deploy as "dev".'
+        required: false
+        default: ''
+      alias:
+        description: 'Alias to update (e.g. latest). Leave blank for none.'
+        required: false
+        default: ''
+
+permissions:
+  contents: write   # needed for mike to push to gh-pages
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # full history for setuptools_scm
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install GalSim + batoid
+        run: python -m pip install GalSim~=2.7.0 batoid
+
+      - name: Install danish
+        run: python -m pip install -e .
+
+      - name: Install MkDocs dependencies
+        run: python -m pip install mkdocs-material mkdocstrings[python] mkdocs-autorefs mike
+
+      - name: Configure git for mike
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Deploy docs
+        run: |
+          VERSION="${{ inputs.version }}"
+          ALIAS="${{ inputs.alias }}"
+          if [ -z "$VERSION" ]; then
+            mike deploy --push --update-aliases dev
+          elif [ -n "$ALIAS" ]; then
+            mike deploy --push --update-aliases "$VERSION" "$ALIAS"
+          else
+            mike deploy --push "$VERSION"
+          fi

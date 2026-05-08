@@ -101,3 +101,41 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           verbose: true
+
+  deploy-docs:
+    name: Deploy versioned docs
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install GalSim + batoid
+        run: python -m pip install GalSim~=2.7.0 batoid
+
+      - name: Install danish
+        run: python -m pip install -e .
+
+      - name: Install MkDocs dependencies
+        run: python -m pip install mkdocs-material mkdocstrings[python] mkdocs-autorefs mike
+
+      - name: Configure git for mike
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Extract version
+        run: |
+          echo "VERSION=$(python -c 'from setuptools_scm import get_version; print(get_version())')" >> $GITHUB_ENV
+
+      - name: Deploy docs
+        run: |
+          mike deploy --push --update-aliases "$VERSION" latest
+          mike set-default --push latest
