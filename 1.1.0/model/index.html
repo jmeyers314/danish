@@ -1,0 +1,1321 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Geometric donut engine for wavefront sensing">
+      
+      
+      
+        <link rel="canonical" href="https://jmeyers314.github.io/danish/1.1.0/model/">
+      
+      
+        <link rel="prev" href="../api/utils/">
+      
+      
+        <link rel="next" href="fitting/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>Optical Model - danish</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/_mkdocstrings.css">
+    
+      <link rel="stylesheet" href="../stylesheets/extra.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#model-description" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="danish" class="md-header__button md-logo" aria-label="danish" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            danish
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Optical Model
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/jmeyers314/danish" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    jmeyers314/danish
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href=".." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../api/" class="md-tabs__link">
+          
+  
+  
+  API Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="./" class="md-tabs__link">
+          
+  
+  
+  Model Description
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="danish" class="md-nav__button md-logo" aria-label="danish" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    danish
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/jmeyers314/danish" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    jmeyers314/danish
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    API Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/factory/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Factory
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_3" id="__nav_2_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Models
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Models
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/donut_model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Donut Models
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/spot_model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Spot Models
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/joint_model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Joint Models
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/loss/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Loss Functions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/utils/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Utilities
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Model Description
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Model Description
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Optical Model
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Optical Model
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#pupil-to-focal-mapping" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pupil-to-focal mapping
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Pupil-to-focal mapping">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-pupil-plane" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The pupil plane
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#mapping-to-the-focal-plane" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Mapping to the focal plane
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#wavefront-convention" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Wavefront convention
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#axial-position-defocus-and-caustics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Axial position, defocus, and caustics
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#surface-brightness-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Surface-brightness model
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#spot-diagrams" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Spot diagrams
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#wavefront-parameterization" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Wavefront parameterization
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="fitting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Fitting Details
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#pupil-to-focal-mapping" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pupil-to-focal mapping
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Pupil-to-focal mapping">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-pupil-plane" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The pupil plane
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#mapping-to-the-focal-plane" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Mapping to the focal plane
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#wavefront-convention" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Wavefront convention
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#axial-position-defocus-and-caustics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Axial position, defocus, and caustics
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#surface-brightness-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Surface-brightness model
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#spot-diagrams" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Spot diagrams
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#wavefront-parameterization" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Wavefront parameterization
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="model-description">Model Description<a class="headerlink" href="#model-description" title="Permanent link">&para;</a></h1>
+<p>This section describes the mathematical foundations of the danish
+geometric donut model.</p>
+<h2 id="pupil-to-focal-mapping">Pupil-to-focal mapping<a class="headerlink" href="#pupil-to-focal-mapping" title="Permanent link">&para;</a></h2>
+<h3 id="the-pupil-plane">The pupil plane<a class="headerlink" href="#the-pupil-plane" title="Permanent link">&para;</a></h3>
+<p>For a wide-field astronomical telescope — such as the Vera C. Rubin
+Observatory Simonyi Survey Telescope — the <em>entrance pupil</em> is the
+plane that coincides with the rim of the primary mirror.  Note that
+this is distinct from the curved mirror surface itself.  The
+distinction matters: an incoming parallel beam of photons (from a
+distant star) uniformly samples a flat plane, but does <em>not</em> uniformly
+sample the curved mirror surface.</p>
+<figure>
+  <img src="../figures/pupil_plane_light.png" class="light-only" style="width: 70%" alt="Pupil plane cartoon">
+  <img src="../figures/pupil_plane_dark.png" class="dark-only" style="width: 70%" alt="Pupil plane cartoon">
+  <figcaption>The pupil plane (dashed) coincides with the mirror rim.
+  Incoming parallel rays from an off-axis source are uniformly spaced in
+  the pupil plane (tick marks), but due to the beam angle they strike the
+  curved mirror surface non-uniformly — more rays hit the right half
+  (blue) than the left (red).  The flat pupil plane is therefore the
+  natural coordinate domain.</figcaption>
+</figure>
+
+<p>Note that we parameterize the wavefront over the <em>entrance</em> pupil rather
+than the exit pupil.  The exit pupil is defined as the image of the
+entrance pupil through the optical system.  For a paraxial system it
+is a well-defined plane, but in a wide-field telescope the exit pupil
+location shifts with field angle, so it is better thought of as an
+approximately-located surface than a precise plane.  The entrance
+pupil, by contrast, is exactly the flat plane at the mirror rim, and
+is the natural domain for describing which parts of the aperture
+contribute light to a given image and how each part produces optical
+aberrations.  From here on, whenever we say pupil plane we specifically
+mean the entrance pupil plane.</p>
+<p>We use Cartesian coordinates <span class="arithmatex">\((u, v)\)</span> in the pupil plane, with the
+origin at the optical axis.  The annular aperture of the telescope
+spans <span class="arithmatex">\(R_\mathrm{inner} \le \sqrt{u^2+v^2} \le R_\mathrm{outer}\)</span>.</p>
+<h3 id="mapping-to-the-focal-plane">Mapping to the focal plane<a class="headerlink" href="#mapping-to-the-focal-plane" title="Permanent link">&para;</a></h3>
+<p>The fundamental conceit of danish is that we can form an efficient map
+between the pupil plane and the focal plane by defining a scalar
+function called the <em>transverse aberration wavefront</em> <span class="arithmatex">\(W(u, v)\)</span>, which
+has dimensions of length.  Without performing any explicit reflection
+or refraction calculations, this function encodes the full effect of
+the telescope optics: for a ray entering the pupil at <span class="arithmatex">\((u, v)\)</span>, the
+corresponding position in the focal plane is</p>
+<div class="arithmatex">\[\begin{equation}\label{eq:pupil-to-focal}
+x = -f \frac{\partial W}{\partial u}, \quad
+y = -f \frac{\partial W}{\partial v},
+\end{equation}\]</div>
+<p>where <span class="arithmatex">\(f\)</span> is the telescope focal length.  This defines the function
+<a class="autorefs autorefs-internal" title="danish.factory.pupil_to_focal" href="../api/factory/#danish.factory.pupil_to_focal"><code>danish.pupil_to_focal</code></a>.  The inverse
+transformation — from a focal-plane position back to the pupil — is
+computed via Newton–Raphson iteration by
+<a class="autorefs autorefs-internal" title="danish.factory.focal_to_pupil" href="../api/factory/#danish.factory.focal_to_pupil"><code>danish.focal_to_pupil</code></a>.</p>
+<p>In practice, the tip and tilt Zernike terms (<span class="arithmatex">\(Z_2\)</span> and <span class="arithmatex">\(Z_3\)</span>) are held
+at zero.  These terms shift the focal-plane position of the star
+without changing its shape, which is instead accounted for by working
+in focal-plane coordinates centered on the star or donut of interest.</p>
+<h3 id="wavefront-convention">Wavefront convention<a class="headerlink" href="#wavefront-convention" title="Permanent link">&para;</a></h3>
+<p>The wavefront <span class="arithmatex">\(W(u, v)\)</span> used by danish is the <em>transverse aberration</em>
+(TA) wavefront.  This is a different quantity from the <em>optical path
+difference</em> (OPD) wavefront <span class="arithmatex">\(\Phi(u, v)\)</span> that is more common in the
+optics literature (e.g., Zemax output).</p>
+<p>The OPD <span class="arithmatex">\(\Phi(u,v)\)</span> is defined as the optical path difference between
+the ray through pupil point <span class="arithmatex">\((u, v)\)</span> and a reference ray, measured as
+the reference ray traverses a reference sphere.  The sphere is centered
+on <span class="arithmatex">\(P_0\)</span> — the point where the reference ray intersects the focal
+plane — with radius equal to the exit-pupil-to-focal-plane distance.
+We use the chief ray (the ray through the centre of the pupil) as the
+reference ray.  In practice the computed wavefront is insensitive to
+the exact value of the reference sphere radius.</p>
+<figure>
+  <img src="../figures/opd_wavefront_light.png" class="light-only"
+       style="width: 90%" alt="OPD wavefront diagram">
+  <img src="../figures/opd_wavefront_dark.png" class="dark-only"
+       style="width: 90%" alt="OPD wavefront diagram">
+  <figcaption>Schematic of the OPD wavefront geometry for an off-axis
+  source.  The reference sphere (blue arc) is centred on the reference
+  point $P_0$ where the chief ray intersects the focal plane.  The OPD
+  $\Phi(u,v)$ is the signed path-length gap between $W$ and the sphere
+  along the ray that goes through the pupil at $(u, v)$.  Background
+  rays show how aberrations displace each ray from $P_0$ in the focal
+  plane; the green arrow illustrates the transverse aberrations of the
+  rays, which are proportional to the local gradients of $W$.
+  </figcaption>
+</figure>
+
+<p>The TA wavefront <span class="arithmatex">\(W(u,v)\)</span> is instead defined precisely such that
+equation <span class="arithmatex">\(\eqref{eq:pupil-to-focal}\)</span> gives the correct focal-plane
+position for the ray through <span class="arithmatex">\((u,v)\)</span>.  If the OPD <span class="arithmatex">\(\Phi\)</span> were
+substituted in place of <span class="arithmatex">\(W\)</span>, the predicted spot positions would be
+less accurate.  The figure below illustrates the difference for a
+representative LSST intra-focal donut with field angle (1.75°): the top
+row shows spot diagrams from batoid raytracing, the TA wavefront
+approach, and the OPD approach; the bottom row shows the residuals of
+each prediction relative to batoid.  The TA wavefront achieves an RMS
+spot accuracy of 0.02 µm, compared to 1.55 µm for the OPD wavefront.</p>
+<figure>
+  <img src="../figures/spot_comparison_light.png" class="light-only"
+       style="width: 100%" alt="Spot diagram comparison">
+  <img src="../figures/spot_comparison_dark.png" class="dark-only"
+       style="width: 100%" alt="Spot diagram comparison">
+  <figcaption>Top row: spot diagrams for an intra focal donut at a
+  1.75° off-axis field angle, computed by batoid raytracing (ground
+  truth), the TA wavefront (danish), and the OPD wavefront.  Bottom
+  row: residuals of each wavefront prediction relative to batoid, with
+  separate quiver scales (0.1 µm reference for TA, 1 µm for OPD).  The
+  TA approach is ~75× more accurate than OPD for this field angle.
+  </figcaption>
+</figure>
+
+<p>The TA wavefront coefficients can be computed from a batoid telescope
+model using <code>batoid.zernikeTA()</code>.</p>
+<h3 id="axial-position-defocus-and-caustics">Axial position, defocus, and caustics<a class="headerlink" href="#axial-position-defocus-and-caustics" title="Permanent link">&para;</a></h3>
+<p>The wavefront <span class="arithmatex">\(W(u,v)\)</span> encodes not just the optical aberrations of the
+telescope but also the axial position of the focal plane.  When the
+detector (or the entire camera) is pistoned along the optical axis away
+from the nominal focus, the <span class="arithmatex">\(Z_4\)</span> (defocus) coefficient of <span class="arithmatex">\(W\)</span> acquires
+a large value, and other Zernike coefficients are also affected.  This
+intentional defocusing is what creates the characteristic donut shape:
+rays from the pupil annulus are spread over a large area on the
+detector rather than converging to a point.</p>
+<p>The forward transformation <span class="arithmatex">\(\eqref{eq:pupil-to-focal}\)</span> is defined for
+any wavefront <span class="arithmatex">\(W\)</span>, regardless of the axial position.  The <em>inverse</em>
+transformation <a class="autorefs autorefs-internal" title="danish.factory.focal_to_pupil" href="../api/factory/#danish.factory.focal_to_pupil"><code>danish.focal_to_pupil</code></a>
+is only well-defined when the mapping is injective — that is, when each
+focal-plane point is reached by exactly one pupil ray.  Near focus the
+mapping folds over itself and the inverse becomes multi-valued; the
+boundary of this breakdown is a <em>caustic</em>.  The
+<a class="autorefs autorefs-internal" title="is_caustic" href="../api/factory/#danish.factory.DonutFactory.is_caustic"><code>danish.DonutFactory.is_caustic</code></a>
+method checks for caustics for a given wavefront.</p>
+<p>The surface-brightness model of the following section is likewise only
+meaningful in the caustic-free regime: the Hessian determinant changes
+sign at a caustic, indicating that the locally linearized area element
+has collapsed to zero.</p>
+<h2 id="surface-brightness-model">Surface-brightness model<a class="headerlink" href="#surface-brightness-model" title="Permanent link">&para;</a></h2>
+<p>The illumination at a focal-plane pixel is proportional to the area of
+the pupil annulus that maps onto that pixel.  The surface brightness
+scales as the inverse determinant of the Jacobian of the
+pupil-to-focal map,</p>
+<div class="arithmatex">\[
+I(x, y) \propto \left| \frac{\partial(u,v)}{\partial(x,y)} \right| =
+\frac{1}{f^2 \left| W_{uu}\, W_{vv} - W_{uv}^2 \right|} =
+\frac{1}{f^2 \left| \det \mathbf{H} \right|},
+\]</div>
+<p>where <span class="arithmatex">\(\mathbf{H}\)</span> is the Hessian determinant of the wavefront, and
+subscripts on <span class="arithmatex">\(W\)</span> denote second partial derivatives.</p>
+<p>Pixel values are computed by multiplying this surface brightness by
+the fraction of each pixel's area that falls within the field-angle
+dependent vignetting mask.  This sub-pixel calculation assumes uniform
+illumination within each pixel and simply scales the flux by the computed
+enclosed area.</p>
+<h2 id="spot-diagrams">Spot diagrams<a class="headerlink" href="#spot-diagrams" title="Permanent link">&para;</a></h2>
+<p>For in-focus stellar images the surface-brightness model above is not
+applicable — the mapping is near a caustic and the Hessian determinant
+cannot be used to assign pixel fluxes.  Instead, danish models
+in-focus PSFs via <em>spot diagrams</em>: a hexapolar grid of rays is sampled
+across the pupil annulus and each ray is projected to the focal plane
+using only the forward transformation <span class="arithmatex">\(\eqref{eq:pupil-to-focal}\)</span>.
+No inverse is required.</p>
+<p>The resulting cloud of focal-plane points approximates the geometric
+PSF.  <a class="autorefs autorefs-internal" title="spots" href="../api/factory/#danish.factory.DonutFactory.spots"><code>danish.DonutFactory.spots</code></a>
+returns the focal-plane coordinates and weights of these rays;
+<a class="autorefs autorefs-internal" title="spot_image" href="../api/factory/#danish.factory.DonutFactory.spot_image"><code>danish.DonutFactory.spot_image</code></a>
+renders them onto a pixel grid by convolving with a Gaussian quadrature
+kernel that accounts for the atmospheric PSF.</p>
+<h2 id="wavefront-parameterization">Wavefront parameterization<a class="headerlink" href="#wavefront-parameterization" title="Permanent link">&para;</a></h2>
+<p>The wavefront <span class="arithmatex">\(W(u,v)\)</span> is expanded in annular Zernike polynomials,</p>
+<div class="arithmatex">\[
+W(u,v) = \sum_j a_j Z_j(u/R, v/R),
+\]</div>
+<p>where <span class="arithmatex">\(R = R_\mathrm{outer}\)</span> is the normalization radius.  The fitting
+parameterization — including multi-sensor double Zernike expansions and
+sensitivity matrices — is described in <a href="fitting/">Fitting details</a>.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tabs", "navigation.sections", "navigation.expand", "navigation.top", "search.highlight", "content.code.copy"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"default": "latest", "provider": "mike"}}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+        <script src="../javascripts/mathjax.js"></script>
+      
+        <script src="https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js"></script>
+      
+    
+  </body>
+</html>
