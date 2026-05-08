@@ -32,4 +32,10 @@ Or locally
 The `doc` branch is a staging area for documentation work in progress.
 It does not need to be kept in sync with `main` at all times.  When a
 doc update is ready, open a PR from `doc` into `main` and merge normally.
-The `doc` branch is never force-reset or rebased onto release branches.
+
+Once all doc work is merged into `main`, `doc` should contain nothing that
+isn't already in `main`.  When resuming doc work after a gap, reset `doc`
+to the tip of `main` before starting:
+
+    git checkout doc
+    git reset --hard main
