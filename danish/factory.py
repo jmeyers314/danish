@@ -103,7 +103,7 @@ def pupil_focal_jacobian(
     focal_length=None,
     x_offset=None, y_offset=None
 ):
-    """Transform pupil coordinates to focal coordinates.
+    """Compute Jacobian of the pupil-to-focal coordinate transform.
 
     Parameters
     ----------
@@ -807,7 +807,8 @@ def _enclosed_fraction(
 
 
 class DonutFactory:
-    """
+    """Build and render geometric donut (and spot) images for a given telescope.
+
     Parameters
     ----------
     R_outer : float

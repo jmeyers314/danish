@@ -1,4 +1,5 @@
-# Copyright (c) 2021-2026, Lawrence Livermore National Laboratory, LLC.
+# Copyright (c) 2021-2026, Lawrence Livermore National Security, LLC. and
+# Stanford University.
 # All rights reserved.
 # LLNL-CODE-826307
 
@@ -459,6 +460,16 @@ class DZJointModel(JointModel):
 
     Both sub-models must be DZMultiDonutModel and DZMultiSpotModel with
     identical dz_terms.
+
+    Parameters
+    ----------
+    donut_model : DZMultiDonutModel
+        Pre-constructed donut fitter.
+    spot_model : DZMultiSpotModel
+        Pre-constructed spot fitter.  Must have the same ``dz_terms`` as
+        ``donut_model``.
+    spot_weight : float, optional
+        Relative weight of spot chi residuals.  Default 1.0.
     """
     def __init__(self, donut_model, spot_model, spot_weight=1.0):
         if not isinstance(donut_model, DZMultiDonutModel):
@@ -479,6 +490,16 @@ class DZBasisJointModel(JointModel):
 
     Both sub-models must be DZBasisMultiDonutModel and DZBasisMultiSpotModel
     with identical sensitivity matrices.
+
+    Parameters
+    ----------
+    donut_model : DZBasisMultiDonutModel
+        Pre-constructed donut fitter.
+    spot_model : DZBasisMultiSpotModel
+        Pre-constructed spot fitter.  Must have the same ``sensitivity``
+        matrix as ``donut_model``.
+    spot_weight : float, optional
+        Relative weight of spot chi residuals.  Default 1.0.
     """
     def __init__(self, donut_model, spot_model, spot_weight=1.0):
         if not isinstance(donut_model, DZBasisMultiDonutModel):

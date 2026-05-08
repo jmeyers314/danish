@@ -1,0 +1,80 @@
+site_name: danish
+site_description: Geometric donut engine for wavefront sensing
+site_url: https://jmeyers314.github.io/danish
+repo_url: https://github.com/jmeyers314/danish
+repo_name: jmeyers314/danish
+
+theme:
+  name: material
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - search.highlight
+    - content.code.copy
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+
+plugins:
+  - search
+  - autorefs
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            docstring_style: numpy
+            show_root_heading: true
+            show_source: true
+            members_order: source
+            inherited_members: false
+            show_bases: true
+            group_by_category: true
+            show_if_no_docstring: false
+            separate_signature: true
+
+nav:
+  - Home: index.md
+  - API Reference:
+      - Overview: api/index.md
+      - Factory: api/factory.md
+      - Models:
+          - Donut Models: api/donut_model.md
+          - Spot Models: api/spot_model.md
+          - Joint Models: api/joint_model.md
+      - Loss Functions: api/loss.md
+      - Utilities: api/utils.md
+  - Model Description:
+      - Optical Model: model/index.md
+      - Fitting Details: model/fitting.md
+
+markdown_extensions:
+  - admonition
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.superfences
+  - pymdownx.inlinehilite
+  - pymdownx.arithmatex:
+      generic: true
+  - toc:
+      permalink: true
+  - md_in_html
+  - attr_list
+
+extra_javascript:
+  - javascripts/mathjax.js
+  - https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js
+
+extra_css:
+  - stylesheets/extra.css

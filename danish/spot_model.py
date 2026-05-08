@@ -1,4 +1,5 @@
-# Copyright (c) 2021-2026, Lawrence Livermore National Laboratory, LLC.
+# Copyright (c) 2021-2026, Lawrence Livermore National Security, LLC. and
+# Stanford University.
 # All rights reserved.
 # LLNL-CODE-826307
 
