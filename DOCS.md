@@ -27,6 +27,14 @@ Or locally
     # To also update the 'latest' alias:
     (mike deploy --push --update-aliases X.Y.Z latest)
 
+If the push fails with "fetch first" or the fetch itself is rejected with
+"non-fast-forward", CI has pushed to `gh-pages` since your local copy was
+last synced.  Delete the local branch and re-fetch before re-running mike:
+
+    git branch -D gh-pages
+    git fetch origin gh-pages:gh-pages
+    (mike deploy --push --update-aliases X.Y.Z latest)
+
 ## The `doc` branch
 
 The `doc` branch is a staging area for documentation work in progress.
