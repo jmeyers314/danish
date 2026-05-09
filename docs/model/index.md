@@ -40,7 +40,7 @@ mean the entrance pupil plane.
 
 We use Cartesian coordinates $(u, v)$ in the pupil plane, with the
 origin at the optical axis.  The annular aperture of the telescope
-spans $R_\mathrm{inner} \le \sqrt{u^2+v^2} \le R_\mathrm{outer}$.
+spans $R_\text{inner} \le \sqrt{u^2+v^2} \le R_\text{outer}$.
 
 ### Mapping to the focal plane
 
@@ -91,12 +91,12 @@ the exact value of the reference sphere radius.
        style="width: 90%" alt="OPD wavefront diagram">
   <figcaption>Schematic of the OPD wavefront geometry for an off-axis
   source.  The reference sphere (blue arc) is centred on the reference
-  point $P_0$ where the chief ray intersects the focal plane.  The OPD
-  $\Phi(u,v)$ is the signed path-length gap between $W$ and the sphere
-  along the ray that goes through the pupil at $(u, v)$.  Background
-  rays show how aberrations displace each ray from $P_0$ in the focal
+  point \(P_0\) where the chief ray intersects the focal plane.  The OPD
+  \(\Phi(u,v)\) is the signed path-length gap between \(W\) and the sphere
+  along the ray that goes through the pupil at \((u, v)\).  Background
+  rays show how aberrations displace each ray from \(P_0\) in the focal
   plane; the green arrow illustrates the transverse aberrations of the
-  rays, which are proportional to the local gradients of $W$.
+  rays, which are proportional to the local gradients of \(W\).
   </figcaption>
 </figure>
 
@@ -201,6 +201,32 @@ $$
 W(u,v) = \sum_j a_j Z_j(u/R, v/R),
 $$
 
-where $R = R_\mathrm{outer}$ is the normalization radius.  The fitting
+where $R = R_\text{outer}$ is the normalization radius.  The fitting
 parameterization — including multi-sensor double Zernike expansions and
 sensitivity matrices — is described in [Fitting details](fitting.md).
+
+### Zernike truncation order for LSST
+
+The number of terms retained in the expansion controls how accurately
+the TA wavefront reproduces full raytracing.  The figure below shows the
+RMS residual between the TA prediction and batoid ground truth as a
+function of $j_\text{max}$, evaluated at a number of truncation orders
+from $j=28$ to $j=78$ for a representative LSST field angle of 1.75°.
+The residual falls sharply at $j_\text{max}=66$ before improving only
+negligibly at $j_\text{max}=78$.  For modeling LSST donuts, a good
+choice for the maximum Noll index is 66.
+
+<figure>
+  <img src="../figures/ta_convergence_light.png" class="light-only"
+       style="width: 80%" alt="TA convergence vs jmax">
+  <img src="../figures/ta_convergence_dark.png" class="dark-only"
+       style="width: 80%" alt="TA convergence vs jmax">
+  <figcaption>RMS residual between the TA wavefront prediction and batoid
+  raytracing as a function of Zernike truncation order \(j_\text{max}\),
+  for an LSST intra-focal donut at a 1.75° off-axis field angle.
+  Triangular-number orders are shown (each includes a complete radial
+  order).  The residual drops by an order of magnitude between
+  \(j_\text{max}=55\) and \(j_\text{max}=66\), then plateaus — motivating
+  the choice of \(j_\text{max}=66\) as a good default for LSST.
+  </figcaption>
+</figure>
