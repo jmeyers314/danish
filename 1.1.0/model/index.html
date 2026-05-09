@@ -892,6 +892,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Wavefront parameterization">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#zernike-truncation-order-for-lsst" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Zernike truncation order for LSST
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
     </ul>
@@ -1056,6 +1073,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Wavefront parameterization">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#zernike-truncation-order-for-lsst" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Zernike truncation order for LSST
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
     </ul>
@@ -1114,7 +1148,7 @@ aberrations.  From here on, whenever we say pupil plane we specifically
 mean the entrance pupil plane.</p>
 <p>We use Cartesian coordinates <span class="arithmatex">\((u, v)\)</span> in the pupil plane, with the
 origin at the optical axis.  The annular aperture of the telescope
-spans <span class="arithmatex">\(R_\mathrm{inner} \le \sqrt{u^2+v^2} \le R_\mathrm{outer}\)</span>.</p>
+spans <span class="arithmatex">\(R_\text{inner} \le \sqrt{u^2+v^2} \le R_\text{outer}\)</span>.</p>
 <h3 id="mapping-to-the-focal-plane">Mapping to the focal plane<a class="headerlink" href="#mapping-to-the-focal-plane" title="Permanent link">&para;</a></h3>
 <p>The fundamental conceit of danish is that we can form an efficient map
 between the pupil plane and the focal plane by defining a scalar
@@ -1156,12 +1190,12 @@ the exact value of the reference sphere radius.</p>
        style="width: 90%" alt="OPD wavefront diagram">
   <figcaption>Schematic of the OPD wavefront geometry for an off-axis
   source.  The reference sphere (blue arc) is centred on the reference
-  point $P_0$ where the chief ray intersects the focal plane.  The OPD
-  $\Phi(u,v)$ is the signed path-length gap between $W$ and the sphere
-  along the ray that goes through the pupil at $(u, v)$.  Background
-  rays show how aberrations displace each ray from $P_0$ in the focal
+  point \(P_0\) where the chief ray intersects the focal plane.  The OPD
+  \(\Phi(u,v)\) is the signed path-length gap between \(W\) and the sphere
+  along the ray that goes through the pupil at \((u, v)\).  Background
+  rays show how aberrations displace each ray from \(P_0\) in the focal
   plane; the green arrow illustrates the transverse aberrations of the
-  rays, which are proportional to the local gradients of $W$.
+  rays, which are proportional to the local gradients of \(W\).
   </figcaption>
 </figure>
 
@@ -1249,9 +1283,32 @@ kernel that accounts for the atmospheric PSF.</p>
 <div class="arithmatex">\[
 W(u,v) = \sum_j a_j Z_j(u/R, v/R),
 \]</div>
-<p>where <span class="arithmatex">\(R = R_\mathrm{outer}\)</span> is the normalization radius.  The fitting
+<p>where <span class="arithmatex">\(R = R_\text{outer}\)</span> is the normalization radius.  The fitting
 parameterization — including multi-sensor double Zernike expansions and
 sensitivity matrices — is described in <a href="fitting/">Fitting details</a>.</p>
+<h3 id="zernike-truncation-order-for-lsst">Zernike truncation order for LSST<a class="headerlink" href="#zernike-truncation-order-for-lsst" title="Permanent link">&para;</a></h3>
+<p>The number of terms retained in the expansion controls how accurately
+the TA wavefront reproduces full raytracing.  The figure below shows the
+RMS residual between the TA prediction and batoid ground truth as a
+function of <span class="arithmatex">\(j_\text{max}\)</span>, evaluated at a number of truncation orders
+from <span class="arithmatex">\(j=28\)</span> to <span class="arithmatex">\(j=78\)</span> for a representative LSST field angle of 1.75°.
+The residual falls sharply at <span class="arithmatex">\(j_\text{max}=66\)</span> before improving only
+negligibly at <span class="arithmatex">\(j_\text{max}=78\)</span>.  For modeling LSST donuts, a good
+choice for the maximum Noll index is 66.</p>
+<figure>
+  <img src="../figures/ta_convergence_light.png" class="light-only"
+       style="width: 80%" alt="TA convergence vs jmax">
+  <img src="../figures/ta_convergence_dark.png" class="dark-only"
+       style="width: 80%" alt="TA convergence vs jmax">
+  <figcaption>RMS residual between the TA wavefront prediction and batoid
+  raytracing as a function of Zernike truncation order \(j_\text{max}\),
+  for an LSST intra-focal donut at a 1.75° off-axis field angle.
+  Triangular-number orders are shown (each includes a complete radial
+  order).  The residual drops by an order of magnitude between
+  \(j_\text{max}=55\) and \(j_\text{max}=66\), then plateaus — motivating
+  the choice of \(j_\text{max}=66\) as a good default for LSST.
+  </figcaption>
+</figure>
 
 
 
@@ -1314,7 +1371,7 @@ sensitivity matrices — is described in <a href="fitting/">Fitting details</a>.
       
         <script src="../javascripts/mathjax.js"></script>
       
-        <script src="https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js"></script>
+        <script src="https://unpkg.com/mathjax@3/es5/tex-svg.js"></script>
       
     
   </body>
