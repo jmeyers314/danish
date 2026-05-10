@@ -1180,7 +1180,7 @@ the ray through pupil point <span class="arithmatex">\((u, v)\)</span> and a ref
 the reference ray traverses a reference sphere.  The sphere is centered
 on <span class="arithmatex">\(P_0\)</span> — the point where the reference ray intersects the focal
 plane — with radius equal to the exit-pupil-to-focal-plane distance.
-We use the chief ray (the ray through the centre of the pupil) as the
+We use the chief ray (the ray through the center of the pupil) as the
 reference ray.  In practice the computed wavefront is insensitive to
 the exact value of the reference sphere radius.</p>
 <figure>
@@ -1189,7 +1189,7 @@ the exact value of the reference sphere radius.</p>
   <img src="../figures/opd_wavefront_dark.png" class="dark-only"
        style="width: 90%" alt="OPD wavefront diagram">
   <figcaption>Schematic of the OPD wavefront geometry for an off-axis
-  source.  The reference sphere (blue arc) is centred on the reference
+  source.  The reference sphere (blue arc) is centered on the reference
   point \(P_0\) where the chief ray intersects the focal plane.  The OPD
   \(\Phi(u,v)\) is the signed path-length gap between \(W\) and the sphere
   along the ray that goes through the pupil at \((u, v)\).  Background
@@ -1259,6 +1259,31 @@ I(x, y) \propto \left| \frac{\partial(u,v)}{\partial(x,y)} \right| =
 \]</div>
 <p>where <span class="arithmatex">\(\mathbf{H}\)</span> is the Hessian determinant of the wavefront, and
 subscripts on <span class="arithmatex">\(W\)</span> denote second partial derivatives.</p>
+<p>The figure below illustrates this geometrically.  Each square pixel in
+the focal plane (left) maps back through the inverse wavefront gradient
+to an irregular quadrilateral in the pupil plane (right).  Bright pixels
+correspond to large quadrilaterals — they subtend a large area of the
+pupil and collect more light — while dim pixels map to small ones.  The
+color scale is shared between the two panels.  Large astigmatism and coma terms have been added to the wavefront to
+make the variation in quadrilateral size and shape clearly visible.</p>
+<figure>
+  <img src="../figures/pixel_mapping_light.png" class="light-only"
+       style="width: 100%" alt="Pixel-to-pupil mapping">
+  <img src="../figures/pixel_mapping_dark.png" class="dark-only"
+       style="width: 100%" alt="Pixel-to-pupil mapping">
+  <figcaption>Left: focal-plane pixels colored by surface brightness for
+  a simulated LSST donut at field center, with artificially large
+  astigmatism (2.5 µm) and coma (1.5 µm) added to
+  make the effect clearly visible.  At field center the only aperture is
+  the M1 annulus itself; at off-axis field angles additional vignetting
+  from downstream optics can also be modeled.
+  Right: the same pixels projected back into the pupil plane — each square
+  becomes a quadrilateral whose area is proportional to the pixel
+  brightness, directly illustrating the inverse-Jacobian relationship.
+  Dashed circles mark the inner and outer M1 aperture in both planes.
+  </figcaption>
+</figure>
+
 <p>Pixel values are computed by multiplying this surface brightness by
 the fraction of each pixel's area that falls within the field-angle
 dependent vignetting mask.  This sub-pixel calculation assumes uniform

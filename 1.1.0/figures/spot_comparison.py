@@ -4,7 +4,7 @@ Three columns share a single field angle.  Each column shows the
 focal-plane positions of a hexapolar grid of rays:
 
   Left   — ground truth from batoid raytracing
-  Centre — danish TA wavefront  (eq. 1 applied to batoid.zernikeTA())
+  Center — danish TA wavefront  (eq. 1 applied to batoid.zernikeTA())
   Right  — OPD wavefront        (eq. 1 applied to batoid.zernike())
 
 A good illustration requires a case where the TA and OPD predictions
@@ -90,7 +90,7 @@ def get_zernike_opd(telescope):
 
 # ---------------------------------------------------------------------------
 # Focal-plane position functions
-# (each returns (x, y) in focal-plane metres, centred on the chief ray)
+# (each returns (x, y) in focal-plane metres, centered on the chief ray)
 # ---------------------------------------------------------------------------
 
 def _factory():
@@ -180,7 +180,7 @@ def spots_opd(telescope, mask=None):
 
 
 # ---------------------------------------------------------------------------
-# Colour palettes
+# Color palettes
 # ---------------------------------------------------------------------------
 LIGHT = dict(
     bg     = '#FFFFFF',
