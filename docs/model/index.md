@@ -170,6 +170,32 @@ $$
 where $\mathbf{H}$ is the Hessian determinant of the wavefront, and
 subscripts on $W$ denote second partial derivatives.
 
+The figure below illustrates this geometrically.  Each square pixel in
+the focal plane (left) maps back through the inverse wavefront gradient
+to an irregular quadrilateral in the pupil plane (right).  Bright pixels
+correspond to large quadrilaterals — they subtend a large area of the
+pupil and collect more light — while dim pixels map to small ones.  The
+color scale is shared between the two panels.  Large astigmatism and coma terms have been added to the wavefront to
+make the variation in quadrilateral size and shape clearly visible.
+
+<figure>
+  <img src="../figures/pixel_mapping_light.png" class="light-only"
+       style="width: 100%" alt="Pixel-to-pupil mapping">
+  <img src="../figures/pixel_mapping_dark.png" class="dark-only"
+       style="width: 100%" alt="Pixel-to-pupil mapping">
+  <figcaption>Left: focal-plane pixels colored by surface brightness for
+  a simulated LSST donut at field center, with artificially large
+  astigmatism (2.5 µm) and coma (1.5 µm) added to
+  make the effect clearly visible.  At field center the only aperture is
+  the M1 annulus itself; at off-axis field angles additional vignetting
+  from downstream optics can also be modeled.
+  Right: the same pixels projected back into the pupil plane — each square
+  becomes a quadrilateral whose area is proportional to the pixel
+  brightness, directly illustrating the inverse-Jacobian relationship.
+  Dashed circles mark the inner and outer M1 aperture in both planes.
+  </figcaption>
+</figure>
+
 Pixel values are computed by multiplying this surface brightness by
 the fraction of each pixel's area that falls within the field-angle
 dependent vignetting mask.  This sub-pixel calculation assumes uniform
