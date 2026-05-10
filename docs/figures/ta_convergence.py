@@ -94,7 +94,7 @@ def spots_ta_jmax(jmax, mask):
 
 
 # ---------------------------------------------------------------------------
-# Colour palettes
+# Color palettes
 # ---------------------------------------------------------------------------
 LIGHT = dict(bg='#FFFFFF', line='#2255AA', axis='#CCCCCC', text='#333333')
 DARK  = dict(bg='#2e303e', line='#5599ff', axis='#555568', text='#cccccc')

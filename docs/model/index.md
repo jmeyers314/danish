@@ -80,7 +80,7 @@ the ray through pupil point $(u, v)$ and a reference ray, measured as
 the reference ray traverses a reference sphere.  The sphere is centered
 on $P_0$ — the point where the reference ray intersects the focal
 plane — with radius equal to the exit-pupil-to-focal-plane distance.
-We use the chief ray (the ray through the centre of the pupil) as the
+We use the chief ray (the ray through the center of the pupil) as the
 reference ray.  In practice the computed wavefront is insensitive to
 the exact value of the reference sphere radius.
 
@@ -90,7 +90,7 @@ the exact value of the reference sphere radius.
   <img src="../figures/opd_wavefront_dark.png" class="dark-only"
        style="width: 90%" alt="OPD wavefront diagram">
   <figcaption>Schematic of the OPD wavefront geometry for an off-axis
-  source.  The reference sphere (blue arc) is centred on the reference
+  source.  The reference sphere (blue arc) is centered on the reference
   point \(P_0\) where the chief ray intersects the focal plane.  The OPD
   \(\Phi(u,v)\) is the signed path-length gap between \(W\) and the sphere
   along the ray that goes through the pupil at \((u, v)\).  Background
