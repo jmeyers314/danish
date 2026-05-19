@@ -911,6 +911,56 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#wavefront-composition" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Wavefront composition
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Wavefront composition">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#danish-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Danish model
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rubin-active-optics-pipeline-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rubin active-optics pipeline model
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sensitivity-matrix-assumption" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sensitivity matrix assumption
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -1092,6 +1142,56 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#wavefront-composition" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Wavefront composition
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Wavefront composition">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#danish-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Danish model
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rubin-active-optics-pipeline-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rubin active-optics pipeline model
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sensitivity-matrix-assumption" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sensitivity matrix assumption
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -1180,7 +1280,7 @@ the ray through pupil point <span class="arithmatex">\((u, v)\)</span> and a ref
 the reference ray traverses a reference sphere.  The sphere is centered
 on <span class="arithmatex">\(P_0\)</span> — the point where the reference ray intersects the focal
 plane — with radius equal to the exit-pupil-to-focal-plane distance.
-We use the chief ray (the ray through the centre of the pupil) as the
+We use the chief ray (the ray through the center of the pupil) as the
 reference ray.  In practice the computed wavefront is insensitive to
 the exact value of the reference sphere radius.</p>
 <figure>
@@ -1189,7 +1289,7 @@ the exact value of the reference sphere radius.</p>
   <img src="../figures/opd_wavefront_dark.png" class="dark-only"
        style="width: 90%" alt="OPD wavefront diagram">
   <figcaption>Schematic of the OPD wavefront geometry for an off-axis
-  source.  The reference sphere (blue arc) is centred on the reference
+  source.  The reference sphere (blue arc) is centered on the reference
   point \(P_0\) where the chief ray intersects the focal plane.  The OPD
   \(\Phi(u,v)\) is the signed path-length gap between \(W\) and the sphere
   along the ray that goes through the pupil at \((u, v)\).  Background
@@ -1259,6 +1359,31 @@ I(x, y) \propto \left| \frac{\partial(u,v)}{\partial(x,y)} \right| =
 \]</div>
 <p>where <span class="arithmatex">\(\mathbf{H}\)</span> is the Hessian determinant of the wavefront, and
 subscripts on <span class="arithmatex">\(W\)</span> denote second partial derivatives.</p>
+<p>The figure below illustrates this geometrically.  Each square pixel in
+the focal plane (left) maps back through the inverse wavefront gradient
+to an irregular quadrilateral in the pupil plane (right).  Bright pixels
+correspond to large quadrilaterals — they subtend a large area of the
+pupil and collect more light — while dim pixels map to small ones.  The
+color scale is shared between the two panels.  Large astigmatism and coma terms have been added to the wavefront to
+make the variation in quadrilateral size and shape clearly visible.</p>
+<figure>
+  <img src="../figures/pixel_mapping_light.png" class="light-only"
+       style="width: 100%" alt="Pixel-to-pupil mapping">
+  <img src="../figures/pixel_mapping_dark.png" class="dark-only"
+       style="width: 100%" alt="Pixel-to-pupil mapping">
+  <figcaption>Left: focal-plane pixels colored by surface brightness for
+  a simulated LSST donut at field center, with artificially large
+  astigmatism (2.5 µm) and coma (1.5 µm) added to
+  make the effect clearly visible.  At field center the only aperture is
+  the M1 annulus itself; at off-axis field angles additional vignetting
+  from downstream optics can also be modeled.
+  Right: the same pixels projected back into the pupil plane — each square
+  becomes a quadrilateral whose area is proportional to the pixel
+  brightness, directly illustrating the inverse-Jacobian relationship.
+  Dashed circles mark the inner and outer M1 aperture in both planes.
+  </figcaption>
+</figure>
+
 <p>Pixel values are computed by multiplying this surface brightness by
 the fraction of each pixel's area that falls within the field-angle
 dependent vignetting mask.  This sub-pixel calculation assumes uniform
@@ -1309,6 +1434,161 @@ choice for the maximum Noll index is 66.</p>
   the choice of \(j_\text{max}=66\) as a good default for LSST.
   </figcaption>
 </figure>
+
+<h2 id="wavefront-composition">Wavefront composition<a class="headerlink" href="#wavefront-composition" title="Permanent link">&para;</a></h2>
+<p>The total wavefront <span class="arithmatex">\(W_\text{total}\)</span> entering danish is the sum of
+several physically distinct contributions.</p>
+<h3 id="danish-model">Danish model<a class="headerlink" href="#danish-model" title="Permanent link">&para;</a></h3>
+<div class="arithmatex">\[
+W_\text{total} = W_\text{TA,foc} + W_\text{defocus} + W_\text{dev}
+\]</div>
+<ul>
+<li>
+<p><strong><span class="arithmatex">\(W_\text{TA,foc}\)</span></strong> — the TA wavefront of the focused, aligned
+  telescope at the given field angle, computed via <code>batoid.zernikeTA()</code>
+  for the nominal telescope model.  This encodes the intrinsic
+  optical design, including field-angle-dependent aberrations.</p>
+</li>
+<li>
+<p><strong><span class="arithmatex">\(W_\text{defocus}\)</span></strong> — the additional wavefront introduced by
+  intentionally shifting the detector (or camera) out of focus to
+  produce donut-shaped images.  It is primarily <span class="arithmatex">\(Z_4\)</span> (defocus), but a
+  rigid piston also perturbs higher-order terms.</p>
+</li>
+<li>
+<p><strong><span class="arithmatex">\(W_\text{dev}\)</span></strong> — the deviation from nominal caused by
+  misalignments (decenter, despace, or tilt of optical elements) or
+  figure errors (mirror surface deformations).  This is the quantity
+  wavefront sensing aims to measure.</p>
+</li>
+</ul>
+<h3 id="rubin-active-optics-pipeline-model">Rubin active-optics pipeline model<a class="headerlink" href="#rubin-active-optics-pipeline-model" title="Permanent link">&para;</a></h3>
+<p>The Rubin active-optics pipeline uses OPD Zernikes for its intrinsic
+telescope model, so it decomposes <span class="arithmatex">\(W_\text{TA,foc}\)</span> one step further:</p>
+<div class="arithmatex">\[
+W_\text{total}
+  = W_\text{OPD,foc} + W_\text{off-axis} + W_\text{defocus} + W_\text{dev}
+\]</div>
+<p>where <span class="arithmatex">\(W_\text{OPD,foc} + W_\text{off-axis} \equiv W_\text{TA,foc}\)</span>.
+<span class="arithmatex">\(W_\text{OPD,foc}\)</span> is the OPD wavefront of the nominal telescope
+(<code>batoid.zernike()</code>), and <span class="arithmatex">\(W_\text{off-axis}\)</span> is the field-angle-dependent
+difference between the TA and OPD representations — the same term whose
+size motivates using the TA wavefront in the first place (see the spot
+diagram comparison above).</p>
+<h3 id="sensitivity-matrix-assumption">Sensitivity matrix assumption<a class="headerlink" href="#sensitivity-matrix-assumption" title="Permanent link">&para;</a></h3>
+<p>Both models estimate <span class="arithmatex">\(W_\text{dev}\)</span> by projecting measured Zernike
+residuals onto a sensitivity matrix whose columns are
+<span class="arithmatex">\(\partial W / \partial \mathrm{dof}\)</span> for each mechanical degree of
+freedom (dof).  Rubin's sensitivity matrix is computed with the OPD
+definition of the wavefront.  This is valid only if</p>
+<div class="arithmatex">\[
+\frac{\partial W_\text{TA}}{\partial \mathrm{dof}}
+\approx
+\frac{\partial W_\text{OPD}}{\partial \mathrm{dof}},
+\]</div>
+<p>i.e., the <em>response</em> of the wavefront to mechanical perturbations is
+the same regardless of which wavefront definition is used.  The table
+below tests this at a field angle of 1.675 deg for all ten rigid-body
+degrees of freedom of the Rubin telescope (five for M2, five for the
+camera).  Each cell shows OPD (TA) sensitivities; only Zernike terms
+with <span class="arithmatex">\(|s| &gt; 0.5\)</span> nm/unit appear.  Despace/decenter rows are in
+nm/µm; tilt rows are in nm/arcsec.  The close agreement confirms that
+the OPD-based sensitivity matrix is a valid substitute for a TA-based
+one.</p>
+<table>
+<thead>
+<tr>
+<th>DOF</th>
+<th style="text-align: right;">Z4</th>
+<th style="text-align: right;">Z5</th>
+<th style="text-align: right;">Z6</th>
+<th style="text-align: right;">Z7</th>
+<th style="text-align: right;">Z8</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>M2 despace</td>
+<td style="text-align: right;">15.30 (15.33)</td>
+<td style="text-align: right;">-0.00 (-0.00)</td>
+<td style="text-align: right;">-0.04 (-0.09)</td>
+<td style="text-align: right;">0.14 (0.14)</td>
+<td style="text-align: right;">0.00 (0.00)</td>
+</tr>
+<tr>
+<td>M2 decenter x</td>
+<td style="text-align: right;">-0.00 (-0.00)</td>
+<td style="text-align: right;">1.05 (1.05)</td>
+<td style="text-align: right;">-0.00 (-0.00)</td>
+<td style="text-align: right;">-0.00 (-0.00)</td>
+<td style="text-align: right;">-0.64 (-0.64)</td>
+</tr>
+<tr>
+<td>M2 decenter y</td>
+<td style="text-align: right;">0.45 (0.45)</td>
+<td style="text-align: right;">-0.00 (0.00)</td>
+<td style="text-align: right;">-1.05 (-1.06)</td>
+<td style="text-align: right;">-0.62 (-0.62)</td>
+<td style="text-align: right;">-0.00 (-0.00)</td>
+</tr>
+<tr>
+<td>M2 tilt x</td>
+<td style="text-align: right;">-13.30 (-13.34)</td>
+<td style="text-align: right;">-0.00 (0.00)</td>
+<td style="text-align: right;">34.45 (34.57)</td>
+<td style="text-align: right;">20.53 (20.58)</td>
+<td style="text-align: right;">-0.00 (0.00)</td>
+</tr>
+<tr>
+<td>M2 tilt y</td>
+<td style="text-align: right;">-0.00 (-0.00)</td>
+<td style="text-align: right;">34.29 (34.37)</td>
+<td style="text-align: right;">-0.00 (-0.00)</td>
+<td style="text-align: right;">-0.00 (-0.00)</td>
+<td style="text-align: right;">-20.43 (-20.48)</td>
+</tr>
+<tr>
+<td>Camera despace</td>
+<td style="text-align: right;">15.87 (15.90)</td>
+<td style="text-align: right;">-0.00 (-0.00)</td>
+<td style="text-align: right;">-0.04 (-0.09)</td>
+<td style="text-align: right;">0.35 (0.35)</td>
+<td style="text-align: right;">-0.00 (0.00)</td>
+</tr>
+<tr>
+<td>Camera decenter x</td>
+<td style="text-align: right;">0.00 (0.00)</td>
+<td style="text-align: right;">0.09 (0.09)</td>
+<td style="text-align: right;">0.00 (0.00)</td>
+<td style="text-align: right;">-0.00 (0.00)</td>
+<td style="text-align: right;">0.18 (0.18)</td>
+</tr>
+<tr>
+<td>Camera decenter y</td>
+<td style="text-align: right;">-0.17 (-0.17)</td>
+<td style="text-align: right;">-0.00 (-0.00)</td>
+<td style="text-align: right;">-0.10 (-0.10)</td>
+<td style="text-align: right;">0.18 (0.18)</td>
+<td style="text-align: right;">-0.00 (-0.00)</td>
+</tr>
+<tr>
+<td>Camera tilt x</td>
+<td style="text-align: right;">26.28 (26.34)</td>
+<td style="text-align: right;">-0.00 (0.00)</td>
+<td style="text-align: right;">-2.60 (-2.69)</td>
+<td style="text-align: right;">-0.27 (-0.27)</td>
+<td style="text-align: right;">-0.00 (0.00)</td>
+</tr>
+<tr>
+<td>Camera tilt y</td>
+<td style="text-align: right;">0.00 (0.00)</td>
+<td style="text-align: right;">-2.53 (-2.53)</td>
+<td style="text-align: right;">0.00 (0.00)</td>
+<td style="text-align: right;">-0.00 (-0.00)</td>
+<td style="text-align: right;">0.85 (0.85)</td>
+</tr>
+</tbody>
+</table>
 
 
 

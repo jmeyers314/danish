@@ -4,9 +4,9 @@ Horizontal layout with a non-zero field angle:
   - Beam travels left → right
   - Pupil plane on the left (x = 0), focal plane on the right (x = L)
   - Ideal image point P₀ is off-axis on the focal plane
-  - Chief ray runs from the pupil centre (0, 0) to P₀ at the field angle,
+  - Chief ray runs from the pupil center (0, 0) to P₀ at the field angle,
     NOT along the optical axis
-  - Reference sphere: arc centred on P₀, radius R (schematic scale)
+  - Reference sphere: arc centerd on P₀, radius R (schematic scale)
   - Wavefront W: irregular (amplitude-tapered oscillation), lagging and
     leading the sphere; matches the sphere exactly at the chief-ray angle
   - OPD Φ(u, v): signed gap between W and sphere along a marginal ray
@@ -37,7 +37,7 @@ P0 = np.array([L, y0])
 def phi(u):
     return np.arctan2(u - y0, 0.0 - L)
 
-phi_c = phi(0.0)   # chief-ray angle (P₀ → pupil centre)
+phi_c = phi(0.0)   # chief-ray angle (P₀ → pupil center)
 
 # Angular limits of the arc: cover the full pupil with a little padding.
 # Wrap differences to (−π, π] to handle the ±π branch cut — phi(+u_ext)
@@ -57,7 +57,7 @@ ys_sph = P0[1] + R * np.sin(phi_arc)
 # OPD profile: one oscillation with a linearly tapered amplitude (so it looks
 # less like a pure sine), zero at the chief-ray angle.
 def opd(phi_val):
-    t = _wrap(phi_val - phi_c) / half   # normalised angle in [-1, 1]
+    t = _wrap(phi_val - phi_c) / half   # normalized angle in [-1, 1]
     return A * np.sin(2.0 * np.pi * t) * (1.0 + 0.35 * t)
 
 opd_arc = opd(phi_arc)
@@ -77,7 +77,7 @@ u_bg = np.linspace(-u_ext, u_ext, 27)
 
 # Transverse aberration: proportional to the OPD wavefront gradient dW/du.
 # Subtracting the pupil-mean gradient zeros the tip/tilt component so the
-# cluster of focal-plane hits stays centred on P₀.
+# cluster of focal-plane hits stays centerd on P₀.
 def _dW_du(u, _eps=1e-4):
     """Derivative of the OPD w.r.t. pupil coordinate u (numerical)."""
     return (opd(phi(u + _eps)) - opd(phi(u - _eps))) / (2.0 * _eps)
@@ -90,7 +90,7 @@ def ta_fp(u):
     return ta_scale * (_dW_du(u) - _dW_mean)
 
 # ---------------------------------------------------------------------------
-# Colour palettes
+# Color palettes
 # ---------------------------------------------------------------------------
 LIGHT = dict(
     bg         = '#FFFFFF',
@@ -167,7 +167,7 @@ def draw_figure(c, output_path):
     # Ideal image point P₀
     ax.plot(*P0, 'o', ms=5, color=c['focal_pt'], zorder=10)
 
-    # Pupil centre marker (chief ray origin)
+    # Pupil center marker (chief ray origin)
     ax.plot(0, 0, 'o', ms=4, color=c['chief'], zorder=10)
 
     # Pupil point (u, v) marker
