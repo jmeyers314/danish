@@ -1,0 +1,9 @@
+edges/
+yaml/
+study_animate/
+*.asdf
+*.mp4
+*.pdf
+*.log
+__pycache__/
+.DS_Store

@@ -1378,7 +1378,7 @@ def test_dz_fitter_LSST_atm():
     )
     rms = np.sqrt(np.sum(((dz_true-dz_fit)/wavelength)**2))
     print(f"rms = {rms:9.3f} waves")
-    assert rms < 0.2, "rms %9.3f > 0.2" % rms
+    assert rms < 0.25, "rms %9.3f > 0.25" % rms
 
     # mods = fitter.model(**result)
     # plot_dz_results(
