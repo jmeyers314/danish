@@ -104,7 +104,7 @@ def _pupil_corners(ix, iy):
     return np.column_stack([u, v])
 
 
-focal_patches, pupil_patches, brightness = [], [], []
+focal_patches, pupil_patches, brightness, valid_mask = [], [], [], []
 
 for j, iy in enumerate(pix_idx):
     for i, ix in enumerate(pix_idx):
@@ -113,11 +113,15 @@ for j, iy in enumerate(pix_idx):
         focal_patches.append(Polygon(fc, closed=True))
 
         pc = _pupil_corners(ix, iy)
-        if pc is None:
+        valid = pc is not None
+        if not valid:
             pupil_patches.append(Polygon(np.zeros((4, 2)), closed=True))
         else:
             pupil_patches.append(Polygon(pc, closed=True))
         brightness.append(b)
+        valid_mask.append(valid)
+
+valid_mask = np.array(valid_mask)
 
 brightness = np.array(brightness)
 vmax = np.percentile(brightness[brightness > 0], 98) if np.any(brightness > 0) else 1.0
@@ -125,8 +129,10 @@ vmax = np.percentile(brightness[brightness > 0], 98) if np.any(brightness > 0) e
 # ---------------------------------------------------------------------------
 # Color palettes
 # ---------------------------------------------------------------------------
-LIGHT = dict(bg='#FFFFFF', axis='#CCCCCC', text='#333333', ring='#999999')
-DARK  = dict(bg='#2e303e', axis='#555568', text='#cccccc', ring='#888899')
+LIGHT = dict(bg='#FFFFFF', axis='#CCCCCC', text='#333333', ring='#999999',
+             focal_edge=(0.6, 0.6, 0.6, 0.35), pupil_edge='#444444')
+DARK  = dict(bg='#2e303e', axis='#555568', text='#cccccc', ring='#888899',
+             focal_edge=(0.6, 0.6, 0.6, 0.35), pupil_edge='#444444')
 
 
 # ---------------------------------------------------------------------------
@@ -152,14 +158,17 @@ def draw_figure(c, output_path):
     ax_p.set_xlabel('u  (m)', color=c['text'])
     ax_p.set_ylabel('v  (m)', color=c['text'])
 
-    kw = dict(cmap='inferno', linewidths=0.3, edgecolors='face')
+    kw = dict(cmap='inferno', linewidths=0.4)
 
-    fp = PatchCollection(focal_patches, **kw)
+    # Only draw edges on focal patches that have flux (matching what's lit in pupil panel)
+    transparent = (0.0, 0.0, 0.0, 0.0)
+    focal_edges = [c['focal_edge'] if b > 0 else transparent for b in brightness]
+    fp = PatchCollection(focal_patches, edgecolors=focal_edges, **kw)
     fp.set_array(brightness)
     fp.set_clim(0, vmax)
     ax_f.add_collection(fp)
 
-    pp = PatchCollection(pupil_patches, **kw)
+    pp = PatchCollection(pupil_patches, edgecolors=c['pupil_edge'], **kw)
     pp.set_array(brightness)
     pp.set_clim(0, vmax)
     ax_p.add_collection(pp)

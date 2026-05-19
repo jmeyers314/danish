@@ -256,3 +256,83 @@ choice for the maximum Noll index is 66.
   the choice of \(j_\text{max}=66\) as a good default for LSST.
   </figcaption>
 </figure>
+
+## Wavefront composition
+
+The total wavefront $W_\text{total}$ entering danish is the sum of
+several physically distinct contributions.
+
+### Danish model
+
+$$
+W_\text{total} = W_\text{TA,foc} + W_\text{defocus} + W_\text{dev}
+$$
+
+- **$W_\text{TA,foc}$** — the TA wavefront of the focused, aligned
+  telescope at the given field angle, computed via `batoid.zernikeTA()`
+  for the nominal telescope model.  This encodes the intrinsic
+  optical design, including field-angle-dependent aberrations.
+
+- **$W_\text{defocus}$** — the additional wavefront introduced by
+  intentionally shifting the detector (or camera) out of focus to
+  produce donut-shaped images.  It is primarily $Z_4$ (defocus), but a
+  rigid piston also perturbs higher-order terms.
+
+- **$W_\text{dev}$** — the deviation from nominal caused by
+  misalignments (decenter, despace, or tilt of optical elements) or
+  figure errors (mirror surface deformations).  This is the quantity
+  wavefront sensing aims to measure.
+
+### Rubin active-optics pipeline model
+
+The Rubin active-optics pipeline uses OPD Zernikes for its intrinsic
+telescope model, so it decomposes $W_\text{TA,foc}$ one step further:
+
+$$
+W_\text{total}
+  = W_\text{OPD,foc} + W_\text{off-axis} + W_\text{defocus} + W_\text{dev}
+$$
+
+where $W_\text{OPD,foc} + W_\text{off-axis} \equiv W_\text{TA,foc}$.
+$W_\text{OPD,foc}$ is the OPD wavefront of the nominal telescope
+(`batoid.zernike()`), and $W_\text{off-axis}$ is the field-angle-dependent
+difference between the TA and OPD representations — the same term whose
+size motivates using the TA wavefront in the first place (see the spot
+diagram comparison above).
+
+### Sensitivity matrix assumption
+
+Both models estimate $W_\text{dev}$ by projecting measured Zernike
+residuals onto a sensitivity matrix whose columns are
+$\partial W / \partial \mathrm{dof}$ for each mechanical degree of
+freedom (dof).  Rubin's sensitivity matrix is computed with the OPD
+definition of the wavefront.  This is valid only if
+
+$$
+\frac{\partial W_\text{TA}}{\partial \mathrm{dof}}
+\approx
+\frac{\partial W_\text{OPD}}{\partial \mathrm{dof}},
+$$
+
+i.e., the *response* of the wavefront to mechanical perturbations is
+the same regardless of which wavefront definition is used.  The table
+below tests this at a field angle of 1.675 deg for all ten rigid-body
+degrees of freedom of the Rubin telescope (five for M2, five for the
+camera).  Each cell shows OPD (TA) sensitivities; only Zernike terms
+with \(|s| > 0.5\) nm/unit appear.  Despace/decenter rows are in
+nm/µm; tilt rows are in nm/arcsec.  The close agreement confirms that
+the OPD-based sensitivity matrix is a valid substitute for a TA-based
+one.
+
+| DOF | Z4 | Z5 | Z6 | Z7 | Z8 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| M2 despace | 15.30 (15.33) | -0.00 (-0.00) | -0.04 (-0.09) | 0.14 (0.14) | 0.00 (0.00) |
+| M2 decenter x | -0.00 (-0.00) | 1.05 (1.05) | -0.00 (-0.00) | -0.00 (-0.00) | -0.64 (-0.64) |
+| M2 decenter y | 0.45 (0.45) | -0.00 (0.00) | -1.05 (-1.06) | -0.62 (-0.62) | -0.00 (-0.00) |
+| M2 tilt x | -13.30 (-13.34) | -0.00 (0.00) | 34.45 (34.57) | 20.53 (20.58) | -0.00 (0.00) |
+| M2 tilt y | -0.00 (-0.00) | 34.29 (34.37) | -0.00 (-0.00) | -0.00 (-0.00) | -20.43 (-20.48) |
+| Camera despace | 15.87 (15.90) | -0.00 (-0.00) | -0.04 (-0.09) | 0.35 (0.35) | -0.00 (0.00) |
+| Camera decenter x | 0.00 (0.00) | 0.09 (0.09) | 0.00 (0.00) | -0.00 (0.00) | 0.18 (0.18) |
+| Camera decenter y | -0.17 (-0.17) | -0.00 (-0.00) | -0.10 (-0.10) | 0.18 (0.18) | -0.00 (-0.00) |
+| Camera tilt x | 26.28 (26.34) | -0.00 (0.00) | -2.60 (-2.69) | -0.27 (-0.27) | -0.00 (0.00) |
+| Camera tilt y | 0.00 (0.00) | -2.53 (-2.53) | 0.00 (0.00) | -0.00 (-0.00) | 0.85 (0.85) |
