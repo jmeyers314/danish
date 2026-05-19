@@ -327,8 +327,17 @@ double enclosed_strut_1(
     double d2 = std::abs(-du2*sth2 + dv2*cth2);
     bool wclose2 = d2 < 2*maxLinearScale;
 
-    if (!wclose1 && !wclose2)
-        return 0.0;  // Outside the strut
+    if (!wclose1 && !wclose2) {
+        // Pixel is far from both edges.  Use signed perpendicular distances
+        // to decide whether the pixel is fully inside (between the edges) or
+        // fully outside.  The signed distances have opposite signs when the
+        // pixel lies between the two edges and the same sign when outside.
+        // This handles the case where the strut is wider than ~4 pixels,
+        // i.e., when the "thin strut" approximation above does not hold.
+        double s1 = -du1*sth1 + dv1*cth1;
+        double s2 = -du2*sth2 + dv2*cth2;
+        return (s1 * s2 < 0) ? 1.0 : 0.0;
+    }
 
     double frac = pixel_frac_1(
         u1, v1, sth1, cth1,
