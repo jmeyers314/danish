@@ -198,6 +198,18 @@ class MultiGroupJointModel:
         -------
         params : tuple of float
         """
+        if len(outer_groups) != self.ngroups:
+            raise ValueError(
+                f"outer_groups has {len(outer_groups)} entries; "
+                f"expected {self.ngroups}"
+            )
+        for g, (ag, og) in enumerate(zip(self._atm_groups, outer_groups)):
+            if len(og['models']) != len(ag):
+                raise ValueError(
+                    f"outer_groups[{g}]['models'] has {len(og['models'])} "
+                    f"entries; expected {len(ag)}"
+                )
+
         params = []
 
         # Per-star params (fluxes, dxs, dys) in flat model order.
@@ -545,11 +557,13 @@ class DZMultiGroupJointModel(MultiGroupJointModel):
                     f"All models must be DZMultiDonutModel or DZMultiSpotModel; "
                     f"flat model index {i} is {type(mg.model).__name__}"
                 )
+        # super().__init__ validates that atm_groups is non-empty and each group
+        # is non-empty, so flat[0] is safe to access after this call.
+        super().__init__(atm_groups)
         dz_terms_ref = tuple(flat[0].model.dz_terms)
         for i, mg in enumerate(flat[1:], 1):
             if tuple(mg.model.dz_terms) != dz_terms_ref:
                 raise ValueError(f"dz_terms mismatch at flat model index {i}")
-        super().__init__(atm_groups)
         self.dz_terms = flat[0].model.dz_terms
         self.nwavefront = len(self.dz_terms)
 
@@ -572,13 +586,15 @@ class DZBasisMultiGroupJointModel(MultiGroupJointModel):
                     f"DZBasisMultiSpotModel; flat model index {i} is "
                     f"{type(mg.model).__name__}"
                 )
+        # super().__init__ validates that atm_groups is non-empty and each group
+        # is non-empty, so flat[0] is safe to access after this call.
+        super().__init__(atm_groups)
         sensitivity_ref = flat[0].model.sensitivity
         for i, mg in enumerate(flat[1:], 1):
             if not np.array_equal(mg.model.sensitivity, sensitivity_ref):
                 raise ValueError(
                     f"sensitivity mismatch at flat model index {i}"
                 )
-        super().__init__(atm_groups)
         self.sensitivity = flat[0].model.sensitivity
         self.nwavefront = flat[0].model.nmode
 

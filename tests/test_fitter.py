@@ -2802,6 +2802,51 @@ def test_multi_group_joint_model_jac():
     j2b = joint_basis._jac2(guess_basis, data_list, var_list)
     np.testing.assert_allclose(j1b, j2b, atol=1e-10)
 
+    # --- Also test ixx atm_mode (3-parameter atm block per group) ---
+    intra_ixx = danish.DZMultiDonutModel(
+        factory, z_refs=z_ref_intra[np.newaxis], dz_terms=dz_terms,
+        field_radius=np.deg2rad(1.8), thxs=thxs[:1], thys=thys[:1],
+        bkg_order=0, atm_mode='ixx',
+    )
+    spot_ixx = danish.DZMultiSpotModel(
+        factory, z_refs=z_ref_spot[np.newaxis], dz_terms=dz_terms,
+        field_radius=np.deg2rad(1.8), thxs=thxs[2:], thys=thys[2:],
+        bkg_order=0, spot_nrad=40, gq_kwargs=dict(rmax=3.5), atm_mode='ixx',
+    )
+
+    Ixx, Ixy, Iyy = 0.20, 0.01, 0.18
+    intra_imgs_ixx = intra_ixx.model(
+        [5e6], [0.1], [-0.1], wavefront_params=dz_vals,
+        Ixx=Ixx, Ixy=Ixy, Iyy=Iyy, sky_levels=[500.0],
+    )
+    spot_imgs_ixx = spot_ixx.model(
+        [1e6], [0.0], [0.0], wavefront_params=dz_vals,
+        Ixx=Ixx, Ixy=Ixy, Iyy=Iyy, sky_levels=[200.0],
+    )
+
+    joint_ixx = DZMultiGroupJointModel([
+        [ModelGroup(intra_ixx, weight=1.0, label="intra")],
+        [ModelGroup(spot_ixx,  weight=2.0, label="spots")],
+    ])
+
+    guess_ixx = joint_ixx.pack_params(
+        wavefront_params=[0.0] * len(dz_terms),
+        outer_groups=[
+            {'atm': {'Ixx': Ixx, 'Ixy': Ixy, 'Iyy': Iyy},
+             'models': [{'fluxes': [np.sum(intra_imgs_ixx[0])], 'dxs': [0.0], 'dys': [0.0],
+                         'bkgs': [(0.0,)]}]},
+            {'atm': {'Ixx': Ixx, 'Ixy': Ixy, 'Iyy': Iyy},
+             'models': [{'fluxes': [np.sum(spot_imgs_ixx[0])],  'dxs': [0.0], 'dys': [0.0],
+                         'bkgs': [(0.0,)]}]},
+        ],
+    )
+
+    data_ixx  = [intra_imgs_ixx, spot_imgs_ixx]
+    var_ixx   = [[500.0], [200.0]]
+    j1i = joint_ixx.jac(guess_ixx, data_ixx, var_ixx)
+    j2i = joint_ixx._jac2(guess_ixx, data_ixx, var_ixx)
+    np.testing.assert_allclose(j1i, j2i, atol=1e-10)
+
 
 @timer
 def test_multi_group_joint_model_pack_unpack():
