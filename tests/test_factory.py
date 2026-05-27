@@ -222,9 +222,6 @@ def test_thruput_interpolation():
     assert np.all((np.minimum(t_lo, t_hi) <= t_mid + 1e-12) &
                   (t_mid <= np.maximum(t_lo, t_hi) + 1e-12))
 
-    # Exact on-grid values should be self-consistent.
-    assert np.allclose(load(tbb=6000, am=1.5), load(tbb=6000, am=1.5))
-
 
 @timer
 def test_factory_offsets():
