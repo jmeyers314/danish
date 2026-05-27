@@ -21,9 +21,6 @@ from danish.factory import (
 )
 from danish_test_helpers import timer, runtests
 
-RNG = np.random.default_rng(57721)
-
-
 def _jacobian(n, step=0.05):
     """Simple axis-aligned Jacobian arrays (no shear)."""
     return (
@@ -37,15 +34,16 @@ def _jacobian(n, step=0.05):
 @timer
 def test_pixel_frac_sync():
     """_pixel_frac_1 (Python scalar) must match _pixel_frac (C++) for random inputs."""
+    rng = np.random.default_rng(57721)
     n = 400
     u0, v0 = 1.2, -0.8
     angle = 0.7
     sth0, cth0 = float(np.sin(angle)), float(np.cos(angle))
 
-    u1 = RNG.uniform(-4, 4, n).astype(np.float64)
-    v1 = RNG.uniform(-4, 4, n).astype(np.float64)
-    x1 = RNG.uniform(-0.05, 0.05, n).astype(np.float64)
-    y1 = RNG.uniform(-0.05, 0.05, n).astype(np.float64)
+    u1 = rng.uniform(-4, 4, n).astype(np.float64)
+    v1 = rng.uniform(-4, 4, n).astype(np.float64)
+    x1 = rng.uniform(-0.05, 0.05, n).astype(np.float64)
+    y1 = rng.uniform(-0.05, 0.05, n).astype(np.float64)
     dudx, dudy, dvdx, dvdy = _jacobian(n)
 
     py = np.array([
@@ -63,13 +61,14 @@ def test_pixel_frac_sync():
 @timer
 def test_enclosed_circle_sync():
     """_enclosed_circle_1 (Python scalar) must match _enclosed_fraction (C++) for random inputs."""
+    rng = np.random.default_rng(31416)
     n = 400
     u0, v0, radius = 0.5, -0.3, 2.0
 
-    u = RNG.uniform(-4, 4, n).astype(np.float64)
-    v = RNG.uniform(-4, 4, n).astype(np.float64)
-    x = RNG.uniform(-0.05, 0.05, n).astype(np.float64)
-    y = RNG.uniform(-0.05, 0.05, n).astype(np.float64)
+    u = rng.uniform(-4, 4, n).astype(np.float64)
+    v = rng.uniform(-4, 4, n).astype(np.float64)
+    x = rng.uniform(-0.05, 0.05, n).astype(np.float64)
+    y = rng.uniform(-0.05, 0.05, n).astype(np.float64)
     dudx, dudy, dvdx, dvdy = _jacobian(n)
 
     py = np.array([
@@ -86,6 +85,7 @@ def test_enclosed_circle_sync():
 @timer
 def test_enclosed_strut_sync():
     """_enclosed_strut_1 (Python scalar) must match _strut_masked_fraction (C++) for random inputs."""
+    rng = np.random.default_rng(27183)
     n = 400
     # Horizontal strut centred at origin, edges at v = ±0.3
     # Direction along u: sth=0, cth=1
@@ -93,10 +93,10 @@ def test_enclosed_strut_sync():
     u2, v2, sth2, cth2 =  0.0, -0.3, 0.0, 1.0
     length = 4.0
 
-    u = RNG.uniform(-4, 4, n).astype(np.float64)
-    v = RNG.uniform(-4, 4, n).astype(np.float64)
-    x = RNG.uniform(-0.05, 0.05, n).astype(np.float64)
-    y = RNG.uniform(-0.05, 0.05, n).astype(np.float64)
+    u = rng.uniform(-4, 4, n).astype(np.float64)
+    v = rng.uniform(-4, 4, n).astype(np.float64)
+    x = rng.uniform(-0.05, 0.05, n).astype(np.float64)
+    y = rng.uniform(-0.05, 0.05, n).astype(np.float64)
     dudx, dudy, dvdx, dvdy = _jacobian(n)
 
     py = np.array([
