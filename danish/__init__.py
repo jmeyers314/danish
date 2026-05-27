@@ -13,6 +13,8 @@ from .spot_model import (
     DZMultiSpotModel, DZBasisMultiSpotModel,
 )
 from .joint_model import (
+    ModelGroup,
+    MultiGroupJointModel, DZMultiGroupJointModel, DZBasisMultiGroupJointModel,
     DZJointModel, DZBasisJointModel,
 )
 from .loss import chi2_loss, systematic_loss
