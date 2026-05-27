@@ -919,18 +919,74 @@ class DonutFactory:
         self.stellar_Tbb = stellar_Tbb
         self.airmass = airmass
         if self.bandpass_filter is not None:
-            aoi_dep_file = os.path.join(os.path.dirname(__file__), 'data', 'Tbb_airmass_aoi_dep_integrals.json')
-            with open(aoi_dep_file, mode='r') as f:
-                thruput_catalog = json.load(f)
-            thruput_catalog = thruput_catalog[bandpass_filter][str(stellar_Tbb)][str(airmass)]
+            self.thruput_by_aoi = self._load_thruput_by_aoi(
+                bandpass_filter, stellar_Tbb, airmass
+            )
+
+    def _load_thruput_by_aoi(self, bandpass_filter, stellar_Tbb, airmass):
+        """Load and bilinearly interpolate the AOI-dependent throughput curve.
+
+        The JSON table is sampled on a discrete (Tbb, airmass) grid.  Input
+        values are clamped to the available range and then bilinearly
+        interpolated across the four surrounding grid points so that
+        off-grid values (e.g. airmass=1.49999) work without error.
+        """
+        aoi_dep_file = os.path.join(
+            os.path.dirname(__file__), 'data', 'Tbb_airmass_aoi_dep_integrals.json'
+        )
+        with open(aoi_dep_file, mode='r') as f:
+            catalog = json.load(f)[bandpass_filter]
+
+        # Build float→JSON-string key maps (airmass keys are not uniform:
+        # e.g. '1' and '2' rather than '1.0' and '2.0').
+        tbb_key_map = {float(k): k for k in catalog.keys()}
+        tbb_keys    = sorted(tbb_key_map.keys())
+        am_key_map  = {float(k): k for k in catalog[tbb_key_map[tbb_keys[0]]].keys()}
+        am_keys     = sorted(am_key_map.keys())
+
+        # Clamp inputs to the available grid range.
+        tbb_val = float(np.clip(stellar_Tbb, tbb_keys[0], tbb_keys[-1]))
+        am_val  = float(np.clip(airmass,     am_keys[0],  am_keys[-1]))
+
+        def _bounds(val, keys):
+            """Return (lo, hi, t) bracketing val; t is the fractional weight toward hi."""
+            if val <= keys[0]:  return keys[0], keys[0], 0.0
+            if val >= keys[-1]: return keys[-1], keys[-1], 0.0
+            for lo, hi in zip(keys, keys[1:]):
+                if lo <= val <= hi:
+                    return lo, hi, (val - lo) / (hi - lo)
+            return keys[-1], keys[-1], 0.0
+
+        tbb_lo, tbb_hi, tbb_t = _bounds(tbb_val, tbb_keys)
+        am_lo,  am_hi,  am_t  = _bounds(am_val,  am_keys)
+
+        def _load(tbb, am):
+            """Return (aoi_array, throughput_array) for one grid point."""
+            data = catalog[tbb_key_map[tbb]][am_key_map[am]]
             lut = sorted(
-                [{'aoi': float(k), 'thruput': v} for k, v in thruput_catalog.items() if k != '_comment'],
+                ({'aoi': float(k), 'thruput': v} for k, v in data.items() if k != '_comment'),
                 key=lambda x: x['aoi']
             )
-            self.thruput_by_aoi = {
-                'aoi':   np.array([e['aoi']     for e in lut]),
-                'value': np.array([e['thruput'] for e in lut]),
-            }
+            return (
+                np.array([e['aoi']     for e in lut]),
+                np.array([e['thruput'] for e in lut]),
+            )
+
+        # Bilinear interpolation across the four surrounding grid points.
+        aoi_grid, t00 = _load(tbb_lo, am_lo)
+        _,        t01 = _load(tbb_lo, am_hi)
+        _,        t10 = _load(tbb_hi, am_lo)
+        _,        t11 = _load(tbb_hi, am_hi)
+
+        return {
+            'aoi':   aoi_grid,
+            'value': (
+                (1-tbb_t)*(1-am_t)*t00 +
+                (1-tbb_t)*am_t    *t01 +
+                tbb_t    *(1-am_t)*t10 +
+                tbb_t    *am_t    *t11
+            ),
+        }
 
     def image(
         self, *,
