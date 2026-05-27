@@ -192,6 +192,41 @@ def test_bandpass_filter():
 
 
 @timer
+def test_thruput_interpolation():
+    """Test _load_thruput_by_aoi clamping and interpolation without drawing images."""
+    # Minimal factory — no batoid needed.
+    f = danish.DonutFactory(bandpass_filter='r')
+
+    def load(tbb=6000, am=1.5):
+        return f._load_thruput_by_aoi('r', tbb, am)['value']
+
+    # Off-grid airmass: 1.49999 should be indistinguishable from 1.5.
+    assert np.allclose(load(am=1.5), load(am=1.49999), atol=1e-4)
+
+    # Clamping below range: airmass=0.9 → same as airmass=1.0 (grid minimum).
+    assert np.allclose(load(am=0.9), load(am=1.0))
+
+    # Clamping above range: airmass=3.0 → same as airmass=2.5 (grid maximum).
+    assert np.allclose(load(am=3.0), load(am=2.5))
+
+    # Clamping Tbb below range: 3000 K → same as 4000 K (grid minimum).
+    assert np.allclose(load(tbb=3000), load(tbb=4000))
+
+    # Clamping Tbb above range: 12000 K → same as 10000 K (grid maximum).
+    assert np.allclose(load(tbb=12000), load(tbb=10000))
+
+    # Off-grid Tbb interpolation: result at midpoint should lie between endpoints.
+    t_lo = load(tbb=7600)
+    t_hi = load(tbb=7800)
+    t_mid = load(tbb=7700)
+    assert np.all((np.minimum(t_lo, t_hi) <= t_mid + 1e-12) &
+                  (t_mid <= np.maximum(t_lo, t_hi) + 1e-12))
+
+    # Exact on-grid values should be self-consistent.
+    assert np.allclose(load(tbb=6000, am=1.5), load(tbb=6000, am=1.5))
+
+
+@timer
 def test_factory_offsets():
     rng = np.random.default_rng(192837465)
     for _ in range(10):
