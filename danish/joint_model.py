@@ -321,7 +321,10 @@ class MultiGroupJointModel:
         list of ndarray
             One array per flat sub-model, in flat model order.
         """
-        joint_dict = self.unpack_params(params)
+        # Explicit base-class call: bypass any subclass unpack_params override
+        # (e.g. JointModel's backwards-compat shim) so we always get the
+        # nested-dict form this method expects.
+        joint_dict = MultiGroupJointModel.unpack_params(self, params)
         wf = joint_dict['wavefront_params']
         result = []
         for ag, og_dict in zip(self._atm_groups, joint_dict['outer_groups']):
@@ -353,7 +356,10 @@ class MultiGroupJointModel:
         chi : 1D ndarray
             Concatenated ``sqrt(weight) * chi_i`` for each sub-model.
         """
-        joint_dict = self.unpack_params(params)
+        # Use the base-class unpack explicitly so that subclass overrides of
+        # unpack_params (e.g. JointModel's backwards-compat shim) don't break
+        # the internal nested-dict contract.
+        joint_dict = MultiGroupJointModel.unpack_params(self, params)
         wf = joint_dict['wavefront_params']
         chi_parts = []
         mi = 0
@@ -395,10 +401,13 @@ class MultiGroupJointModel:
         nwf = nparams - self._total_perstar_cols - self._total_natm_cols - total_nbkg
 
         out = np.zeros((self.total_nchi, nparams))
-        chi0 = self.chi(params, data_list, var_list)
+        # Explicit base-class calls below: same rationale as in chi() — bypass
+        # any subclass override of chi/unpack_params to keep the internal
+        # nested-dict contract intact.
+        chi0 = MultiGroupJointModel.chi(self, params, data_list, var_list)
 
         # Unpack and pre-build sub-model packed arrays (reused for per-star/bkg).
-        joint_dict = self.unpack_params(params)
+        joint_dict = MultiGroupJointModel.unpack_params(self, params)
         wf = joint_dict['wavefront_params']
         packed_per_model = []
         for ag, og_dict in zip(self._atm_groups, joint_dict['outer_groups']):
@@ -421,6 +430,11 @@ class MultiGroupJointModel:
             packed   = packed_per_model[mi]
             chi0_u   = chi0[row0:row0 + n * npix ** 2] / mg.sqrt_weight
 
+            # All n stars are perturbed simultaneously (one chi call per
+            # param type rather than per star).  This is valid because each
+            # star's chi rows depend only on that star's own per-star params,
+            # so the cross-star perturbations do not contaminate the slice
+            # extracted for star s.
             for offset, key, step in [(0, 'fluxes', 0.01),
                                        (n, 'dxs',    0.01),
                                        (2*n, 'dys',  0.01)]:
@@ -442,7 +456,7 @@ class MultiGroupJointModel:
             for k in range(self.natm_per_group[g]):
                 params1 = np.array(params, dtype=float)
                 params1[atm_col0 + k] += 0.01
-                chi1 = self.chi(params1, data_list, var_list)
+                chi1 = MultiGroupJointModel.chi(self, params1, data_list, var_list)
                 for mi in self._group_model_indices[g]:
                     r0    = self._row_starts[mi]
                     nchi  = self.nchi_per_model[mi]
@@ -456,7 +470,7 @@ class MultiGroupJointModel:
             col = wf_col0 + k
             params1 = np.array(params, dtype=float)
             params1[col] += self.wavefront_step
-            chi1 = self.chi(params1, data_list, var_list)
+            chi1 = MultiGroupJointModel.chi(self, params1, data_list, var_list)
             out[:, col] = (chi1 - chi0) / self.wavefront_step
 
         # --- Background params: sparse, per model ---
@@ -507,11 +521,11 @@ class MultiGroupJointModel:
             step += [0.01] * (n * nb)          # bkgs
 
         out = np.empty((self.total_nchi, nparams))
-        chi0 = self.chi(params, data_list, var_list)
+        chi0 = MultiGroupJointModel.chi(self, params, data_list, var_list)
         for i, h in enumerate(step):
             params1 = np.array(params, dtype=float)
             params1[i] += h
-            chi1 = self.chi(params1, data_list, var_list)
+            chi1 = MultiGroupJointModel.chi(self, params1, data_list, var_list)
             out[:, i] = (chi1 - chi0) / h
         return out
 
@@ -569,12 +583,16 @@ class DZBasisMultiGroupJointModel(MultiGroupJointModel):
         self.nwavefront = flat[0].model.nmode
 
 
-class JointModel:
+class JointModel(MultiGroupJointModel):
     """Joint donut + spot model for simultaneous fitting.
 
-    Composes a donut sub-model and a spot sub-model that share atmospheric and
-    wavefront parameters.  Per-star parameters (fluxes, dxs, dys, bkgs) are
-    independent between the two modalities.
+    .. deprecated::
+        Use :class:`MultiGroupJointModel` instead.
+
+    Thin backwards-compatible facade over :class:`MultiGroupJointModel`.
+    Composes one donut sub-model and one spot sub-model that share a single
+    atmospheric kernel and wavefront parameterization.  The parameter vector
+    layout is identical to the old standalone implementation.
 
     Parameters
     ----------
@@ -583,11 +601,13 @@ class JointModel:
     spot_model : BaseMultiSpotModel subclass
         Pre-constructed spot fitter.
     spot_weight : float, optional
-        Relative weight of spot chi residuals.  The spot chi values are
-        multiplied by sqrt(spot_weight) so that the cost contribution is
-        scaled by spot_weight.  Default 1.0.
+        Relative weight of spot chi residuals.  Default 1.0.
     """
+
     def __init__(self, donut_model, spot_model, spot_weight=1.0):
+        # Use `type(self) is JointModel` rather than isinstance so that
+        # DZJointModel/DZBasisJointModel (which issue their own deprecation
+        # warnings before calling super()) don't trigger a second warning here.
         if type(self) is JointModel:
             warnings.warn(
                 "JointModel is deprecated; use MultiGroupJointModel instead.",
@@ -599,29 +619,27 @@ class JointModel:
                 f"atm_mode mismatch: donut={donut_model.atm_mode}, "
                 f"spot={spot_model.atm_mode}"
             )
-        if donut_model.wavefront_step != spot_model.wavefront_step:
-            raise ValueError(
-                f"wavefront_step mismatch: donut={donut_model.wavefront_step}, "
-                f"spot={spot_model.wavefront_step}"
-            )
-
+        super().__init__([[ModelGroup(donut_model, 1.0),
+                           ModelGroup(spot_model, spot_weight)]])
+        # Legacy attributes preserved for backwards compatibility.
         self.donut_model = donut_model
         self.spot_model = spot_model
         self.spot_weight = spot_weight
         self.sqrt_spot_weight = np.sqrt(spot_weight)
-
         self.nd = donut_model.nstar
         self.ns = spot_model.nstar
         self.atm_mode = donut_model.atm_mode
         self.natm = donut_model.natm
         self.nbkg_d = donut_model.nbkg
         self.nbkg_s = spot_model.nbkg
-        self.wavefront_step = donut_model.wavefront_step
-
         self.npix_d = donut_model.npix
         self.npix_s = spot_model.npix
         self.nchi_d = self.nd * self.npix_d ** 2
         self.nchi_s = self.ns * self.npix_s ** 2
+
+    # ------------------------------------------------------------------
+    # Backwards-compatible API (old positional signatures)
+    # ------------------------------------------------------------------
 
     def pack_params(
         self, *,
@@ -629,37 +647,33 @@ class JointModel:
         s_fluxes, s_dxs, s_dys,
         fwhm=None, Ixx=None, Ixy=None, Iyy=None,
         wavefront_params,
-        d_bkgs=None, s_bkgs=None
+        d_bkgs=None, s_bkgs=None,
     ):
-        """Pack joint parameters into a single tuple.
-
-        Layout: [d_fluxes | d_dxs | d_dys | s_fluxes | s_dxs | s_dys |
-                 atm(natm) | wavefront | d_bkgs | s_bkgs]
-        """
+        """Pack joint parameters into a single tuple (old API)."""
         if d_bkgs is None:
             d_bkgs = [()] * self.nd
         if s_bkgs is None:
             s_bkgs = [()] * self.ns
-        params = []
-        params.extend(d_fluxes)
-        params.extend(d_dxs)
-        params.extend(d_dys)
-        params.extend(s_fluxes)
-        params.extend(s_dxs)
-        params.extend(s_dys)
         if self.atm_mode == 'fwhm':
-            params.append(fwhm)
+            atm = {'fwhm': fwhm}
         else:
-            params.extend([Ixx, Ixy, Iyy])
-        params.extend(wavefront_params)
-        for bkg in d_bkgs:
-            params.extend(bkg)
-        for bkg in s_bkgs:
-            params.extend(bkg)
-        return tuple(params)
+            atm = {'Ixx': Ixx, 'Ixy': Ixy, 'Iyy': Iyy}
+        return MultiGroupJointModel.pack_params(
+            self,
+            wavefront_params=wavefront_params,
+            outer_groups=[{
+                'atm': atm,
+                'models': [
+                    {'fluxes': d_fluxes, 'dxs': d_dxs, 'dys': d_dys,
+                     'bkgs': d_bkgs},
+                    {'fluxes': s_fluxes, 'dxs': s_dxs, 'dys': s_dys,
+                     'bkgs': s_bkgs},
+                ],
+            }],
+        )
 
     def unpack_params(self, params):
-        """Unpack joint parameters from optimization tuple.
+        """Unpack joint parameters (old API).
 
         Returns
         -------
@@ -667,333 +681,62 @@ class JointModel:
             d_fluxes, d_dxs, d_dys, s_fluxes, s_dxs, s_dys,
             fwhm or (Ixx, Ixy, Iyy), wavefront_params, d_bkgs, s_bkgs
         """
-        nd = self.nd
-        ns = self.ns
-        natm = self.natm
-
-        idx = 0
-        d_fluxes = params[idx:idx+nd]; idx += nd
-        d_dxs = params[idx:idx+nd]; idx += nd
-        d_dys = params[idx:idx+nd]; idx += nd
-        s_fluxes = params[idx:idx+ns]; idx += ns
-        s_dxs = params[idx:idx+ns]; idx += ns
-        s_dys = params[idx:idx+ns]; idx += ns
-
+        new = MultiGroupJointModel.unpack_params(self, params)
+        og = new['outer_groups'][0]
+        dm, sm = og['models'][0], og['models'][1]
         out = dict(
-            d_fluxes=d_fluxes, d_dxs=d_dxs, d_dys=d_dys,
-            s_fluxes=s_fluxes, s_dxs=s_dxs, s_dys=s_dys,
+            d_fluxes=dm['fluxes'], d_dxs=dm['dxs'], d_dys=dm['dys'],
+            s_fluxes=sm['fluxes'], s_dxs=sm['dxs'], s_dys=sm['dys'],
+            wavefront_params=new['wavefront_params'],
+            d_bkgs=dm['bkgs'], s_bkgs=sm['bkgs'],
         )
-
-        if self.atm_mode == 'fwhm':
-            out['fwhm'] = params[idx]; idx += 1
-        else:
-            out['Ixx'] = params[idx]; idx += 1
-            out['Ixy'] = params[idx]; idx += 1
-            out['Iyy'] = params[idx]; idx += 1
-
-        # Wavefront params: everything between atm and bkgs
-        nbkg_total = self.nbkg_d * nd + self.nbkg_s * ns
-        nwf = len(params) - idx - nbkg_total
-        out['wavefront_params'] = params[idx:idx+nwf]; idx += nwf
-
-        d_bkgs = []
-        for i in range(nd):
-            d_bkgs.append(tuple(params[idx:idx+self.nbkg_d]))
-            idx += self.nbkg_d
-        out['d_bkgs'] = d_bkgs
-
-        s_bkgs = []
-        for i in range(ns):
-            s_bkgs.append(tuple(params[idx:idx+self.nbkg_s]))
-            idx += self.nbkg_s
-        out['s_bkgs'] = s_bkgs
-
+        out.update(og['atm'])
         return out
 
-    def _donut_packed(self, joint_dict):
-        """Build packed params for the donut sub-model from joint dict."""
-        kw = dict(
-            fluxes=joint_dict['d_fluxes'],
-            dxs=joint_dict['d_dxs'],
-            dys=joint_dict['d_dys'],
-            wavefront_params=joint_dict['wavefront_params'],
-            bkgs=joint_dict['d_bkgs'],
-        )
-        if self.atm_mode == 'fwhm':
-            kw['fwhm'] = joint_dict['fwhm']
-        else:
-            kw['Ixx'] = joint_dict['Ixx']
-            kw['Ixy'] = joint_dict['Ixy']
-            kw['Iyy'] = joint_dict['Iyy']
-        return self.donut_model.pack_params(**kw)
-
-    def _spot_packed(self, joint_dict):
-        """Build packed params for the spot sub-model from joint dict."""
-        kw = dict(
-            fluxes=joint_dict['s_fluxes'],
-            dxs=joint_dict['s_dxs'],
-            dys=joint_dict['s_dys'],
-            wavefront_params=joint_dict['wavefront_params'],
-            bkgs=joint_dict['s_bkgs'],
-        )
-        if self.atm_mode == 'fwhm':
-            kw['fwhm'] = joint_dict['fwhm']
-        else:
-            kw['Ixx'] = joint_dict['Ixx']
-            kw['Ixy'] = joint_dict['Ixy']
-            kw['Iyy'] = joint_dict['Iyy']
-        return self.spot_model.pack_params(**kw)
-
     def model(self, **kwargs):
-        """Compute model images for both donuts and spots.
+        """Compute model images for both donuts and spots (old API).
 
         Parameters
         ----------
-        **kwargs : as returned by unpack_params
+        **kwargs : as returned by :meth:`unpack_params`
 
         Returns
         -------
-        donut_imgs : array, shape (nd, npix_d, npix_d)
-        spot_imgs : array, shape (ns, npix_s, npix_s)
+        donut_imgs : ndarray, shape (nd, npix_d, npix_d)
+        spot_imgs  : ndarray, shape (ns, npix_s, npix_s)
         """
-        d_packed = self._donut_packed(kwargs)
-        s_packed = self._spot_packed(kwargs)
-        d_imgs = self.donut_model.model(
-            **self.donut_model.unpack_params(d_packed)
-        )
-        s_imgs = self.spot_model.model(
-            **self.spot_model.unpack_params(s_packed)
-        )
-        return d_imgs, s_imgs
+        packed = self.pack_params(**kwargs)
+        imgs = MultiGroupJointModel.model(self, packed)
+        return imgs[0], imgs[1]
 
     def chi(self, params, donut_data, donut_vars, spot_data, spot_vars):
-        """Compute joint chi residuals.
-
-        Parameters
-        ----------
-        params : sequence of float
-            Joint packed parameters.
-        donut_data : array, shape (nd, npix_d, npix_d)
-        donut_vars : sequence of float or array
-        spot_data : array, shape (ns, npix_s, npix_s)
-        spot_vars : sequence of float or array
+        """Compute joint chi residuals (old API).
 
         Returns
         -------
         chi : array of float
             Concatenated [donut_chi, sqrt_spot_weight * spot_chi].
         """
-        joint_dict = self.unpack_params(params)
-        d_packed = self._donut_packed(joint_dict)
-        s_packed = self._spot_packed(joint_dict)
-        d_chi = self.donut_model.chi(d_packed, donut_data, donut_vars)
-        s_chi = self.spot_model.chi(s_packed, spot_data, spot_vars)
-        return np.concatenate([d_chi, self.sqrt_spot_weight * s_chi])
+        return MultiGroupJointModel.chi(
+            self, params, [donut_data, spot_data], [donut_vars, spot_vars]
+        )
 
     def jac(self, params, donut_data, donut_vars, spot_data, spot_vars):
-        """Compute joint jacobian d(chi)/d(param).
-
-        Uses block-sparse structure: donut per-star params only affect donut
-        rows, spot per-star params only affect spot rows, shared atm+wavefront
-        params affect all rows.
-
-        Parameters
-        ----------
-        params : sequence of float
-        donut_data, donut_vars, spot_data, spot_vars : arrays
+        """Compute joint jacobian (old API).
 
         Returns
         -------
-        jac : array of float, shape (nchi_d + nchi_s, nparams)
+        jac : ndarray, shape (nchi_d + nchi_s, nparams)
         """
-        nd = self.nd
-        ns = self.ns
-        natm = self.natm
-        nbkg_d = self.nbkg_d
-        nbkg_s = self.nbkg_s
-        nchi_d = self.nchi_d
-        nchi_s = self.nchi_s
-        nparams = len(params)
-
-        # Compute the number of wavefront params
-        nperstar = 3*nd + 3*ns
-        nbkg_total = nbkg_d*nd + nbkg_s*ns
-        nwf = nparams - nperstar - natm - nbkg_total
-
-        out = np.zeros((nchi_d + nchi_s, nparams))
-        chi0 = self.chi(params, donut_data, donut_vars, spot_data, spot_vars)
-        chi0_d = chi0[:nchi_d]
-        chi0_s = chi0[nchi_d:]
-
-        joint_dict = self.unpack_params(params)
-        d_packed = np.array(self._donut_packed(joint_dict), dtype=float)
-        s_packed = np.array(self._spot_packed(joint_dict), dtype=float)
-
-        # --- Donut per-star sparse params (d_fluxes, d_dxs, d_dys) ---
-        # These only affect donut chi rows.
-        # d_fluxes columns: [0, nd)
-        npix_d = self.npix_d
-        dflux = 0.01
-        d_dict = self.donut_model.unpack_params(d_packed)
-        d_dict["fluxes"] = np.array(d_dict["fluxes"]) + dflux
-        chi_d = self.donut_model.chi(
-            self.donut_model.pack_params(**d_dict), donut_data, donut_vars
+        return MultiGroupJointModel.jac(
+            self, params, [donut_data, spot_data], [donut_vars, spot_vars]
         )
-        for i in range(nd):
-            s = slice(i*npix_d**2, (i+1)*npix_d**2)
-            out[s, i] = (chi_d[s] - chi0_d[s]) / dflux
-
-        # d_dxs columns: [nd, 2*nd)
-        dx = 0.01
-        d_dict = self.donut_model.unpack_params(d_packed)
-        d_dict["dxs"] = np.array(d_dict["dxs"]) + dx
-        chi_d = self.donut_model.chi(
-            self.donut_model.pack_params(**d_dict), donut_data, donut_vars
-        )
-        for i in range(nd):
-            s = slice(i*npix_d**2, (i+1)*npix_d**2)
-            out[s, nd+i] = (chi_d[s] - chi0_d[s]) / dx
-
-        # d_dys columns: [2*nd, 3*nd)
-        dy = 0.01
-        d_dict = self.donut_model.unpack_params(d_packed)
-        d_dict["dys"] = np.array(d_dict["dys"]) + dy
-        chi_d = self.donut_model.chi(
-            self.donut_model.pack_params(**d_dict), donut_data, donut_vars
-        )
-        for i in range(nd):
-            s = slice(i*npix_d**2, (i+1)*npix_d**2)
-            out[s, 2*nd+i] = (chi_d[s] - chi0_d[s]) / dy
-
-        # --- Spot per-star sparse params (s_fluxes, s_dxs, s_dys) ---
-        # These only affect spot chi rows.
-        # s_fluxes columns: [3*nd, 3*nd+ns)
-        npix_s = self.npix_s
-        s_dict = self.spot_model.unpack_params(s_packed)
-        s_dict["fluxes"] = np.array(s_dict["fluxes"]) + dflux
-        chi_s = self.spot_model.chi(
-            self.spot_model.pack_params(**s_dict), spot_data, spot_vars
-        )
-        for i in range(ns):
-            s = slice(i*npix_s**2, (i+1)*npix_s**2)
-            out[nchi_d+s.start:nchi_d+s.stop, 3*nd+i] = (
-                self.sqrt_spot_weight * (chi_s[s] - chi0_s[s] / self.sqrt_spot_weight)
-            ) / dflux
-
-        # s_dxs columns: [3*nd+ns, 3*nd+2*ns)
-        s_dict = self.spot_model.unpack_params(s_packed)
-        s_dict["dxs"] = np.array(s_dict["dxs"]) + dx
-        chi_s = self.spot_model.chi(
-            self.spot_model.pack_params(**s_dict), spot_data, spot_vars
-        )
-        for i in range(ns):
-            s = slice(i*npix_s**2, (i+1)*npix_s**2)
-            out[nchi_d+s.start:nchi_d+s.stop, 3*nd+ns+i] = (
-                self.sqrt_spot_weight * (chi_s[s] - chi0_s[s] / self.sqrt_spot_weight)
-            ) / dx
-
-        # s_dys columns: [3*nd+2*ns, 3*nd+3*ns)
-        s_dict = self.spot_model.unpack_params(s_packed)
-        s_dict["dys"] = np.array(s_dict["dys"]) + dy
-        chi_s = self.spot_model.chi(
-            self.spot_model.pack_params(**s_dict), spot_data, spot_vars
-        )
-        for i in range(ns):
-            s = slice(i*npix_s**2, (i+1)*npix_s**2)
-            out[nchi_d+s.start:nchi_d+s.stop, 3*nd+2*ns+i] = (
-                self.sqrt_spot_weight * (chi_s[s] - chi0_s[s] / self.sqrt_spot_weight)
-            ) / dy
-
-        # --- Shared atm + wavefront params (dense: affect all rows) ---
-        shared_start = 3*nd + 3*ns
-        for k in range(natm):
-            params1 = np.array(params, dtype=float)
-            params1[shared_start + k] += 0.01
-            chi1 = self.chi(
-                params1, donut_data, donut_vars, spot_data, spot_vars
-            )
-            out[:, shared_start + k] = (chi1 - chi0) / 0.01
-
-        for k in range(nwf):
-            col = shared_start + natm + k
-            params1 = np.array(params, dtype=float)
-            params1[col] += self.wavefront_step
-            chi1 = self.chi(
-                params1, donut_data, donut_vars, spot_data, spot_vars
-            )
-            out[:, col] = (chi1 - chi0) / self.wavefront_step
-
-        # --- Donut bkg params (sparse: only donut rows) ---
-        dbkg = 0.01
-        bkg_d_start = shared_start + natm + nwf
-        for k in range(nbkg_d):
-            d_dict = self.donut_model.unpack_params(d_packed)
-            for j in range(nd):
-                bkgj = list(d_dict["bkgs"][j])
-                bkgj[k] += dbkg
-                d_dict["bkgs"][j] = tuple(bkgj)
-            chi_d = self.donut_model.chi(
-                self.donut_model.pack_params(**d_dict), donut_data, donut_vars
-            )
-            for j in range(nd):
-                s = slice(j*npix_d**2, (j+1)*npix_d**2)
-                out[s, bkg_d_start + nbkg_d*j + k] = (
-                    chi_d[s] - chi0_d[s]
-                ) / dbkg
-
-        # --- Spot bkg params (sparse: only spot rows) ---
-        bkg_s_start = bkg_d_start + nbkg_d * nd
-        for k in range(nbkg_s):
-            s_dict = self.spot_model.unpack_params(s_packed)
-            for j in range(ns):
-                bkgj = list(s_dict["bkgs"][j])
-                bkgj[k] += dbkg
-                s_dict["bkgs"][j] = tuple(bkgj)
-            chi_s = self.spot_model.chi(
-                self.spot_model.pack_params(**s_dict), spot_data, spot_vars
-            )
-            for j in range(ns):
-                s = slice(j*npix_s**2, (j+1)*npix_s**2)
-                chi0_sj = chi0_s[s] / self.sqrt_spot_weight
-                out[nchi_d+s.start:nchi_d+s.stop, bkg_s_start + nbkg_s*j + k] = (
-                    self.sqrt_spot_weight * (chi_s[s] - chi0_sj)
-                ) / dbkg
-
-        return out
 
     def _jac2(self, params, donut_data, donut_vars, spot_data, spot_vars):
-        """Naive column-by-column jacobian for validation."""
-        nd = self.nd
-        ns = self.ns
-        natm = self.natm
-        nbkg_d = self.nbkg_d
-        nbkg_s = self.nbkg_s
-        nparams = len(params)
-
-        nperstar = 3*nd + 3*ns
-        nbkg_total = nbkg_d*nd + nbkg_s*ns
-        nwf = nparams - nperstar - natm - nbkg_total
-
-        nchi = self.nchi_d + self.nchi_s
-        out = np.empty((nchi, nparams))
-
-        step = [0.01]*(3*nd)  # d_fluxes, d_dxs, d_dys
-        step += [0.01]*(3*ns)  # s_fluxes, s_dxs, s_dys
-        step += [0.01]*natm
-        step += [self.wavefront_step]*nwf
-        step += [0.01]*(nbkg_d*nd)
-        step += [0.01]*(nbkg_s*ns)
-
-        chi0 = self.chi(params, donut_data, donut_vars, spot_data, spot_vars)
-        for i, h in enumerate(step):
-            params1 = np.array(params, dtype=float)
-            params1[i] += h
-            chi1 = self.chi(
-                params1, donut_data, donut_vars, spot_data, spot_vars
-            )
-            out[:, i] = (chi1 - chi0) / h
-
-        return out
+        """Naive column-by-column jacobian for validation (old API)."""
+        return MultiGroupJointModel._jac2(
+            self, params, [donut_data, spot_data], [donut_vars, spot_vars]
+        )
 
 
 class DZJointModel(JointModel):
