@@ -1550,6 +1550,7 @@ def test_basis_dz_fitter_rigid():
         # plt.show()
 
 
+@timer
 def test_multi_donut_model_jac():
     telescope = batoid.Optic.fromYaml("LSST_i.yaml")
     intra = telescope.withGloballyShiftedOptic("Detector", [0, 0, 0.0015])
@@ -2055,6 +2056,7 @@ def test_dz_basis_multi_spot_model_rigid():
     assert rms/wavelength < 1.0  # Not great, but okay for this unit test
 
 
+@timer
 def test_multi_spot_model_jac():
     """Verify jac == _jac2 for spot models."""
     telescope = batoid.Optic.fromYaml("LSST_i.yaml")
@@ -2163,6 +2165,7 @@ def test_multi_spot_model_jac():
     np.testing.assert_array_equal(j1_d, j2_d)
 
 
+@timer
 def test_spot_image_regression():
     """Verify BaseSpotModel._model matches factory.spot_image for same inputs."""
     from danish.spot_model import BaseSpotModel
@@ -2256,6 +2259,7 @@ def test_spot_image_regression():
     np.testing.assert_allclose(model_norm, factory_norm, atol=1e-10)
 
 
+@timer
 def test_joint_model_jac():
     """Verify JointModel.jac == JointModel._jac2."""
     from danish.joint_model import DZJointModel, DZBasisJointModel
@@ -2635,6 +2639,7 @@ def test_dz_joint_model_roundtrip():
     assert rms < 0.5, f"rms {rms:.3f} > 0.5"
 
 
+@timer
 def test_systematic_loss():
     rng = np.random.default_rng(12345)
     data = rng.poisson(100, size=(20, 20)).astype(float)
