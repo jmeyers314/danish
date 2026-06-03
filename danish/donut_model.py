@@ -33,6 +33,7 @@ from functools import lru_cache
 import numpy as np
 import galsim
 
+from .factory import F2P_PREFIT_ORDER, F2P_MAXITER, F2P_TOL, F2P_STRICT
 from .loss import chi2_loss
 
 try:
@@ -70,7 +71,7 @@ class BaseDonutModel:
     maxiter : int, optional
         Maximum Newton iterations for focal-to-pupil transformation.  Default 20.
     tol : float, optional
-        Convergence tolerance for focal-to-pupil transformation.  Default 1e-5.
+        Convergence tolerance for focal-to-pupil transformation.  Default 1e-9.
     strict : bool, optional
         If True, raise RuntimeError on failed transformation; otherwise set to
         nan.  Default False.
@@ -90,7 +91,7 @@ class BaseDonutModel:
 
     def __init__(
         self, factory, npix, seed, bkg_order, atm_mode='fwhm', loss_fn=None,
-        prefit_order=2, maxiter=20, tol=1e-5, strict=False
+        prefit_order=F2P_PREFIT_ORDER, maxiter=F2P_MAXITER, tol=F2P_TOL, strict=F2P_STRICT
     ):
         assert npix % 2 == 1, "npix must be odd"
         assert atm_mode in ('fwhm', 'ixx'), "atm_mode must be 'fwhm' or 'ixx'"
@@ -303,7 +304,7 @@ class SingleDonutModel(BaseDonutModel):
     maxiter : int, optional
         Maximum Newton iterations for focal-to-pupil transformation.  Default 20.
     tol : float, optional
-        Convergence tolerance for focal-to-pupil transformation.  Default 1e-5.
+        Convergence tolerance for focal-to-pupil transformation.  Default 1e-9.
     strict : bool, optional
         If True, raise RuntimeError on failed transformation; otherwise set to
         nan.  Default False.
@@ -319,7 +320,7 @@ class SingleDonutModel(BaseDonutModel):
         npix=181,
         seed=57721,
         loss_fn=None,
-        prefit_order=2, maxiter=20, tol=1e-5, strict=False,
+        prefit_order=F2P_PREFIT_ORDER, maxiter=F2P_MAXITER, tol=F2P_TOL, strict=F2P_STRICT,
     ):
         super().__init__(
             factory, npix, seed, bkg_order, loss_fn=loss_fn,
@@ -520,7 +521,7 @@ class BaseMultiDonutModel(BaseDonutModel):
     maxiter : int, optional
         Maximum Newton iterations for focal-to-pupil transformation.  Default 20.
     tol : float, optional
-        Convergence tolerance for focal-to-pupil transformation.  Default 1e-5.
+        Convergence tolerance for focal-to-pupil transformation.  Default 1e-9.
     strict : bool, optional
         If True, raise RuntimeError on failed transformation; otherwise set to
         nan.  Default False.
@@ -538,7 +539,7 @@ class BaseMultiDonutModel(BaseDonutModel):
         seed=577215,
         atm_mode='fwhm',
         loss_fn=None,
-        prefit_order=2, maxiter=20, tol=1e-5, strict=False,
+        prefit_order=F2P_PREFIT_ORDER, maxiter=F2P_MAXITER, tol=F2P_TOL, strict=F2P_STRICT,
     ):
         super().__init__(
             factory, npix, seed, bkg_order, atm_mode=atm_mode, loss_fn=loss_fn,

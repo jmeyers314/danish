@@ -38,6 +38,11 @@ import numpy as np
 from ._danish import poly_grid_contains, pixel_frac, enclosed_circle, enclosed_strut
 from .utils import hexapolar, gq_points
 
+F2P_PREFIT_ORDER = 2
+F2P_MAXITER = 20
+F2P_TOL = 1e-5
+F2P_STRICT = False
+
 
 def pupil_to_focal(
     u, v, *,
@@ -203,7 +208,7 @@ def focal_to_pupil(
     Z=None, aberrations=None, R_outer=1.0, R_inner=0.0,
     focal_length=None,
     x_offset=None, y_offset=None,
-    prefit_order=2, maxiter=20, tol=1e-5, strict=False
+    prefit_order=F2P_PREFIT_ORDER, maxiter=F2P_MAXITER, tol=F2P_TOL, strict=F2P_STRICT
 ):
     """Transform focal coordinates to pupil coordinates.
 
@@ -272,8 +277,8 @@ def _focal_to_pupil(
     x, y, Z, *,
     focal_length=None,
     x_offset=None, y_offset=None,
-    prefit_order=2, maxiter=20, tol=1e-5,
-    strict=False
+    prefit_order=F2P_PREFIT_ORDER, maxiter=F2P_MAXITER, tol=F2P_TOL,
+    strict=F2P_STRICT
 ):
     Z1 = Z * focal_length if focal_length else Z
     utest, vtest = _test_points(Z1.R_outer, Z1.R_inner)
@@ -1002,7 +1007,7 @@ class DonutFactory:
         x_offset=None, y_offset=None,
         thx=0, thy=0,
         npix=181,
-        prefit_order=2, maxiter=20, tol=1e-5, strict=False
+        prefit_order=F2P_PREFIT_ORDER, maxiter=F2P_MAXITER, tol=F2P_TOL, strict=F2P_STRICT
     ):
         """Compute aberrated donut image.
 
