@@ -65,6 +65,15 @@ class BaseDonutModel:
     atm_mode : str, optional
         Atmospheric PSF parameterization.  'fwhm' for scalar FWHM (default),
         'ixx' for second moment tensor (Ixx, Ixy, Iyy) in arcsec^2.
+    prefit_order : int, optional
+        Order of prefit for focal-to-pupil transformation.  Default 2.
+    maxiter : int, optional
+        Maximum Newton iterations for focal-to-pupil transformation.  Default 20.
+    tol : float, optional
+        Convergence tolerance for focal-to-pupil transformation.  Default 1e-5.
+    strict : bool, optional
+        If True, raise RuntimeError on failed transformation; otherwise set to
+        nan.  Default False.
     """
     # I think Ixx might formally diverge for a Kolmogorov profile, but we need
     # something to convert between FWHM and Ixx/Iyy for the atmospheric kernel,
@@ -79,7 +88,10 @@ class BaseDonutModel:
 
     KOLM_CONST = 0.651
 
-    def __init__(self, factory, npix, seed, bkg_order, atm_mode='fwhm', loss_fn=None):
+    def __init__(
+        self, factory, npix, seed, bkg_order, atm_mode='fwhm', loss_fn=None,
+        prefit_order=2, maxiter=20, tol=1e-5, strict=False
+    ):
         assert npix % 2 == 1, "npix must be odd"
         assert atm_mode in ('fwhm', 'ixx'), "atm_mode must be 'fwhm' or 'ixx'"
 
@@ -97,6 +109,10 @@ class BaseDonutModel:
         self.nbkg = (bkg_order+1)*(bkg_order+2)//2
         self.atm_mode = atm_mode
         self.loss_fn = loss_fn if loss_fn is not None else chi2_loss
+        self.prefit_order = prefit_order
+        self.maxiter = maxiter
+        self.tol = tol
+        self.strict = strict
 
     @property
     def natm(self):
@@ -153,7 +169,11 @@ class BaseDonutModel:
             aberrations=zk,
             x_offset=x_offset, y_offset=y_offset,
             thx=thx, thy=thy,
-            npix=self.npix
+            npix=self.npix,
+            prefit_order=self.prefit_order,
+            maxiter=self.maxiter,
+            tol=self.tol,
+            strict=self.strict,
         )
         return result
 
@@ -278,6 +298,15 @@ class SingleDonutModel(BaseDonutModel):
         Number of pixels along image edge.  Must be odd.
     seed : int
         Random seed for use when creating noisy donut images with this class.
+    prefit_order : int, optional
+        Order of prefit for focal-to-pupil transformation.  Default 2.
+    maxiter : int, optional
+        Maximum Newton iterations for focal-to-pupil transformation.  Default 20.
+    tol : float, optional
+        Convergence tolerance for focal-to-pupil transformation.  Default 1e-5.
+    strict : bool, optional
+        If True, raise RuntimeError on failed transformation; otherwise set to
+        nan.  Default False.
     """
     def __init__(
         self,
@@ -290,8 +319,12 @@ class SingleDonutModel(BaseDonutModel):
         npix=181,
         seed=57721,
         loss_fn=None,
+        prefit_order=2, maxiter=20, tol=1e-5, strict=False,
     ):
-        super().__init__(factory, npix, seed, bkg_order, loss_fn=loss_fn)
+        super().__init__(
+            factory, npix, seed, bkg_order, loss_fn=loss_fn,
+            prefit_order=prefit_order, maxiter=maxiter, tol=tol, strict=strict,
+        )
         self.z_ref = z_ref
         self.x_offset = x_offset
         self.y_offset = y_offset
@@ -482,6 +515,15 @@ class BaseMultiDonutModel(BaseDonutModel):
         Number of pixels along image edge.  Must be odd.
     seed : int
         Random seed for use when creating noisy donut images with this class.
+    prefit_order : int, optional
+        Order of prefit for focal-to-pupil transformation.  Default 2.
+    maxiter : int, optional
+        Maximum Newton iterations for focal-to-pupil transformation.  Default 20.
+    tol : float, optional
+        Convergence tolerance for focal-to-pupil transformation.  Default 1e-5.
+    strict : bool, optional
+        If True, raise RuntimeError on failed transformation; otherwise set to
+        nan.  Default False.
     """
     def __init__(
         self,
@@ -496,8 +538,12 @@ class BaseMultiDonutModel(BaseDonutModel):
         seed=577215,
         atm_mode='fwhm',
         loss_fn=None,
+        prefit_order=2, maxiter=20, tol=1e-5, strict=False,
     ):
-        super().__init__(factory, npix, seed, bkg_order, atm_mode=atm_mode, loss_fn=loss_fn)
+        super().__init__(
+            factory, npix, seed, bkg_order, atm_mode=atm_mode, loss_fn=loss_fn,
+            prefit_order=prefit_order, maxiter=maxiter, tol=tol, strict=strict,
+        )
 
         if dz_ref is None and z_refs is None:
             raise ValueError("Must provide dz_ref or z_refs")
