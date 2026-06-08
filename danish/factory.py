@@ -42,6 +42,7 @@ F2P_PREFIT_ORDER = 2
 F2P_MAXITER = 20
 F2P_TOL = 1e-5
 F2P_STRICT = False
+F2P_ACTIVE_SET_MIN = 100
 
 
 def pupil_to_focal(
@@ -305,41 +306,50 @@ def _focal_to_pupil(
     dx = x_current - x
     dy = y_current - y
     dr2 = dx**2 + dy**2
+    tol2 = tol * tol
+    idx = np.nonzero(dr2 > tol2)[0]
     for i in range(maxiter):
-        if i >= 1:
-            if np.max(np.abs(dx)) < tol and np.max(np.abs(dy)) < tol:
-                break
+        if idx.size == 0:
+            break
+        ui, vi = u[idx], v[idx]
+        xi, yi = x[idx], y[idx]
+        dxi, dyi = dx[idx], dy[idx]
+        dr2i = dr2[idx]
         dW2du2, dW2dudv, dW2dvdu, dW2dv2 = _pupil_focal_jacobian(
-            u, v, Z1, x_offset=x_offset, y_offset=y_offset
+            ui, vi, Z1, x_offset=x_offset, y_offset=y_offset
         )
         det = (dW2du2*dW2dv2 - dW2dudv*dW2dvdu)
-        du = -(dW2dv2*dx - dW2dvdu*dy)/det
-        dv = -(-dW2dudv*dx + dW2du2*dy)/det
+        dui = -(dW2dv2*dxi - dW2dvdu*dyi)/det
+        dvi = -(-dW2dudv*dxi + dW2du2*dyi)/det
         # If xy miss distance increased, then decrease duv by
         # sqrt(distance ratio)
-        uc = u + du
-        vc = v + dv
-        xc, yc = _pupil_to_focal(
-            uc, vc, Z1, x_offset=x_offset, y_offset=y_offset
+        uci = ui + dui
+        vci = vi + dvi
+        xci, yci = _pupil_to_focal(
+            uci, vci, Z1, x_offset=x_offset, y_offset=y_offset
         )
-        dxc = xc - x
-        dyc = yc - y
-        drc2 = dxc**2 + dyc**2
-        w = drc2 > dr2  # places where we're worse
+        dxci = xci - xi
+        dyci = yci - yi
+        drc2i = dxci**2 + dyci**2
+        w = drc2i > dr2i  # places where we're worse
         if np.any(w):
-            alpha = np.maximum(0.001, (dr2[w]/drc2[w])**0.25)
-            uc[w] = u[w] + alpha*du[w]
-            vc[w] = v[w] + alpha*dv[w]
-            xc[w], yc[w] = _pupil_to_focal(
-                uc[w], vc[w], Z1,
+            alpha = np.maximum(0.001, (dr2i[w]/drc2i[w])**0.25)
+            uci[w] = ui[w] + alpha*dui[w]
+            vci[w] = vi[w] + alpha*dvi[w]
+            xci[w], yci[w] = _pupil_to_focal(
+                uci[w], vci[w], Z1,
                 x_offset=x_offset, y_offset=y_offset
             )
-            dxc[w] = xc[w] - x[w]
-            dyc[w] = yc[w] - y[w]
-            drc2[w] = dxc[w]**2 + dyc[w]**2
-        u, v, dr2 = uc, vc, drc2
-        x_current, y_current = xc, yc
-        dx, dy = dxc, dyc
+            dxci[w] = xci[w] - xi[w]
+            dyci[w] = yci[w] - yi[w]
+            drc2i[w] = dxci[w]**2 + dyci[w]**2
+        u[idx] = uci
+        v[idx] = vci
+        dx[idx] = dxci
+        dy[idx] = dyci
+        dr2[idx] = drc2i
+        if idx.size > F2P_ACTIVE_SET_MIN:
+            idx = np.nonzero(dr2 > tol2)[0]
     else:
         # If we failed to reach the desired tolerance, mark coordinate with a
         # NaN or if `strict`, raise a RuntimeError.
