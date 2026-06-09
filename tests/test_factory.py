@@ -224,6 +224,38 @@ def test_thruput_interpolation():
 
 
 @timer
+def test_pupil_R_inner():
+    """Check that pupil_R_inner early exclusion doesn't change the donut image.
+
+    pupil_R_inner is an optimization: pixels fully inside the projected inner
+    hole are skipped before _focal_to_pupil.  With Rubin_obsc handling the
+    inner obscuration, those pixels are zeroed by the mask regardless, so
+    images with and without pupil_R_inner must be bit-for-bit identical.
+    """
+    rng = np.random.default_rng(57291)
+    aberrations = np.zeros(22)
+    aberrations[4] = 25e-6  # large defocus
+    aberrations[5:] = rng.uniform(-0.2e-6, 0.2e-6, size=17)
+
+    factory_default = danish.DonutFactory(
+        R_outer=4.18, R_inner=2.5498,
+        mask_params=Rubin_obsc,
+        focal_length=10.31, pixel_scale=10e-6
+    )
+    factory_with_inner = danish.DonutFactory(
+        R_outer=4.18, R_inner=2.5498,
+        pupil_R_inner=2.5498,
+        mask_params=Rubin_obsc,
+        focal_length=10.31, pixel_scale=10e-6
+    )
+
+    img_default = factory_default.image(aberrations=aberrations)
+    img_with_inner = factory_with_inner.image(aberrations=aberrations)
+
+    np.testing.assert_array_equal(img_default, img_with_inner)
+
+
+@timer
 def test_factory_offsets():
     rng = np.random.default_rng(192837465)
     for _ in range(10):
