@@ -846,10 +846,16 @@ class DonutFactory:
     Parameters
     ----------
     R_outer : float
-        Entrance pupil radius in meters.
-        Also assumed to be Zernike normalization radius.
+        Zernike normalization radius in meters.
     R_inner : float
-        Entrance pupil inner radius.  Used for defining annular Zernikes.
+        Zernike normalization inner radius in meters.
+    pupil_R_outer : float, optional
+        Physical entrance pupil outer radius in meters.  Used for pixel
+        selection and primary mirror clip.  Defaults to R_outer.
+    pupil_R_inner : float, optional
+        Physical entrance pupil inner radius in meters.  When nonzero, pixels
+        fully inside this radius are excluded before calling ``_focal_to_pupil``.
+        Defaults to 0.0 (no early exclusion).
     mask_params : dict
         Nested dictionary containing the mask model. See the notes below
         for details on the format.
@@ -935,6 +941,7 @@ class DonutFactory:
     def __init__(
         self, *,
         R_outer=4.18, R_inner=2.5498,
+        pupil_R_outer=None, pupil_R_inner=0.0,
         mask_params=None,
         spider_angle=None,
         focal_length=10.31,
@@ -945,6 +952,8 @@ class DonutFactory:
     ):
         self.R_outer = R_outer
         self.R_inner = R_inner
+        self.pupil_R_outer = pupil_R_outer if pupil_R_outer is not None else R_outer
+        self.pupil_R_inner = pupil_R_inner
         self.mask_params = mask_params
         self.spider_angle = spider_angle
         self.focal_length = focal_length
@@ -1074,7 +1083,7 @@ class DonutFactory:
 
         # Get good pixels by projecting entrance pupil polygon onto pixels.
         ph = np.linspace(0, 2*np.pi, 1000, endpoint=True)
-        u, v = self.R_outer*np.cos(ph), self.R_outer*np.sin(ph)
+        u, v = self.pupil_R_outer*np.cos(ph), self.pupil_R_outer*np.sin(ph)
         x, y = _pupil_to_focal(
             u, v, Z1, x_offset=x_offset, y_offset=y_offset
         )
@@ -1093,6 +1102,28 @@ class DonutFactory:
         contained |= corners[:-1,1:]
         contained |= corners[1:,:-1]
         contained |= corners[:-1,:-1]
+
+        # Exclude pixels fully inside the inner obscuration before calling
+        # _focal_to_pupil (saves Newton iterations, no accuracy loss).
+        if self.pupil_R_inner > 0:
+            _R_inner_eff = self.pupil_R_inner - 0.02
+            u_inner = _R_inner_eff*np.cos(ph)
+            v_inner = _R_inner_eff*np.sin(ph)
+            x_inner, y_inner = _pupil_to_focal(
+                u_inner, v_inner, Z1, x_offset=x_offset, y_offset=y_offset
+            )
+            xp_inner = x_inner/self.pixel_scale
+            yp_inner = y_inner/self.pixel_scale
+            corners_in = np.empty((len(xgrid), len(xgrid)), dtype=bool)
+            poly_grid_contains(
+                xp_inner.ctypes.data, yp_inner.ctypes.data, len(xp_inner),
+                xgrid.ctypes.data, xgrid.ctypes.data, corners_in.ctypes.data,
+                len(xgrid), len(xgrid)
+            )
+            fully_obscured = (corners_in[1:,1:] & corners_in[:-1,1:] &
+                              corners_in[1:,:-1] & corners_in[:-1,:-1])
+            contained &= ~fully_obscured
+
         ypix, xpix = np.nonzero(contained)
         x = (xpix.astype(float) - no2)*self.pixel_scale # meters
         y = (ypix.astype(float) - no2)*self.pixel_scale
@@ -1126,7 +1157,7 @@ class DonutFactory:
         # Always clip out the primary mirror outer diameter
         f = _enclosed_fraction(
             x, y, u, v,
-            0.0, 0.0, self.R_outer,
+            0.0, 0.0, self.pupil_R_outer,
             dudx=dudx, dudy=dudy, dvdx=dvdx, dvdy=dvdy
         )
 
