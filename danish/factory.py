@@ -39,10 +39,13 @@ from ._danish import poly_grid_contains, pixel_frac, enclosed_circle, enclosed_s
 from .utils import hexapolar, gq_points
 
 F2P_PREFIT_ORDER = 2
-F2P_MAXITER = 20
-F2P_TOL = 1e-5
+F2P_MAXITER = 10
+F2P_TOL = 1e-7
 F2P_STRICT = False
 F2P_ACTIVE_SET_MIN = 100
+
+# Set to a list to collect per-call stats from _focal_to_pupil; None disables (no overhead).
+_f2p_stats = None
 
 
 def pupil_to_focal(
@@ -308,9 +311,12 @@ def _focal_to_pupil(
     dr2 = dx**2 + dy**2
     tol2 = tol * tol
     idx = np.nonzero(dr2 > tol2)[0]
+    _active_sizes = [] if _f2p_stats is not None else None
     for i in range(maxiter):
         if idx.size == 0:
             break
+        if _active_sizes is not None:
+            _active_sizes.append(idx.size)
         ui, vi = u[idx], v[idx]
         xi, yi = x[idx], y[idx]
         dxi, dyi = dx[idx], dy[idx]
@@ -355,14 +361,19 @@ def _focal_to_pupil(
         # NaN or if `strict`, raise a RuntimeError.
         # Diagnostic information
         intolerable = (np.abs(dx) > tol) | (np.abs(dy) > tol)
-        wfail = np.nonzero(intolerable)
+        wfail = np.nonzero(intolerable)[0]
         if strict:
             print(Z1)
-            for idx in wfail:
-                print(x[idx], y[idx])
+            for _wi in wfail:
+                print(x[_wi], y[_wi])
             raise RuntimeError("Cannot invert")
         u[wfail] = np.nan
         v[wfail] = np.nan
+    if _f2p_stats is not None:
+        _f2p_stats.append({
+            'n_pixels':     len(x),
+            'active_sizes': _active_sizes,
+        })
     return u, v
 
 
