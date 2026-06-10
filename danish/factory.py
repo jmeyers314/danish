@@ -1154,7 +1154,7 @@ class DonutFactory:
             )
             ax.plot(_x_ib/self.pixel_scale, _y_ib/self.pixel_scale, 'k--')
             _nrings, _nspokes, _npts = 80, 160, 2000
-            _margin = 0.05 * self.pupil_R_outer
+            _margin = 0.1 * self.pupil_R_outer
             _ring_radii = np.linspace(self.pupil_R_inner - _margin, self.pupil_R_outer + _margin, _nrings + 2)[1:-1]
             _th = np.linspace(0, 2*np.pi, _npts)
             for _r in _ring_radii:
