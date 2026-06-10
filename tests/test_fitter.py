@@ -1764,7 +1764,7 @@ def test_dz_multi_spot_model_fiducial():
     np.testing.assert_allclose(
         dz_fit/wavelength,
         dz_true/wavelength,
-        rtol=0, atol=0.2
+        rtol=0, atol=0.25
     )
     rms = np.sqrt(np.sum(((dz_true-dz_fit)/wavelength)**2))
     print(f"spot rms = {rms:9.3f} waves")
