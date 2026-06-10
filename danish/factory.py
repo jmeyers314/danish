@@ -853,9 +853,9 @@ class DonutFactory:
         Physical entrance pupil outer radius in meters.  Used for pixel
         selection and primary mirror clip.  Defaults to R_outer.
     pupil_R_inner : float, optional
-        Physical entrance pupil inner radius in meters.  When nonzero, pixels
-        fully inside this radius are excluded before calling ``_focal_to_pupil``.
-        Defaults to 0.0 (no early exclusion).
+        Physical entrance pupil inner radius in meters.  Used for inner
+        obscuration early exclusion and flux normalization.
+        Defaults to ``R_inner * 0.9``.
     mask_params : dict
         Nested dictionary containing the mask model. See the notes below
         for details on the format.
@@ -941,7 +941,7 @@ class DonutFactory:
     def __init__(
         self, *,
         R_outer=4.18, R_inner=2.5498,
-        pupil_R_outer=None, pupil_R_inner=0.0,
+        pupil_R_outer=None, pupil_R_inner=None,
         mask_params=None,
         spider_angle=None,
         focal_length=10.31,
@@ -953,7 +953,7 @@ class DonutFactory:
         self.R_outer = R_outer
         self.R_inner = R_inner
         self.pupil_R_outer = pupil_R_outer if pupil_R_outer is not None else R_outer
-        self.pupil_R_inner = pupil_R_inner
+        self.pupil_R_inner = pupil_R_inner if pupil_R_inner is not None else R_inner * 0.9
         self.mask_params = mask_params
         self.spider_angle = spider_angle
         self.focal_length = focal_length
@@ -1243,8 +1243,8 @@ class DonutFactory:
             tput = np.interp(aoi_proxy,self.thruput_by_aoi['aoi'],self.thruput_by_aoi['value'])
             f[w] *= tput
 
-        f[w] /= np.max(f[w])
         img[ypix, xpix] = f
+        img /= np.pi * (self.pupil_R_outer**2 - self.pupil_R_inner**2) / self.pixel_scale**2
         return img
 
     def is_caustic(

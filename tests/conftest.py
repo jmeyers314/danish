@@ -1,3 +1,6 @@
+import threadpoolctl
+threadpoolctl.threadpool_limits(1)
+
 import pytest
 
 def pytest_addoption(parser):
