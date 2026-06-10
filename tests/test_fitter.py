@@ -535,7 +535,7 @@ def test_fitter_LSST_kolm(run_slow):
         result = least_squares(
             fitter.chi, guess, jac=fitter.jac,
             ftol=1e-3, xtol=1e-3, gtol=1e-3,
-            max_nfev=20, verbose=2,
+            max_nfev=20, verbose=2, x_scale='jac',
             args=(img, sky_level)
         )
         result = fitter.unpack_params(result.x)
@@ -581,7 +581,7 @@ def test_fitter_LSST_kolm(run_slow):
         binned_result = least_squares(
             binned_fitter.chi, guess, jac=binned_fitter.jac,
             ftol=1e-3, xtol=1e-3, gtol=1e-3,
-            max_nfev=20, verbose=2,
+            max_nfev=20, verbose=2, x_scale='jac',
             bounds=(lb, ub),
             args=(binned_img, 4*sky_level)
         )
@@ -650,7 +650,7 @@ def test_fitter_LSST_atm(run_slow):
         result = least_squares(
             fitter.chi, guess, jac=fitter.jac,
             ftol=1e-3, xtol=1e-3, gtol=1e-3,
-            max_nfev=20, verbose=2,
+            max_nfev=20, verbose=2, x_scale='jac',
             args=(img, sky_level)
         )
         result = fitter.unpack_params(result.x)
@@ -695,7 +695,7 @@ def test_fitter_LSST_atm(run_slow):
         binned_result = least_squares(
             binned_fitter.chi, guess, jac=binned_fitter.jac,
             ftol=1e-3, xtol=1e-3, gtol=1e-3,
-            max_nfev=20, verbose=2,
+            max_nfev=20, verbose=2, x_scale='jac',
             bounds=(lb, ub),
             args=(binned_img, 4*sky_level)
         )
@@ -796,7 +796,7 @@ def test_fitter_AuxTel_rigid_perturbation(run_slow):
         result = least_squares(
             fitter.chi, guess, jac=fitter.jac,
             ftol=1e-3, xtol=1e-3, gtol=1e-3,
-            max_nfev=20, verbose=2,
+            max_nfev=20, verbose=2, x_scale='jac',
             args=(img, sky_level)
         )
         result = fitter.unpack_params(result.x)
@@ -889,7 +889,7 @@ def test_dz_fitter_LSST_fiducial(run_slow):
         result = least_squares(
             fitter.chi, guess, jac=fitter.jac,
             ftol=1e-3, xtol=1e-3, gtol=1e-3,
-            max_nfev=20, verbose=2,
+            max_nfev=20, verbose=2, x_scale='jac',
             args=(imgs, sky_levels)
         )
         result = fitter.unpack_params(result.x)
@@ -1026,7 +1026,7 @@ def test_dz_fitter_LSST_rigid_perturbation(run_slow):
         result = least_squares(
             fitter.chi, guess, jac=fitter.jac,
             ftol=1e-3, xtol=1e-3, gtol=1e-3,
-            max_nfev=20, verbose=2,
+            max_nfev=20, verbose=2, x_scale='jac',
             args=(imgs, sky_levels)
         )
         result = fitter.unpack_params(result.x)
@@ -1182,7 +1182,7 @@ def test_dz_fitter_LSST_z_perturbation(run_slow):
         result = least_squares(
             fitter.chi, guess, jac=fitter.jac,
             ftol=1e-3, xtol=1e-3, gtol=1e-3,
-            max_nfev=20, verbose=2,
+            max_nfev=20, verbose=2, x_scale='jac',
             args=(imgs, sky_levels)
         )
         result = fitter.unpack_params(result.x)
@@ -1530,7 +1530,7 @@ def test_basis_dz_fitter_rigid():
         result = least_squares(
             fitter.chi, guess, jac=fitter.jac,
             ftol=1e-3, xtol=1e-3, gtol=1e-3,
-            max_nfev=20, verbose=2,
+            max_nfev=20, verbose=2, x_scale='jac',
             args=(imgs, sky_levels)
         )
         result = fitter.unpack_params(result.x)
@@ -1737,7 +1737,7 @@ def test_dz_multi_spot_model_fiducial():
     result = least_squares(
         fitter.chi, guess, jac=fitter.jac,
         ftol=1e-3, xtol=1e-3, gtol=1e-3,
-        max_nfev=20, verbose=2,
+        max_nfev=20, verbose=2, x_scale='jac',
         args=(imgs, sky_levels)
     )
     result = fitter.unpack_params(result.x)
@@ -1880,7 +1880,7 @@ def test_dz_multi_spot_model_rigid_perturbation():
     result = least_squares(
         fitter.chi, guess, jac=fitter.jac,
         ftol=1e-3, xtol=1e-3, gtol=1e-3,
-        max_nfev=20, verbose=2,
+        max_nfev=20, verbose=2, x_scale='jac',
         args=(imgs, sky_levels)
     )
     result = fitter.unpack_params(result.x)
@@ -2039,7 +2039,7 @@ def test_dz_basis_multi_spot_model_rigid():
     result = least_squares(
         fitter.chi, guess, jac=fitter.jac,
         ftol=1e-3, xtol=1e-3, gtol=1e-3,
-        max_nfev=20, verbose=2,
+        max_nfev=20, verbose=2, x_scale='jac',
         args=(imgs, sky_levels)
     )
     result = fitter.unpack_params(result.x)
@@ -2602,7 +2602,7 @@ def test_dz_joint_model_roundtrip():
     result = least_squares(
         joint.chi, guess, jac=joint.jac,
         ftol=1e-3, xtol=1e-3, gtol=1e-3,
-        max_nfev=30, verbose=2,
+        max_nfev=30, verbose=2, x_scale='jac',
         args=(donut_imgs, donut_vars, spot_img, spot_vars)
     )
     result = joint.unpack_params(result.x)
