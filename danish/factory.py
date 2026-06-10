@@ -1037,7 +1037,8 @@ class DonutFactory:
         x_offset=None, y_offset=None,
         thx=0, thy=0,
         npix=181,
-        prefit_order=F2P_PREFIT_ORDER, maxiter=F2P_MAXITER, tol=F2P_TOL, strict=F2P_STRICT
+        prefit_order=F2P_PREFIT_ORDER, maxiter=F2P_MAXITER, tol=F2P_TOL, strict=F2P_STRICT,
+        debug=False
     ):
         """Compute aberrated donut image.
 
@@ -1066,6 +1067,10 @@ class DonutFactory:
             If True, then raise a RuntimeError if any failed focal-to-pupil
             transformations occurred.
             If False, then set image to zero at failed coordinates.
+        debug : bool
+            If True, show a diagnostic plot of the projected pupil grid and
+            pixel classification (valid pixels in blue, caustic/failed pixels
+            in red).
 
         Returns
         -------
@@ -1134,6 +1139,89 @@ class DonutFactory:
             x_offset=x_offset, y_offset=y_offset,
             prefit_order=prefit_order, maxiter=maxiter, tol=tol, strict=strict
         )
+
+        wfail = np.where(np.isnan(u))[0]
+
+        if debug:
+            import matplotlib.pyplot as plt
+            from matplotlib.collections import PatchCollection
+            from matplotlib.patches import Rectangle
+            fig, ax = plt.subplots(figsize=(8, 8))
+            ax.plot(xp, yp, 'k-')
+            _x_ib, _y_ib = _pupil_to_focal(
+                self.pupil_R_inner*np.cos(ph), self.pupil_R_inner*np.sin(ph), Z1,
+                x_offset=x_offset, y_offset=y_offset
+            )
+            ax.plot(_x_ib/self.pixel_scale, _y_ib/self.pixel_scale, 'k--')
+            _nrings, _nspokes, _npts = 80, 160, 2000
+            _margin = 0.05 * self.pupil_R_outer
+            _ring_radii = np.linspace(self.pupil_R_inner - _margin, self.pupil_R_outer + _margin, _nrings + 2)[1:-1]
+            _th = np.linspace(0, 2*np.pi, _npts)
+            for _r in _ring_radii:
+                if _r < self.pupil_R_inner:
+                    _color = 'mediumpurple'
+                elif _r <= self.pupil_R_outer:
+                    _color = 'steelblue'
+                else:
+                    _color = 'goldenrod'
+                _xr, _yr = _pupil_to_focal(
+                    _r*np.cos(_th), _r*np.sin(_th), Z1,
+                    x_offset=x_offset, y_offset=y_offset
+                )
+                ax.plot(_xr/self.pixel_scale, _yr/self.pixel_scale,
+                        color=_color, alpha=0.5, linewidth=0.6)
+            _r_hole = np.linspace(self.pupil_R_inner - _margin, self.pupil_R_inner, 10)
+            _r_ann  = np.linspace(self.pupil_R_inner, self.pupil_R_outer, 40)
+            _r_out  = np.linspace(self.pupil_R_outer, self.pupil_R_outer + _margin, 10)
+            for _angle in np.linspace(0, 2*np.pi, _nspokes, endpoint=False):
+                _ca, _sa = np.cos(_angle), np.sin(_angle)
+                for _rseg, _col in [(_r_hole, 'mediumpurple'), (_r_ann, 'steelblue'), (_r_out, 'goldenrod')]:
+                    _xs, _ys = _pupil_to_focal(
+                        _rseg*_ca, _rseg*_sa, Z1,
+                        x_offset=x_offset, y_offset=y_offset
+                    )
+                    ax.plot(_xs/self.pixel_scale, _ys/self.pixel_scale,
+                            color=_col, alpha=0.5, linewidth=0.6)
+            _is_fail = np.zeros(len(x), dtype=bool)
+            _is_fail[wfail] = True
+            _xpc = x / self.pixel_scale
+            _ypc = y / self.pixel_scale
+            from matplotlib.path import Path as MplPath
+            _inner_path = MplPath(np.column_stack([_x_ib/self.pixel_scale, _y_ib/self.pixel_scale]))
+            _in_inner = _inner_path.contains_points(np.column_stack([_xpc, _ypc]))
+            _is_good = ~_is_fail & ~_in_inner
+            _good_patches = [Rectangle((xi-0.5, yi-0.5), 1, 1) for xi, yi, g in zip(_xpc, _ypc, _is_good) if g]
+            _fail_patches = [Rectangle((xi-0.5, yi-0.5), 1, 1) for xi, yi, f in zip(_xpc, _ypc, _is_fail) if f]
+            ax.add_collection(PatchCollection(
+                _good_patches, facecolor='lightblue', alpha=0.6, edgecolor='steelblue', linewidth=0.5
+            ))
+            if _fail_patches:
+                ax.add_collection(PatchCollection(
+                    _fail_patches, facecolor='red', alpha=0.8, edgecolor='darkred', linewidth=0.5
+                ))
+            ax.set_xlabel('x (pix)')
+            ax.set_ylabel('y (pix)')
+            from matplotlib.lines import Line2D
+            ax.legend(handles=[
+                Line2D([0], [0], color='k',            linewidth=1.0),
+                Line2D([0], [0], color='k',            linewidth=1.0, linestyle='--'),
+                Line2D([0], [0], color='mediumpurple', linewidth=0.6),
+                Line2D([0], [0], color='steelblue',    linewidth=0.6),
+                Line2D([0], [0], color='goldenrod',    linewidth=0.6),
+                plt.Rectangle((0,0), 1, 1, fc='lightblue', ec='steelblue'),
+                plt.Rectangle((0,0), 1, 1, fc='red',       ec='darkred'),
+            ], labels=[
+                'Outer pupil boundary',
+                'Inner pupil boundary',
+                'Grid (inside inner)',
+                'Grid (annulus)',
+                'Grid (outside outer)',
+                'Pixels',
+                'Caustic pixels',
+            ])
+            ax.set_aspect('equal')
+            ax.set_title('Debug plot: pixel centers projected onto pupil')
+            plt.show()
 
         # Any pixels where we failed to find the pupil coordinate we'll just
         # leave as zero.
