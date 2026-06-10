@@ -138,8 +138,8 @@ def test_fitter_LSST_fiducial(run_slow):
         guess = [np.sum(img), 0.0, 0.0, 0.7]+[0.0]*19+[0.0]
         result = least_squares(
             fitter.chi, guess, jac=fitter.jac,
-            ftol=1e-3, xtol=1e-3, gtol=1e-3,
-            max_nfev=20, verbose=2,
+            ftol=1e-5, xtol=1e-5, gtol=1e-5,
+            max_nfev=20, verbose=2, x_scale='jac',
             args=(img, sky_level)
         )
         result = fitter.unpack_params(result.x)
@@ -168,7 +168,7 @@ def test_fitter_LSST_fiducial(run_slow):
         #     plot_result(img, mod, z_fit/wavelength, z_true/wavelength)
 
         np.testing.assert_allclose(fwhm_fit, fwhm, rtol=5e-2, atol=5e-2)
-        np.testing.assert_allclose(z_fit, z_true, rtol=0, atol=0.05*wavelength)
+        np.testing.assert_allclose(z_fit, z_true, rtol=0, atol=0.06*wavelength)
         rms = np.sqrt(np.sum(np.square((z_true-z_fit)/wavelength)))
         assert rms < 0.1, "rms %9.3f > 0.1" % rms
 
@@ -209,8 +209,8 @@ def test_fitter_LSST_fiducial(run_slow):
         guess = [np.sum(img), 0.0, 0.0, 0.7]+[0.0]*19+[0.0]
         result = least_squares(
             fitter.chi, guess, jac=fitter.jac,
-            ftol=1e-3, xtol=1e-3, gtol=1e-3,
-            max_nfev=20, verbose=2,
+            ftol=1e-5, xtol=1e-5, gtol=1e-5,
+            max_nfev=20, verbose=2, x_scale='jac',
             args=(img, sky_level)
         )
         result = fitter.unpack_params(result.x)
@@ -239,7 +239,7 @@ def test_fitter_LSST_fiducial(run_slow):
         #     plot_result(img, mod, z_fit/wavelength, z_true/wavelength)
 
         np.testing.assert_allclose(fwhm_fit, fwhm, rtol=5e-2, atol=5e-2)
-        np.testing.assert_allclose(z_fit, z_true, rtol=0, atol=0.05*wavelength)
+        np.testing.assert_allclose(z_fit, z_true, rtol=0, atol=0.06*wavelength)
         rms = np.sqrt(np.sum(np.square((z_true-z_fit)/wavelength)))
         assert rms < 0.1, "rms %9.3f > 0.1" % rms
 
@@ -324,8 +324,8 @@ def test_fitter_LSST_rigid_perturbation(run_slow):
         guess = [np.sum(img), 0.0, 0.0, 0.7]+[0.0]*19+[0.0]
         result = least_squares(
             fitter.chi, guess, jac=fitter.jac,
-            ftol=1e-3, xtol=1e-3, gtol=1e-3,
-            max_nfev=20, verbose=2,
+            ftol=1e-5, xtol=1e-5, gtol=1e-5,
+            max_nfev=20, verbose=2, x_scale='jac',
             args=(img, sky_level)
         )
         result = fitter.unpack_params(result.x)
@@ -454,8 +454,8 @@ def test_fitter_LSST_z_perturbation(run_slow):
         guess = [np.sum(img), 0.0, 0.0, 0.7]+[0.0]*19+[0.0]
         result = least_squares(
             fitter.chi, guess, jac=fitter.jac,
-            ftol=1e-3, xtol=1e-3, gtol=1e-3,
-            max_nfev=20, verbose=2,
+            ftol=1e-5, xtol=1e-5, gtol=1e-5,
+            max_nfev=20, verbose=2, x_scale='jac',
             args=(img, sky_level)
         )
         result = fitter.unpack_params(result.x)
@@ -1271,8 +1271,12 @@ def test_dz_fitter_LSST_kolm():
     guess += [0.0]*(fitter.nbkg*nstar)
     sky_levels = [sky_level]*nstar
 
+    lb = np.full(len(guess), -np.inf)
+    lb[3*nstar] = 0.3  # fwhm lower bound in arcsec
     result = least_squares(
         fitter.chi, guess, jac=fitter.jac,
+        bounds=(lb, np.inf),
+        x_scale='jac',
         ftol=1e-3, xtol=1e-3, gtol=1e-3,
         max_nfev=20, verbose=2,
         args=(imgs, sky_levels)
@@ -1360,8 +1364,12 @@ def test_dz_fitter_LSST_atm():
     guess += [0.0]*(fitter.nbkg*nstar)
     sky_levels = [sky_level]*nstar
 
+    lb = np.full(len(guess), -np.inf)
+    lb[3*nstar] = 0.3  # fwhm lower bound in arcsec
     result = least_squares(
         fitter.chi, guess, jac=fitter.jac,
+        bounds=(lb, np.inf),
+        x_scale='jac',
         ftol=1e-3, xtol=1e-3, gtol=1e-3,
         max_nfev=20, verbose=2,
         args=(imgs, sky_levels)

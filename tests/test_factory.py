@@ -227,32 +227,47 @@ def test_thruput_interpolation():
 def test_pupil_R_inner():
     """Check that pupil_R_inner early exclusion doesn't change the donut image.
 
-    pupil_R_inner is an optimization: pixels fully inside the projected inner
-    hole are skipped before _focal_to_pupil.  With Rubin_obsc handling the
-    inner obscuration, those pixels are zeroed by the mask regardless, so
-    images with and without pupil_R_inner must be bit-for-bit identical.
+    pupil_R_inner controls both early exclusion and flux normalization.  Two
+    factories with different pupil_R_inner values will produce images that
+    differ only by a known normalization factor.  After undoing the
+    normalization, the raw surface-brightness arrays must be identical: the
+    early exclusion is a pure optimization that skips pixels the mask would
+    zero out anyway.
     """
     rng = np.random.default_rng(57291)
+    R_outer = 4.18
+    R_inner = 2.5498
+    pixel_scale = 10e-6
     aberrations = np.zeros(22)
     aberrations[4] = 25e-6  # large defocus
     aberrations[5:] = rng.uniform(-0.2e-6, 0.2e-6, size=17)
 
+    # Default: pupil_R_inner = R_inner * 0.9
     factory_default = danish.DonutFactory(
-        R_outer=4.18, R_inner=2.5498,
+        R_outer=R_outer, R_inner=R_inner,
         mask_params=Rubin_obsc,
-        focal_length=10.31, pixel_scale=10e-6
+        focal_length=10.31, pixel_scale=pixel_scale
     )
+    # Explicit: pupil_R_inner = R_inner (tighter exclusion, different normalization)
     factory_with_inner = danish.DonutFactory(
-        R_outer=4.18, R_inner=2.5498,
-        pupil_R_inner=2.5498,
+        R_outer=R_outer, R_inner=R_inner,
+        pupil_R_inner=R_inner,
         mask_params=Rubin_obsc,
-        focal_length=10.31, pixel_scale=10e-6
+        focal_length=10.31, pixel_scale=pixel_scale
     )
 
     img_default = factory_default.image(aberrations=aberrations)
     img_with_inner = factory_with_inner.image(aberrations=aberrations)
 
-    np.testing.assert_array_equal(img_default, img_with_inner)
+    # Undo the per-factory normalization to recover raw surface brightness,
+    # then verify the two paths give the same result.
+    denom_default = np.pi * (R_outer**2 - (R_inner*0.9)**2) / pixel_scale**2
+    denom_with_inner = np.pi * (R_outer**2 - R_inner**2) / pixel_scale**2
+    np.testing.assert_allclose(
+        img_default * denom_default,
+        img_with_inner * denom_with_inner,
+        rtol=1e-12, atol=0
+    )
 
 
 @timer

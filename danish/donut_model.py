@@ -237,7 +237,7 @@ class BaseDonutModel:
         atm = self._atm_kernel(dx, dy, Ixx, Ixy, Iyy)
         opt = self._opt_kernel(zk, thx, thy, x_offset=x_offset, y_offset=y_offset)
         arr = convolve(opt, atm)
-        arr *= flux/np.sum(arr)
+        arr *= flux
 
         if bkg:
             arr += self._bkg(bkg)
@@ -472,11 +472,12 @@ class SingleDonutModel(BaseDonutModel):
         out = np.zeros((self.npix**2, len(params)))
         chi0 = self.chi(params, data, var)
 
+        flux = params[0]
         step = [
-            0.01, # flux
-            0.01, # dx
-            0.01, # dy
-            0.01  # fwhm
+            1e-3 * flux,  # flux
+            0.01,         # dx
+            0.01,         # dy
+            0.01          # fwhm
         ]
         step += [1e-8]*len(self.z_terms)  # Zernikes (in meters)
         step += [0.01]*self.nbkg
@@ -819,17 +820,16 @@ class BaseMultiDonutModel(BaseDonutModel):
         out = np.zeros((nstar*npix**2, len(params)))
         chi0 = self.chi(params, data, vars)
 
-        # Flux
-        dflux = 0.01
-        dflux_params = np.array(params)  # Make a copy so we don't perturb the original
-        dflux_param_dict = self.unpack_params(dflux_params)
-        dflux_param_dict["fluxes"] += dflux
+        # Flux — perturb all stars at once; divide by per-star step in the loop
+        dflux_eps = 1e-3
+        param_dict = self.unpack_params(params)
+        fluxes = np.array(param_dict["fluxes"])
+        dflux_param_dict = dict(param_dict)
+        dflux_param_dict["fluxes"] = fluxes * (1 + dflux_eps)
         chi_flux = self.chi(self.pack_params(**dflux_param_dict), data, vars)
-        # We manipulated all fluxes at once above.  Need to separate each star's
-        # contribution for output here.
         for i in range(nstar):
             s = slice(i*npix**2, (i+1)*npix**2)
-            out[s, i] = (chi_flux[s] - chi0[s]) / dflux
+            out[s, i] = (chi_flux[s] - chi0[s]) / (dflux_eps * fluxes[i])
 
         # Repeat for dx
         dx = 0.01
@@ -891,19 +891,32 @@ class BaseMultiDonutModel(BaseDonutModel):
 
         out = np.empty((nstar*npix**2, len(params)))
 
-        step = [0.01]*nstar  # flux
-        step += [0.01]*nstar  # dx
+        chi0 = self.chi(params, data, vars)
+
+        # Flux — use same f*(1+eps) formula as jac to ensure bit-identical results
+        dflux_eps = 1e-3
+        param_dict = self.unpack_params(params)
+        fluxes = np.array(param_dict["fluxes"])
+        for i in range(nstar):
+            params1_dict = dict(param_dict)
+            params1_dict["fluxes"] = np.array(fluxes)
+            params1_dict["fluxes"][i] = fluxes[i] * (1 + dflux_eps)
+            chi1 = self.chi(self.pack_params(**params1_dict), data, vars)
+            out[:, i] = (chi1 - chi0) / (dflux_eps * fluxes[i])
+
+        # All other params — direct additive perturbation
+        step = [0.01]*nstar  # dx
         step += [0.01]*nstar  # dy
         step += [0.01]*natm   # atm params
         step += [self.wavefront_step]*nwavefront  # wavefront terms
         step += [0.01]*nbkg*nstar  # background terms
 
-        chi0 = self.chi(params, data, vars)
-        for i, step in enumerate(step):
+        for j, s in enumerate(step):
+            i = nstar + j
             params1 = np.array(params)
-            params1[i] += step
+            params1[i] += s
             chi1 = self.chi(params1, data, vars)
-            out[:, i] = (chi1 - chi0)/step
+            out[:, i] = (chi1 - chi0) / s
 
         return out
 
