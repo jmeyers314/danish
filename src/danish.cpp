@@ -402,6 +402,283 @@ void enclosed_strut(
 }
 
 
+// ---------------------------------------------------------------------------
+// Circle-triangle clipping
+// ---------------------------------------------------------------------------
+
+// Solve |p1 + t*(p2-p1) - center|² = radius² for t ∈ [0, 1].
+// Returns the number of solutions (0, 1, or 2), written to out_pts[2][2].
+// Solutions are returned in ascending order of t.
+static int circle_edge_isect(
+    double p1x, double p1y, double p2x, double p2y,
+    double cx, double cy, double radius,
+    double out_pts[2][2]
+) {
+    double dx = p2x - p1x, dy = p2y - p1y;
+    double fx = p1x - cx,  fy = p1y - cy;
+    double a = dx*dx + dy*dy;
+    if (a < 1e-30) return 0;
+    double b = 2.0*(fx*dx + fy*dy);
+    double c = fx*fx + fy*fy - radius*radius;
+    double disc = b*b - 4.0*a*c;
+    if (disc < 0.0) return 0;
+    double sq = std::sqrt(disc > 0.0 ? disc : 0.0);
+    int n = 0;
+    double t1 = (-b - sq) / (2.0*a);
+    double t2 = (-b + sq) / (2.0*a);
+    if (t1 >= 0.0 && t1 <= 1.0) {
+        out_pts[n][0] = p1x + t1*dx; out_pts[n][1] = p1y + t1*dy; n++;
+    }
+    if (t2 > t1 + 1e-12 && t2 >= 0.0 && t2 <= 1.0) {
+        out_pts[n][0] = p1x + t2*dx; out_pts[n][1] = p1y + t2*dy; n++;
+    }
+    return n;
+}
+
+// Clip one triangle against the boundary of a circle.
+// Returns -1 (keep as-is), 0 (discard), or nv ≥ 3 (clipped polygon in poly[]).
+// poly must have at least 8 elements (a triangle clipped against a circle
+// produces at most 5 output vertices; 8 gives comfortable margin).
+static int clip_one_triangle_to_circle(
+    const double tri[3][2],
+    double cx, double cy, double radius, bool keep_inside, double tol,
+    double poly[8][2]
+) {
+    double r[3];
+    bool ins[3];
+    for (int i = 0; i < 3; i++) {
+        double dx = tri[i][0] - cx, dy = tri[i][1] - cy;
+        r[i] = std::sqrt(dx*dx + dy*dy);
+        ins[i] = keep_inside ? (r[i] <= radius) : (r[i] >= radius);
+    }
+
+    // Classify with tolerance — mirrors Python _triangle_relation_to_circle
+    bool all_keep, all_discard;
+    if (keep_inside) {
+        all_keep    = (r[0]<=radius+tol) && (r[1]<=radius+tol) && (r[2]<=radius+tol);
+        all_discard = (r[0]>=radius-tol) && (r[1]>=radius-tol) && (r[2]>=radius-tol);
+    } else {
+        all_keep    = (r[0]>=radius-tol) && (r[1]>=radius-tol) && (r[2]>=radius-tol);
+        all_discard = (r[0]<=radius+tol) && (r[1]<=radius+tol) && (r[2]<=radius+tol);
+    }
+    if (all_keep)    return -1;
+    if (all_discard) return  0;
+
+    // Sutherland-Hodgman clip against the circle boundary.
+    // "inside" = within the kept region.
+    int m = 0;
+    for (int i = 0; i < 3; i++) {
+        int j = (i + 1) % 3;
+        bool s_in = ins[i], p_in = ins[j];
+        double isect[2][2];
+        int nc = circle_edge_isect(
+            tri[i][0], tri[i][1], tri[j][0], tri[j][1], cx, cy, radius, isect
+        );
+        if (s_in) {
+            poly[m][0] = tri[i][0]; poly[m][1] = tri[i][1]; m++;
+            if (!p_in && nc > 0) {
+                // Exiting kept region: emit the last crossing on s→p
+                poly[m][0] = isect[nc-1][0]; poly[m][1] = isect[nc-1][1]; m++;
+            }
+        } else {
+            if (p_in && nc > 0) {
+                // Entering kept region: emit first crossing
+                poly[m][0] = isect[0][0]; poly[m][1] = isect[0][1]; m++;
+            } else if (!p_in && nc == 2) {
+                // Edge passes through kept region entirely: emit both crossings
+                poly[m][0] = isect[0][0]; poly[m][1] = isect[0][1]; m++;
+                poly[m][0] = isect[1][0]; poly[m][1] = isect[1][1]; m++;
+            }
+        }
+    }
+    return m;
+}
+
+// Clip all triangles against one circle boundary.
+//
+// tri_in_ptr  : (ntri_in, 3, 2) float64, C-contiguous — input triangle vertices
+// ntri_in     : number of input triangles
+// cx, cy      : circle centre in pupil metres
+// radius      : circle radius in pupil metres
+// keep_inside : 1 = keep circle interior; 0 = keep exterior
+// tol         : boundary tolerance (Python default 1e-12)
+// tri_out_ptr : (ntri_in * 3, 3, 2) float64 pre-allocated output buffer
+// n_removed_ptr, n_clipped_ptr : int32* counters (caller zeros before first circle)
+//
+// Returns: number of output triangles written to tri_out.
+int clip_triangles_to_circle(
+    size_t tri_in_ptr, int ntri_in,
+    double cx, double cy, double radius, int keep_inside, double tol,
+    size_t tri_out_ptr,
+    size_t n_removed_ptr, size_t n_clipped_ptr
+) {
+    const double* in  = reinterpret_cast<const double*>(tri_in_ptr);
+    double*       out = reinterpret_cast<double*>(tri_out_ptr);
+    int* nrem  = reinterpret_cast<int*>(n_removed_ptr);
+    int* nclip = reinterpret_cast<int*>(n_clipped_ptr);
+
+    bool ki = (keep_inside != 0);
+    int ntri_out = 0;
+
+    for (int k = 0; k < ntri_in; k++) {
+        const double* tv = in + k*6;
+        double tri[3][2] = {{tv[0],tv[1]},{tv[2],tv[3]},{tv[4],tv[5]}};
+
+        double poly[8][2];
+        int nv = clip_one_triangle_to_circle(tri, cx, cy, radius, ki, tol, poly);
+
+        if (nv == -1) {
+            // Keep unchanged
+            double* dst = out + ntri_out*6;
+            dst[0]=tv[0]; dst[1]=tv[1]; dst[2]=tv[2];
+            dst[3]=tv[3]; dst[4]=tv[4]; dst[5]=tv[5];
+            ntri_out++;
+        } else if (nv >= 3) {
+            (*nclip)++;
+            // Fan-triangulate from poly[0]
+            for (int i = 1; i <= nv-2; i++) {
+                double ax = poly[i][0]-poly[0][0], ay = poly[i][1]-poly[0][1];
+                double bx = poly[i+1][0]-poly[0][0], by = poly[i+1][1]-poly[0][1];
+                if (std::abs(ax*by - ay*bx) < 2e-30) continue;
+                double* dst = out + ntri_out*6;
+                dst[0]=poly[0][0]; dst[1]=poly[0][1];
+                dst[2]=poly[i][0]; dst[3]=poly[i][1];
+                dst[4]=poly[i+1][0]; dst[5]=poly[i+1][1];
+                ntri_out++;
+            }
+        } else {
+            // nv == 0 or degenerate
+            (*nrem)++;
+        }
+    }
+    return ntri_out;
+}
+
+
+// ---------------------------------------------------------------------------
+// Triangle image accumulation
+// ---------------------------------------------------------------------------
+
+// One half-plane pass of Sutherland-Hodgman clipping.
+// poly/out: flat (x0,y0, x1,y1, ...) doubles.  Returns output vertex count.
+static int sh_clip_edge_cpp(
+    const double* poly, int n, double* out,
+    int axis, double val, int inside_dir
+) {
+    int m = 0;
+    for (int i = 0; i < n; i++) {
+        int j = (i == 0) ? n - 1 : i - 1;       // previous vertex index
+        double px = poly[2*i],   py = poly[2*i+1];
+        double sx = poly[2*j],   sy = poly[2*j+1];
+        double pval = (axis == 0) ? px : py;
+        double sval = (axis == 0) ? sx : sy;
+        bool p_in = (inside_dir > 0) ? (pval >= val) : (pval <= val);
+        bool s_in = (inside_dir > 0) ? (sval >= val) : (sval <= val);
+        if (p_in) {
+            if (!s_in) {
+                double t = (val - sval) / (pval - sval);
+                out[2*m]   = sx + t*(px - sx);
+                out[2*m+1] = sy + t*(py - sy);
+                ++m;
+            }
+            out[2*m]   = px;
+            out[2*m+1] = py;
+            ++m;
+        } else if (s_in) {
+            double t = (val - sval) / (pval - sval);
+            out[2*m]   = sx + t*(px - sx);
+            out[2*m+1] = sy + t*(py - sy);
+            ++m;
+        }
+    }
+    return m;
+}
+
+// Area of the intersection of a triangle with the unit pixel square [ix±0.5, iy±0.5].
+// Clips the triangle against four axis-aligned half-planes using Sutherland-Hodgman.
+// A triangle clipped by a rectangle produces at most 7 vertices → 14 doubles; buf size 16 is safe.
+static double clip_area_cpp(const double tri[3][2], int ix, int iy) {
+    double x0 = ix - 0.5, x1 = ix + 0.5;
+    double y0 = iy - 0.5, y1 = iy + 0.5;
+    double a[16], b[16];
+    a[0]=tri[0][0]; a[1]=tri[0][1];
+    a[2]=tri[1][0]; a[3]=tri[1][1];
+    a[4]=tri[2][0]; a[5]=tri[2][1];
+    int n = 3;
+    n = sh_clip_edge_cpp(a, n, b, 0, x0, +1);  if (n < 3) return 0.0;
+    n = sh_clip_edge_cpp(b, n, a, 0, x1, -1);  if (n < 3) return 0.0;
+    n = sh_clip_edge_cpp(a, n, b, 1, y0, +1);  if (n < 3) return 0.0;
+    n = sh_clip_edge_cpp(b, n, a, 1, y1, -1);  if (n < 3) return 0.0;
+    // Shoelace on final polygon in `a`
+    double area = 0.0;
+    for (int i = 0, j = n-1; i < n; j = i++)
+        area += a[2*j]*a[2*i+1] - a[2*i]*a[2*j+1];
+    return 0.5 * std::abs(area);
+}
+
+// Accumulate triangle flux onto a pixel image.
+//
+// tri_px_ptr   : (ntri, 3, 2) float64, C-contiguous — triangle vertices in
+//               centred pixel coords (origin at image centre).
+// pupil_areas  : (ntri,) float64 — pupil-space area per triangle (flux proxy).
+// proj_areas   : (ntri,) float64 — projected area in pixel² per triangle.
+// image_ptr    : (npix*npix,) float64, C-contiguous row-major — written in-place.
+// ntri, npix   : array sizes.
+//
+// For each valid triangle the function:
+//   1. Computes a tight pixel bounding box.
+//   2. For each pixel in the box, clips the triangle to the pixel square and
+//      accumulates flux * overlap_area / proj_area into image.
+//
+void accumulate_triangles(
+    size_t tri_px_ptr,
+    size_t pupil_areas_ptr,
+    size_t proj_areas_ptr,
+    size_t image_ptr,
+    int ntri,
+    int npix
+) {
+    const double* tri_px = reinterpret_cast<const double*>(tri_px_ptr);
+    const double* pa     = reinterpret_cast<const double*>(pupil_areas_ptr);
+    const double* pj     = reinterpret_cast<const double*>(proj_areas_ptr);
+    double*       img    = reinterpret_cast<double*>(image_ptr);
+
+    int no2 = (npix - 1) / 2;
+
+    for (int k = 0; k < ntri; k++) {
+        double proj = pj[k];
+        if (proj <= 0.0) continue;
+
+        // Each triangle is 6 consecutive doubles: v0x,v0y, v1x,v1y, v2x,v2y
+        const double* tv = tri_px + k*6;
+        double tri[3][2] = { {tv[0],tv[1]}, {tv[2],tv[3]}, {tv[4],tv[5]} };
+
+        // Pre-divide flux by projected area (replicates Python: flux*area/aproj)
+        double flux = pa[k] / proj;
+
+        // Bounding box in centred-pixel integer coords.
+        // floor(val + 0.5) matches the Python: int(np.floor(val + 0.5))
+        int ixmin = (int)std::floor(std::min({tv[0], tv[2], tv[4]}) + 0.5);
+        int ixmax = (int)std::floor(std::max({tv[0], tv[2], tv[4]}) + 0.5);
+        int iymin = (int)std::floor(std::min({tv[1], tv[3], tv[5]}) + 0.5);
+        int iymax = (int)std::floor(std::max({tv[1], tv[3], tv[5]}) + 0.5);
+
+        ixmin = std::max(ixmin, -no2);
+        ixmax = std::min(ixmax,  no2);
+        iymin = std::max(iymin, -no2);
+        iymax = std::min(iymax,  no2);
+
+        for (int iy = iymin; iy <= iymax; iy++) {
+            for (int ix = ixmin; ix <= ixmax; ix++) {
+                double area = clip_area_cpp(tri, ix, iy);
+                if (area > 0.0)
+                    img[(iy + no2)*npix + (ix + no2)] += flux * area;
+            }
+        }
+    }
+}
+
+
 PYBIND11_MODULE(_danish, m) {
     m.def("poly_grid_contains", &poly_grid_contains);
     m.def(
@@ -424,4 +701,6 @@ PYBIND11_MODULE(_danish, m) {
     );
     m.def("enclosed_circle", &enclosed_circle);
     m.def("enclosed_strut", &enclosed_strut);
+    m.def("clip_triangles_to_circle", &clip_triangles_to_circle);
+    m.def("accumulate_triangles", &accumulate_triangles);
 }
