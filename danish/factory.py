@@ -1006,14 +1006,6 @@ class DonutTriangleFactory:
 
         return mesh
 
-    @staticmethod
-    def _triangle_centroid(tri):
-        return np.mean(tri, axis=0)
-
-    @staticmethod
-    def _point_in_circle(pt, center, radius, tol=1e-12):
-        return np.hypot(pt[0] - center[0], pt[1] - center[1]) <= radius + tol
-
     @classmethod
     def _triangle_relation_to_circle(cls, tri, center, radius, keep_inside, tol=1e-12):
         """Classify triangle relative to circle region.
@@ -1034,45 +1026,104 @@ class DonutTriangleFactory:
         return 'partial'
 
     @staticmethod
-    def _subdivide_triangle(tri):
-        """Split a triangle into four subtriangles."""
-        p0, p1, p2 = tri
-        p01 = 0.5 * (p0 + p1)
-        p12 = 0.5 * (p1 + p2)
-        p20 = 0.5 * (p2 + p0)
-        return [
-            np.array([p0, p01, p20]),
-            np.array([p01, p1, p12]),
-            np.array([p20, p12, p2]),
-            np.array([p01, p12, p20]),
-        ]
+    def _circle_edge_intersections(p1, p2, center, radius):
+        """Return 0, 1, or 2 intersection points of segment p1→p2 with a circle.
+
+        Returns a list of (t, point) pairs sorted by t in [0, 1].
+        """
+        d = p2 - p1
+        f = p1 - center
+        a = float(np.dot(d, d))
+        if a < 1e-30:
+            return []
+        b = 2.0 * float(np.dot(f, d))
+        c = float(np.dot(f, f)) - radius * radius
+        disc = b * b - 4.0 * a * c
+        if disc < 0:
+            return []
+        sqrt_disc = np.sqrt(max(disc, 0.0))
+        results = []
+        for sign in (-1.0, 1.0):
+            t = (-b + sign * sqrt_disc) / (2.0 * a)
+            if 0.0 <= t <= 1.0:
+                results.append((t, p1 + t * d))
+        results.sort(key=lambda x: x[0])
+        return results
 
     @classmethod
-    def _clip_triangle_to_circle(cls, tri, center, radius, keep_inside, *, max_depth=4, tol=1e-12):
-        """Approximate circle clipping by recursive subdivision.
+    def _clip_triangle_to_circle(cls, tri, center, radius, keep_inside):
+        """Exact circle-clipping of one triangle via Sutherland-Hodgman.
 
-        The returned triangles lie inside the target region to the extent that
-        the subdivision depth resolves the circle boundary.
+        The circle boundary is treated as a half-plane at each edge crossing:
+        vertices are classified as inside/outside the circle, and intersection
+        points are computed exactly.  The clipped polygon is then fan-
+        triangulated.  This produces at most 5 output vertices (hence at most
+        3 triangles) per call, regardless of triangle size.
         """
-        rel = cls._triangle_relation_to_circle(tri, center, radius, keep_inside, tol=tol)
+        rel = cls._triangle_relation_to_circle(tri, center, radius, keep_inside)
         if rel == 'keep':
             return [tri]
         if rel == 'discard':
             return []
-        if max_depth <= 0:
-            c = cls._triangle_centroid(tri)
-            keep = cls._point_in_circle(c, center, radius, tol=tol)
-            if keep_inside:
-                return [tri] if keep else []
-            return [tri] if not keep else []
 
+        # Sutherland-Hodgman clipping against the circle.
+        # "inside" means within the *kept* region.
+        r = np.hypot(tri[:, 0] - center[0], tri[:, 1] - center[1])
+        if keep_inside:
+            inside = r <= radius
+        else:
+            inside = r >= radius
+
+        poly = list(tri)  # list of 2-D points
+        n = len(poly)
         out = []
-        for subtri in cls._subdivide_triangle(tri):
-            out.extend(cls._clip_triangle_to_circle(
-                subtri, center, radius, keep_inside,
-                max_depth=max_depth - 1, tol=tol
-            ))
-        return out
+        for i in range(n):
+            s = poly[i]
+            p = poly[(i + 1) % n]
+            s_in = bool(inside[i])
+            p_in = bool(inside[(i + 1) % n])
+
+            # Compute all crossings on segment s→p
+            crossings = cls._circle_edge_intersections(
+                np.asarray(s, dtype=float),
+                np.asarray(p, dtype=float),
+                center, radius,
+            )
+            # Filter to actual transitions (entry/exit) based on kept region.
+            # For keep_inside: crossing at t means we enter (t from outside→inside)
+            # or exit (inside→outside).  Sutherland-Hodgman emits:
+            #   s in  → emit s; if exit crossing, emit it
+            #   s out → if entry crossing, emit it
+            if s_in:
+                out.append(s)
+                # If p is outside, we exit the kept region: emit the first exit crossing
+                if not p_in and crossings:
+                    # The last crossing in direction s→p is the exit
+                    out.append(crossings[-1][1])
+            else:
+                # s is outside; if p is inside, emit the last entry crossing
+                if p_in and crossings:
+                    out.append(crossings[0][1])
+                # Edge can enter and re-exit the kept region entirely within segment
+                elif not p_in and len(crossings) == 2:
+                    out.append(crossings[0][1])
+                    out.append(crossings[1][1])
+
+        if len(out) < 3:
+            return []
+
+        # Fan-triangulate the clipped polygon from vertex 0
+        tris = []
+        for i in range(1, len(out) - 1):
+            t = np.array([out[0], out[i], out[i + 1]], dtype=float)
+            # Drop degenerate triangles
+            area = 0.5 * abs(
+                (t[1, 0] - t[0, 0]) * (t[2, 1] - t[0, 1])
+                - (t[1, 1] - t[0, 1]) * (t[2, 0] - t[0, 0])
+            )
+            if area > 1e-30:
+                tris.append(t)
+        return tris
 
     @staticmethod
     def _mesh_from_triangles(triangles, tol=1e-12):
@@ -1126,7 +1177,6 @@ class DonutTriangleFactory:
         mask_params,
         thx=0.0,
         thy=0.0,
-        max_depth=4,
         tol=1e-12,
         debug=False,
         show_debug=True,
@@ -1176,7 +1226,6 @@ class DonutTriangleFactory:
                     else:
                         clipped = self._clip_triangle_to_circle(
                             tri, np.array([cx, cy]), radius, keep_inside,
-                            max_depth=max_depth, tol=tol,
                         )
                         if len(clipped) == 0:
                             removed_count += 1

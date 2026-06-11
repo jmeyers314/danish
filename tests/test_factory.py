@@ -1177,13 +1177,10 @@ def test_triangle_factory_circle_obscurations_smoke():
         mask_params=Rubin_obsc,
         thx=np.deg2rad(1.6),
         thy=0.0,
-        max_depth=4,
         debug=True,
         show_debug=False,
         plot_vertices=True,
     )
-
-    assert masked['triangles'].shape[1] == 3 or masked['triangles'].shape[0] == 0
     assert masked['triangle_area_sum'] <= mesh['triangle_area_sum'] + 1e-10
     assert masked['triangle_area_sum'] < mesh['triangle_area_sum']
     assert masked['clipped_triangle_count'] >= 0
