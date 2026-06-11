@@ -49,6 +49,59 @@ F2P_ACTIVE_SET_MIN = 100
 _f2p_stats = None
 
 
+# ---------------------------------------------------------------------------
+# Triangle-image accumulation helpers
+# ---------------------------------------------------------------------------
+
+def _sh_clip(poly, inside_fn, intersect_fn):
+    """One-edge Sutherland-Hodgman clip."""
+    if not poly:
+        return poly
+    result = []
+    s = poly[-1]
+    for p in poly:
+        if inside_fn(p):
+            if not inside_fn(s):
+                result.append(intersect_fn(s, p))
+            result.append(p)
+        elif inside_fn(s):
+            result.append(intersect_fn(s, p))
+        s = p
+    return result
+
+
+def _clip_area(tri_verts, ix, iy):
+    """Area of intersection of triangle with pixel [ix±0.5, iy±0.5]."""
+    x0, x1 = ix - 0.5, ix + 0.5
+    y0, y1 = iy - 0.5, iy + 0.5
+
+    def lerp(s, p, val, ax):
+        t = (val - s[ax]) / (p[ax] - s[ax])
+        return s + t * (p - s)
+
+    poly = list(tri_verts)
+    poly = _sh_clip(poly, lambda p: p[0] >= x0, lambda s, p: lerp(s, p, x0, 0))
+    poly = _sh_clip(poly, lambda p: p[0] <= x1, lambda s, p: lerp(s, p, x1, 0))
+    poly = _sh_clip(poly, lambda p: p[1] >= y0, lambda s, p: lerp(s, p, y0, 1))
+    poly = _sh_clip(poly, lambda p: p[1] <= y1, lambda s, p: lerp(s, p, y1, 1))
+
+    if len(poly) < 3:
+        return 0.0
+
+    arr = np.array(poly)
+    x, y = arr[:, 0], arr[:, 1]
+    return 0.5 * abs(float(np.dot(x, np.roll(y, -1)) - np.dot(y, np.roll(x, -1))))
+
+
+def _shoelace_area(verts):
+    """Signed shoelace area of a polygon (verts: (..., N, 2))."""
+    x = verts[..., :, 0]
+    y = verts[..., :, 1]
+    return 0.5 * np.abs(
+        np.sum(x * np.roll(y, -1, axis=-1) - y * np.roll(x, -1, axis=-1), axis=-1)
+    )
+
+
 def pupil_to_focal(
     u, v, *,
     Z=None, aberrations=None, R_outer=1.0, R_inner=0.0,
@@ -1386,6 +1439,107 @@ class DonutTriangleFactory:
         if show:
             plt.show()
         return fig, ax
+
+    def image(
+        self,
+        mesh,
+        *,
+        Z=None,
+        aberrations=None,
+        focal_length=10.31,
+        pixel_scale=10e-6,
+        npix=181,
+    ):
+        """Accumulate mesh triangles onto pixels via forward mapping.
+
+        Each triangle carries flux proportional to its pupil-space area.
+        That flux is apportioned into output pixels according to the overlap
+        area between the projected triangle and each pixel square.
+
+        Parameters
+        ----------
+        mesh : dict
+            Output from build_annulus_mesh or apply_circle_obscurations.
+        Z : galsim.zernike.Zernike, optional
+            Aberrations in meters.
+        aberrations : array of float, optional
+            Aberrations in meters.
+        focal_length : float
+            Focal length in meters. Default 10.31 (LSST).
+        pixel_scale : float
+            Pixel scale in meters. Default 10e-6 (10 µm).
+        npix : int
+            Number of pixels on each side. Must be odd.
+
+        Returns
+        -------
+        image : ndarray, shape (npix, npix)
+            Accumulated flux image.
+        """
+        if npix % 2 == 0:
+            raise ValueError(f"Argument npix={npix} must be odd.")
+
+        if Z is None:
+            Z = galsim.zernike.Zernike(
+                aberrations, R_outer=self.pupil_R_outer, R_inner=self.pupil_R_inner
+            )
+
+        no2 = (npix - 1) // 2
+
+        verts_uv = mesh["vertices"]   # (N, 2) in meters
+        tris     = mesh["triangles"]  # (M, 3) indices
+        tri_uv   = verts_uv[tris]     # (M, 3, 2) in meters
+
+        # Pupil-space areas (flux per triangle)
+        pupil_areas = _shoelace_area(tri_uv)  # m²
+
+        # Forward-map all vertices to centred pixel coordinates
+        u_all = verts_uv[:, 0]
+        v_all = verts_uv[:, 1]
+
+        Z1 = Z * focal_length
+        xf = -Z1.gradX(u_all, v_all)
+        yf = -Z1.gradY(u_all, v_all)
+
+        xp = xf / pixel_scale
+        yp = yf / pixel_scale
+
+        verts_px = np.column_stack([xp, yp])  # (N, 2)
+        tri_px   = verts_px[tris]             # (M, 3, 2)
+
+        # Projected areas in pixel²
+        proj_areas = _shoelace_area(tri_px)
+
+        # Guard against degenerate projected triangles
+        valid = proj_areas > 0.0
+
+        # Accumulate onto image
+        image = np.zeros((npix, npix), dtype=np.float64)
+
+        for k in np.where(valid)[0]:
+            tri_v   = tri_px[k]        # (3, 2) in centred pixel coords
+            flux    = pupil_areas[k]
+            aproj   = proj_areas[k]
+
+            # Bounding box in centred pixel integer indices
+            xmin = int(np.floor(tri_v[:, 0].min() + 0.5))
+            xmax = int(np.floor(tri_v[:, 0].max() + 0.5))
+            ymin = int(np.floor(tri_v[:, 1].min() + 0.5))
+            ymax = int(np.floor(tri_v[:, 1].max() + 0.5))
+
+            # Clip to image bounds
+            xmin = max(xmin, -no2)
+            xmax = min(xmax,  no2)
+            ymin = max(ymin, -no2)
+            ymax = min(ymax,  no2)
+
+            for iy in range(ymin, ymax + 1):
+                for ix in range(xmin, xmax + 1):
+                    area = _clip_area(tri_v, ix, iy)
+                    if area > 0.0:
+                        image[iy + no2, ix + no2] += flux * area / aproj
+
+        return image
 
 
 class DonutFactory:
