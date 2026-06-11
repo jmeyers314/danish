@@ -36,7 +36,11 @@ import galsim
 import numpy as np
 from scipy.spatial import Delaunay
 
-from ._danish import poly_grid_contains, pixel_frac, enclosed_circle, enclosed_strut
+from ._danish import (
+    poly_grid_contains, pixel_frac, enclosed_circle, enclosed_strut,
+    clip_triangles_to_circle as _clip_triangles_to_circle_cpp,
+    accumulate_triangles as _accumulate_triangles_cpp,
+)
 from .utils import hexapolar, gq_points
 
 F2P_PREFIT_ORDER = 2
@@ -1192,9 +1196,11 @@ class DonutTriangleFactory:
 
         tri_coords = mesh['vertices'][mesh['triangles']]
         active_circles = []
-        kept = tri_coords
+        kept = np.ascontiguousarray(tri_coords, dtype=np.float64)
         removed_count = 0
         clipped_count = 0
+        n_rem = np.zeros(1, dtype=np.int32)
+        n_clip = np.zeros(1, dtype=np.int32)
 
         for item, val in mask_params.items():
             if item == 'Spider_3D':
@@ -1216,26 +1222,23 @@ class DonutTriangleFactory:
                     'keep_inside': keep_inside,
                 })
 
-                next_tris = []
-                for tri in kept:
-                    rel = self._triangle_relation_to_circle(tri, np.array([cx, cy]), radius, keep_inside, tol=tol)
-                    if rel == 'keep':
-                        next_tris.append(tri)
-                    elif rel == 'discard':
-                        removed_count += 1
-                    else:
-                        clipped = self._clip_triangle_to_circle(
-                            tri, np.array([cx, cy]), radius, keep_inside,
-                        )
-                        if len(clipped) == 0:
-                            removed_count += 1
-                        else:
-                            clipped_count += 1
-                            next_tris.extend(clipped)
-                if len(next_tris) == 0:
-                    kept = np.empty((0, 3, 2), dtype=float)
-                else:
-                    kept = np.array(next_tris, dtype=float)
+                if len(kept) > 0:
+                    out_buf = np.empty((len(kept) * 3, 3, 2), dtype=np.float64)
+                    n_rem[0] = 0
+                    n_clip[0] = 0
+                    ntri_out = _clip_triangles_to_circle_cpp(
+                        kept.ctypes.data,
+                        len(kept),
+                        float(cx), float(cy), float(radius),
+                        int(keep_inside),
+                        float(tol),
+                        out_buf.ctypes.data,
+                        n_rem.ctypes.data,
+                        n_clip.ctypes.data,
+                    )
+                    kept = np.ascontiguousarray(out_buf[:ntri_out])
+                    removed_count += int(n_rem[0])
+                    clipped_count += int(n_clip[0])
 
         masked = self._mesh_from_triangles(kept, tol=tol)
         masked['kept_triangle_count'] = int(len(masked['triangles']))
@@ -1559,35 +1562,18 @@ class DonutTriangleFactory:
         # Projected areas in pixel²
         proj_areas = _shoelace_area(tri_px)
 
-        # Guard against degenerate projected triangles
-        valid = proj_areas > 0.0
-
-        # Accumulate onto image
+        # Guard against degenerate projected triangles (C++ kernel skips proj<=0)
         image = np.zeros((npix, npix), dtype=np.float64)
+        tri_px_c = np.ascontiguousarray(tri_px, dtype=np.float64)
 
-        for k in np.where(valid)[0]:
-            tri_v   = tri_px[k]        # (3, 2) in centred pixel coords
-            flux    = pupil_areas[k]
-            aproj   = proj_areas[k]
-
-            # Bounding box in centred pixel integer indices
-            xmin = int(np.floor(tri_v[:, 0].min() + 0.5))
-            xmax = int(np.floor(tri_v[:, 0].max() + 0.5))
-            ymin = int(np.floor(tri_v[:, 1].min() + 0.5))
-            ymax = int(np.floor(tri_v[:, 1].max() + 0.5))
-
-            # Clip to image bounds
-            xmin = max(xmin, -no2)
-            xmax = min(xmax,  no2)
-            ymin = max(ymin, -no2)
-            ymax = min(ymax,  no2)
-
-            for iy in range(ymin, ymax + 1):
-                for ix in range(xmin, xmax + 1):
-                    area = _clip_area(tri_v, ix, iy)
-                    if area > 0.0:
-                        image[iy + no2, ix + no2] += flux * area / aproj
-
+        _accumulate_triangles_cpp(
+            tri_px_c.ctypes.data,
+            pupil_areas.ctypes.data,
+            proj_areas.ctypes.data,
+            image.ctypes.data,
+            len(proj_areas),
+            npix,
+        )
         return image
 
 
