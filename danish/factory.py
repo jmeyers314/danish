@@ -34,6 +34,7 @@ from functools import lru_cache
 
 import galsim
 import numpy as np
+from scipy.spatial import Delaunay
 
 from ._danish import poly_grid_contains, pixel_frac, enclosed_circle, enclosed_strut
 from .utils import hexapolar, gq_points
@@ -838,6 +839,227 @@ def _enclosed_fraction(
         frac.ctypes.data, len(u)
     )
     return frac
+
+
+class DonutTriangleFactory:
+    """Build an annulus-clipped pupil triangle mesh for forward projection.
+
+    This class intentionally focuses on mesh construction/diagnostics first.
+    Projection and pixel accumulation are future milestones.
+    """
+
+    def __init__(
+        self, *,
+        R_outer=4.18, R_inner=2.5498,
+        pupil_R_outer=None, pupil_R_inner=None,
+        focal_length=10.31,
+        pixel_scale=10e-6,
+    ):
+        self.R_outer = R_outer
+        self.R_inner = R_inner
+        self.pupil_R_outer = pupil_R_outer if pupil_R_outer is not None else R_outer
+        self.pupil_R_inner = pupil_R_inner if pupil_R_inner is not None else R_inner * 0.9
+        self.focal_length = focal_length
+        self.pixel_scale = pixel_scale
+
+    def build_annulus_mesh(
+        self, *,
+        nrad=18,
+        naz=96,
+        kfold=6,
+        boundary_naz=720,
+        dedup_tol=1e-12,
+        debug=False,
+        show_debug=True,
+        plot_vertices=False,
+    ):
+        """Build a clipped annulus mesh using ring-stratified triangles.
+
+        Boundary triangles are preserved instead of discarded, which keeps the
+        annulus area accurate and gives a stable geometric baseline before any
+        focal-plane projection work.
+        """
+        outer = float(self.pupil_R_outer)
+        inner = float(max(0.0, self.pupil_R_inner))
+        if inner >= outer:
+            raise ValueError("pupil_R_inner must be smaller than pupil_R_outer")
+
+        # Use explicit boundary rings plus smoothly interpolated interior rings.
+        theta_count = int(boundary_naz)
+        if theta_count < 12:
+            theta_count = 12
+        if theta_count % kfold:
+            theta_count += kfold - (theta_count % kfold)
+        thetas = np.linspace(0.0, 2.0*np.pi, theta_count, endpoint=False)
+
+        n_layers = max(2, int(nrad))
+        # Space layers approximately uniformly in area for better boundary fidelity.
+        t = np.linspace(0.0, 1.0, n_layers)
+        radii = np.sqrt(inner*inner + t*(outer*outer - inner*inner))
+
+        rings = [np.column_stack([r*np.cos(thetas), r*np.sin(thetas)]) for r in radii]
+        vertices = np.vstack(rings)
+        triangles = []
+
+        def vid(layer, j):
+            return layer * theta_count + (j % theta_count)
+
+        for layer in range(n_layers - 1):
+            for j in range(theta_count):
+                a = vid(layer, j)
+                b = vid(layer + 1, j)
+                c = vid(layer + 1, j + 1)
+                d = vid(layer, j + 1)
+                # Two triangles per quad, all oriented CCW.
+                triangles.append([a, b, c])
+                triangles.append([a, c, d])
+
+        triangles = np.asarray(triangles, dtype=np.int32)
+        tv = vertices[triangles]
+        areas = 0.5 * np.abs(
+            (tv[:, 1, 0] - tv[:, 0, 0]) * (tv[:, 2, 1] - tv[:, 0, 1])
+            - (tv[:, 1, 1] - tv[:, 0, 1]) * (tv[:, 2, 0] - tv[:, 0, 0])
+        )
+
+        # Triangle categories for diagnostics: everything touching boundary rings
+        # is treated as clipped; the rest are interior triangles.
+        boundary_layers_mask = np.zeros(len(vertices), dtype=bool)
+        boundary_layers_mask[:theta_count] = True
+        boundary_layers_mask[-theta_count:] = True
+        vertex_is_boundary = boundary_layers_mask[triangles]
+        clipped_mask = np.any(vertex_is_boundary, axis=1)
+        inside_mask = ~clipped_mask
+
+        mesh = {
+            'vertices': vertices,
+            'triangles': triangles,
+            'inside_triangles': int(np.sum(inside_mask)),
+            'clipped_input_triangles': int(np.sum(clipped_mask)),
+            'rejected_input_triangles': 0,
+            'triangle_area_sum': float(np.sum(areas)),
+        }
+
+        if debug:
+            fig, ax = self.plot_mesh_debug(
+                mesh,
+                inside_triangles=tv[inside_mask],
+                clipped_input_triangles=tv[clipped_mask],
+                rejected_input_triangles=[],
+                show=show_debug,
+                plot_vertices=plot_vertices,
+            )
+            mesh['debug_figure'] = fig
+            mesh['debug_axes'] = ax
+
+        return mesh
+
+    def plot_mesh_debug(
+        self,
+        mesh,
+        *,
+        inside_triangles=None,
+        clipped_input_triangles=None,
+        rejected_input_triangles=None,
+        show=True,
+        plot_vertices=False,
+    ):
+        """Plot annulus boundaries and triangle diagnostics."""
+        import matplotlib.pyplot as plt
+        from matplotlib.collections import LineCollection
+        from matplotlib.lines import Line2D
+
+        if inside_triangles is None:
+            inside_triangles = []
+        if clipped_input_triangles is None:
+            clipped_input_triangles = []
+        if rejected_input_triangles is None:
+            rejected_input_triangles = []
+
+        fig, ax = plt.subplots(figsize=(8, 8))
+        th = np.linspace(0.0, 2.0 * np.pi, 1000)
+        ou = self.pupil_R_outer * np.cos(th)
+        ov = self.pupil_R_outer * np.sin(th)
+        iu = self.pupil_R_inner * np.cos(th)
+        iv = self.pupil_R_inner * np.sin(th)
+        ax.plot(ou, ov, 'k-', linewidth=1.2)
+        if self.pupil_R_inner > 0:
+            ax.plot(iu, iv, 'k--', linewidth=1.2)
+
+        if len(mesh['triangles']):
+            tv = mesh['vertices'][mesh['triangles']]
+            segs = np.concatenate([
+                tv[:, [0, 1], :],
+                tv[:, [1, 2], :],
+                tv[:, [2, 0], :],
+            ], axis=0)
+            ax.add_collection(LineCollection(segs, colors='steelblue', linewidths=0.5, alpha=0.8))
+
+        if plot_vertices:
+            verts = mesh['vertices']
+            if len(verts):
+                ax.plot(verts[:, 0], verts[:, 1], '.', color='0.2', alpha=0.3, markersize=1.0)
+
+        if len(inside_triangles):
+            ins = np.array(inside_triangles)
+            segs = np.concatenate([
+                ins[:, [0, 1], :],
+                ins[:, [1, 2], :],
+                ins[:, [2, 0], :],
+            ], axis=0)
+            ax.add_collection(LineCollection(segs, colors='forestgreen', linewidths=0.5, alpha=0.35))
+
+        if len(clipped_input_triangles):
+            clp = np.array(clipped_input_triangles)
+            segs = np.concatenate([
+                clp[:, [0, 1], :],
+                clp[:, [1, 2], :],
+                clp[:, [2, 0], :],
+            ], axis=0)
+            ax.add_collection(LineCollection(segs, colors='goldenrod', linewidths=0.7, alpha=0.55))
+
+        if len(rejected_input_triangles):
+            rej = np.array(rejected_input_triangles)
+            segs = np.concatenate([
+                rej[:, [0, 1], :],
+                rej[:, [1, 2], :],
+                rej[:, [2, 0], :],
+            ], axis=0)
+            ax.add_collection(LineCollection(segs, colors='firebrick', linewidths=0.7, alpha=0.55))
+
+        verts = mesh['vertices']
+        if len(verts):
+            ax.plot(verts[:, 0], verts[:, 1], '.', color='black', alpha=0.25, markersize=1.2)
+
+        ax.set_aspect('equal')
+        ax.set_xlabel('u (m)')
+        ax.set_ylabel('v (m)')
+
+        analytic_area = np.pi * (self.pupil_R_outer**2 - self.pupil_R_inner**2)
+        rel_err = 0.0 if analytic_area == 0 else (mesh['triangle_area_sum'] - analytic_area) / analytic_area
+        ax.set_title(
+            'Annulus Triangulation Debug\n'
+            f"inside={mesh['inside_triangles']}, clipped_in={mesh['clipped_input_triangles']}, "
+            f"rejected_in={mesh['rejected_input_triangles']}, rel area err={rel_err:.3e}"
+        )
+        ax.legend(handles=[
+            Line2D([0], [0], color='k', linestyle='-', linewidth=1.2),
+            Line2D([0], [0], color='k', linestyle='--', linewidth=1.2),
+            Line2D([0], [0], color='steelblue', linewidth=0.8),
+            Line2D([0], [0], color='forestgreen', linewidth=0.8),
+            Line2D([0], [0], color='goldenrod', linewidth=0.8),
+            Line2D([0], [0], color='firebrick', linewidth=0.8),
+        ], labels=[
+            'Outer annulus boundary',
+            'Inner annulus boundary',
+            'Output mesh triangles',
+            'Inside input triangles',
+            'Clipped input triangles',
+            'Rejected input triangles',
+        ], loc='best')
+
+        if show:
+            plt.show()
+        return fig, ax
 
 
 class DonutFactory:

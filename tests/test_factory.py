@@ -1118,5 +1118,45 @@ def test_spot_image():
 
 
 
+@timer
+def test_triangle_factory_annulus_mesh_area():
+    factory = danish.DonutTriangleFactory(
+        R_outer=4.18,
+        R_inner=2.5498,
+    )
+    mesh = factory.build_annulus_mesh(
+        nrad=16,
+        naz=84,
+        boundary_naz=360,
+        debug=False,
+    )
+
+    assert mesh['vertices'].shape[1] == 2
+    assert mesh['triangles'].shape[1] == 3
+    assert mesh['triangles'].shape[0] > 0
+
+    analytic = np.pi * (factory.pupil_R_outer**2 - factory.pupil_R_inner**2)
+    rel_err = abs(mesh['triangle_area_sum'] - analytic) / analytic
+    assert rel_err < 2e-2
+
+
+@timer
+def test_triangle_factory_debug_plot_smoke():
+    factory = danish.DonutTriangleFactory(
+        R_outer=4.18,
+        R_inner=2.5498,
+    )
+    mesh = factory.build_annulus_mesh(
+        nrad=12,
+        naz=72,
+        boundary_naz=240,
+        debug=True,
+        show_debug=False,
+    )
+
+    assert 'debug_figure' in mesh
+    assert 'debug_axes' in mesh
+    assert mesh['debug_axes'] is not None
+
 if __name__ == "__main__":
     runtests(__file__)
