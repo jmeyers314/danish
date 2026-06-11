@@ -953,6 +953,315 @@ class DonutTriangleFactory:
 
         return mesh
 
+    @staticmethod
+    def _triangle_centroid(tri):
+        return np.mean(tri, axis=0)
+
+    @staticmethod
+    def _point_in_circle(pt, center, radius, tol=1e-12):
+        return np.hypot(pt[0] - center[0], pt[1] - center[1]) <= radius + tol
+
+    @classmethod
+    def _triangle_relation_to_circle(cls, tri, center, radius, keep_inside, tol=1e-12):
+        """Classify triangle relative to circle region.
+
+        Returns one of 'keep', 'discard', or 'partial'.
+        """
+        r = np.hypot(tri[:, 0] - center[0], tri[:, 1] - center[1])
+        if keep_inside:
+            if np.all(r <= radius + tol):
+                return 'keep'
+            if np.all(r >= radius - tol):
+                return 'discard'
+        else:
+            if np.all(r >= radius - tol):
+                return 'keep'
+            if np.all(r <= radius + tol):
+                return 'discard'
+        return 'partial'
+
+    @staticmethod
+    def _subdivide_triangle(tri):
+        """Split a triangle into four subtriangles."""
+        p0, p1, p2 = tri
+        p01 = 0.5 * (p0 + p1)
+        p12 = 0.5 * (p1 + p2)
+        p20 = 0.5 * (p2 + p0)
+        return [
+            np.array([p0, p01, p20]),
+            np.array([p01, p1, p12]),
+            np.array([p20, p12, p2]),
+            np.array([p01, p12, p20]),
+        ]
+
+    @classmethod
+    def _clip_triangle_to_circle(cls, tri, center, radius, keep_inside, *, max_depth=4, tol=1e-12):
+        """Approximate circle clipping by recursive subdivision.
+
+        The returned triangles lie inside the target region to the extent that
+        the subdivision depth resolves the circle boundary.
+        """
+        rel = cls._triangle_relation_to_circle(tri, center, radius, keep_inside, tol=tol)
+        if rel == 'keep':
+            return [tri]
+        if rel == 'discard':
+            return []
+        if max_depth <= 0:
+            c = cls._triangle_centroid(tri)
+            keep = cls._point_in_circle(c, center, radius, tol=tol)
+            if keep_inside:
+                return [tri] if keep else []
+            return [tri] if not keep else []
+
+        out = []
+        for subtri in cls._subdivide_triangle(tri):
+            out.extend(cls._clip_triangle_to_circle(
+                subtri, center, radius, keep_inside,
+                max_depth=max_depth - 1, tol=tol
+            ))
+        return out
+
+    @staticmethod
+    def _mesh_from_triangles(triangles, tol=1e-12):
+        """Deduplicate vertices and create a mesh dictionary from triangle coordinates."""
+        if len(triangles) == 0:
+            return {
+                'vertices': np.empty((0, 2), dtype=float),
+                'triangles': np.empty((0, 3), dtype=np.int32),
+                'triangle_area_sum': 0.0,
+            }
+
+        scale = 1.0 / tol
+        vert_map = {}
+        verts = []
+        conn = []
+        for tri in triangles:
+            idx = []
+            for p in tri:
+                key = tuple(np.round(p * scale).astype(np.int64))
+                j = vert_map.get(key)
+                if j is None:
+                    j = len(verts)
+                    verts.append(np.array(p, dtype=float))
+                    vert_map[key] = j
+                idx.append(j)
+            if len(set(idx)) == 3:
+                conn.append(idx)
+
+        verts = np.array(verts, dtype=float)
+        conn = np.array(conn, dtype=np.int32)
+        if len(conn):
+            tv = verts[conn]
+            areas = 0.5 * np.abs(
+                (tv[:, 1, 0] - tv[:, 0, 0]) * (tv[:, 2, 1] - tv[:, 0, 1])
+                - (tv[:, 1, 1] - tv[:, 0, 1]) * (tv[:, 2, 0] - tv[:, 0, 0])
+            )
+            area_sum = float(np.sum(areas))
+        else:
+            area_sum = 0.0
+
+        return {
+            'vertices': verts,
+            'triangles': conn,
+            'triangle_area_sum': area_sum,
+        }
+
+    def apply_circle_obscurations(
+        self,
+        mesh,
+        *,
+        mask_params,
+        thx=0.0,
+        thy=0.0,
+        max_depth=4,
+        tol=1e-12,
+        debug=False,
+        show_debug=True,
+        plot_vertices=False,
+    ):
+        """Apply Rubin-style circular obscurations to an annulus mesh.
+
+        Spider_3D entries are ignored on purpose; this method handles only the
+        circular obscuration terms in the YAML file.
+        """
+        thr = np.sqrt(thx*thx + thy*thy)
+        thr_deg = np.rad2deg(thr)
+
+        tri_coords = mesh['vertices'][mesh['triangles']]
+        active_circles = []
+        kept = tri_coords
+        removed_count = 0
+        clipped_count = 0
+
+        for item, val in mask_params.items():
+            if item == 'Spider_3D':
+                continue
+            for edge, edge_params in val.items():
+                if thr_deg < edge_params['thetaMin'] or thr_deg > edge_params['thetaMax']:
+                    continue
+
+                radius = float(np.polyval(edge_params['radius'], thr_deg))
+                center = float(np.polyval(edge_params['center'], thr_deg))
+                cx = center * thx / thr if thr > 0 else 0.0
+                cy = center * thy / thr if thr > 0 else 0.0
+                keep_inside = bool(edge_params['clear'])
+                active_circles.append({
+                    'item': item,
+                    'edge': edge,
+                    'center': np.array([cx, cy], dtype=float),
+                    'radius': radius,
+                    'keep_inside': keep_inside,
+                })
+
+                next_tris = []
+                for tri in kept:
+                    rel = self._triangle_relation_to_circle(tri, np.array([cx, cy]), radius, keep_inside, tol=tol)
+                    if rel == 'keep':
+                        next_tris.append(tri)
+                    elif rel == 'discard':
+                        removed_count += 1
+                    else:
+                        clipped = self._clip_triangle_to_circle(
+                            tri, np.array([cx, cy]), radius, keep_inside,
+                            max_depth=max_depth, tol=tol,
+                        )
+                        if len(clipped) == 0:
+                            removed_count += 1
+                        else:
+                            clipped_count += 1
+                            next_tris.extend(clipped)
+                if len(next_tris) == 0:
+                    kept = np.empty((0, 3, 2), dtype=float)
+                else:
+                    kept = np.array(next_tris, dtype=float)
+
+        masked = self._mesh_from_triangles(kept, tol=tol)
+        masked['kept_triangle_count'] = int(len(masked['triangles']))
+        masked['removed_triangle_count'] = int(removed_count)
+        masked['clipped_triangle_count'] = int(clipped_count)
+        masked['active_circles'] = active_circles
+        masked['field_angle_deg'] = float(thr_deg)
+        masked['source_mesh'] = mesh
+
+        if debug:
+            fig, ax = self.plot_mesh_debug(
+                masked,
+                inside_triangles=kept,
+                clipped_input_triangles=tri_coords[:0],
+                rejected_input_triangles=tri_coords[:0],
+                show=show_debug,
+                plot_vertices=plot_vertices,
+                circle_specs=active_circles,
+            )
+            masked['debug_figure'] = fig
+            masked['debug_axes'] = ax
+
+        return masked
+
+    def plot_circle_obscuration_debug(
+        self,
+        mesh,
+        masked_mesh=None,
+        *,
+        show=True,
+        plot_vertices=False,
+    ):
+        """Plot the annulus mesh before/after circle obscuration clipping.
+
+        Parameters
+        ----------
+        mesh : dict
+            Source annulus mesh from build_annulus_mesh.
+        masked_mesh : dict, optional
+            Result from apply_circle_obscurations. If omitted, mesh is used.
+        show : bool
+            If True, call plt.show().
+        plot_vertices : bool
+            If True, overlay the mesh vertices.
+        """
+        if masked_mesh is None:
+            masked_mesh = mesh
+
+        import matplotlib.pyplot as plt
+        from matplotlib.collections import LineCollection
+        from matplotlib.lines import Line2D
+
+        fig, ax = plt.subplots(figsize=(8, 8))
+        th = np.linspace(0.0, 2.0*np.pi, 1000)
+        ax.plot(
+            self.pupil_R_outer*np.cos(th),
+            self.pupil_R_outer*np.sin(th),
+            color='k', linewidth=1.2,
+        )
+        if self.pupil_R_inner > 0:
+            ax.plot(
+                self.pupil_R_inner*np.cos(th),
+                self.pupil_R_inner*np.sin(th),
+                color='k', linewidth=1.0, linestyle='--',
+            )
+
+        def _add_mesh_lines(tris, color, linewidth, alpha):
+            if len(tris) == 0:
+                return
+            tv = tris if tris.ndim == 3 else tris[mesh['triangles']]
+            segs = np.concatenate([
+                tv[:, [0, 1], :],
+                tv[:, [1, 2], :],
+                tv[:, [2, 0], :],
+            ], axis=0)
+            ax.add_collection(LineCollection(segs, colors=color, linewidths=linewidth, alpha=alpha))
+
+        _add_mesh_lines(mesh['vertices'][mesh['triangles']], 'steelblue', 0.45, 0.55)
+        if masked_mesh is not mesh:
+            _add_mesh_lines(masked_mesh['vertices'][masked_mesh['triangles']], 'forestgreen', 0.8, 0.85)
+        else:
+            _add_mesh_lines(masked_mesh['vertices'][masked_mesh['triangles']], 'forestgreen', 0.8, 0.85)
+
+        circle_specs = masked_mesh.get('active_circles', [])
+        th_c = np.linspace(0.0, 2.0*np.pi, 400)
+        for spec in circle_specs:
+            c = spec['center']
+            r = spec['radius']
+            color = 'purple' if spec['keep_inside'] else 'tomato'
+            linestyle = '--' if spec['keep_inside'] else ':'
+            ax.plot(c[0] + r*np.cos(th_c), c[1] + r*np.sin(th_c), color=color, linestyle=linestyle, linewidth=1.0, alpha=0.9)
+
+        if plot_vertices:
+            verts = mesh['vertices']
+            if len(verts):
+                ax.plot(verts[:, 0], verts[:, 1], '.', color='0.2', alpha=0.25, markersize=1.0)
+
+        ax.set_aspect('equal')
+        ax.set_xlabel('u (m)')
+        ax.set_ylabel('v (m)')
+
+        src_area = mesh.get('triangle_area_sum', 0.0)
+        masked_area = masked_mesh.get('triangle_area_sum', 0.0)
+        ax.set_title(
+            'Circle Obscuration Debug\n'
+            f"source area={src_area:.4f}, masked area={masked_area:.4f}, "
+            f"active circles={len(circle_specs)}"
+        )
+        ax.legend(handles=[
+            Line2D([0], [0], color='k', linestyle='-', linewidth=1.2),
+            Line2D([0], [0], color='k', linestyle='--', linewidth=1.0),
+            Line2D([0], [0], color='steelblue', linewidth=0.8),
+            Line2D([0], [0], color='forestgreen', linewidth=0.8),
+            Line2D([0], [0], color='purple', linestyle='--', linewidth=1.0),
+            Line2D([0], [0], color='tomato', linestyle=':', linewidth=1.0),
+        ], labels=[
+            'Outer annulus boundary',
+            'Inner annulus boundary',
+            'Source annulus mesh',
+            'Circle-clipped mesh',
+            'Clear circle boundary',
+            'Opaque circle boundary',
+        ], loc='best')
+
+        if show:
+            plt.show()
+        return fig, ax
+
     def plot_mesh_debug(
         self,
         mesh,
@@ -962,6 +1271,7 @@ class DonutTriangleFactory:
         rejected_input_triangles=None,
         show=True,
         plot_vertices=False,
+        circle_specs=None,
     ):
         """Plot annulus boundaries and triangle diagnostics."""
         import matplotlib.pyplot as plt
@@ -999,6 +1309,15 @@ class DonutTriangleFactory:
             if len(verts):
                 ax.plot(verts[:, 0], verts[:, 1], '.', color='0.2', alpha=0.3, markersize=1.0)
 
+        if circle_specs:
+            th = np.linspace(0.0, 2.0*np.pi, 400)
+            for spec in circle_specs:
+                c = spec['center']
+                r = spec['radius']
+                color = 'purple' if spec['keep_inside'] else 'tomato'
+                linestyle = '--' if spec['keep_inside'] else ':'
+                ax.plot(c[0] + r*np.cos(th), c[1] + r*np.sin(th), color=color, linestyle=linestyle, linewidth=1.0, alpha=0.8)
+
         if len(inside_triangles):
             ins = np.array(inside_triangles)
             segs = np.concatenate([
@@ -1035,11 +1354,14 @@ class DonutTriangleFactory:
         ax.set_ylabel('v (m)')
 
         analytic_area = np.pi * (self.pupil_R_outer**2 - self.pupil_R_inner**2)
-        rel_err = 0.0 if analytic_area == 0 else (mesh['triangle_area_sum'] - analytic_area) / analytic_area
+        rel_err = 0.0 if analytic_area == 0 else (mesh.get('triangle_area_sum', 0.0) - analytic_area) / analytic_area
+        inside_count = mesh.get('inside_triangles', len(inside_triangles))
+        clipped_count = mesh.get('clipped_input_triangles', len(clipped_input_triangles))
+        rejected_count = mesh.get('rejected_input_triangles', len(rejected_input_triangles))
         ax.set_title(
             'Annulus Triangulation Debug\n'
-            f"inside={mesh['inside_triangles']}, clipped_in={mesh['clipped_input_triangles']}, "
-            f"rejected_in={mesh['rejected_input_triangles']}, rel area err={rel_err:.3e}"
+            f"inside={inside_count}, clipped_in={clipped_count}, "
+            f"rejected_in={rejected_count}, rel area err={rel_err:.3e}"
         )
         ax.legend(handles=[
             Line2D([0], [0], color='k', linestyle='-', linewidth=1.2),
@@ -1048,6 +1370,8 @@ class DonutTriangleFactory:
             Line2D([0], [0], color='forestgreen', linewidth=0.8),
             Line2D([0], [0], color='goldenrod', linewidth=0.8),
             Line2D([0], [0], color='firebrick', linewidth=0.8),
+            Line2D([0], [0], color='purple', linestyle='--', linewidth=1.0),
+            Line2D([0], [0], color='tomato', linestyle=':', linewidth=1.0),
         ], labels=[
             'Outer annulus boundary',
             'Inner annulus boundary',
@@ -1055,6 +1379,8 @@ class DonutTriangleFactory:
             'Inside input triangles',
             'Clipped input triangles',
             'Rejected input triangles',
+            'Clear circle boundary',
+            'Opaque circle boundary',
         ], loc='best')
 
         if show:

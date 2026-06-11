@@ -1158,5 +1158,39 @@ def test_triangle_factory_debug_plot_smoke():
     assert 'debug_axes' in mesh
     assert mesh['debug_axes'] is not None
 
+
+@timer
+def test_triangle_factory_circle_obscurations_smoke():
+    factory = danish.DonutTriangleFactory(
+        R_outer=4.18,
+        R_inner=2.5498,
+    )
+    mesh = factory.build_annulus_mesh(
+        nrad=12,
+        naz=72,
+        boundary_naz=240,
+        debug=False,
+    )
+
+    masked = factory.apply_circle_obscurations(
+        mesh,
+        mask_params=Rubin_obsc,
+        thx=np.deg2rad(1.6),
+        thy=0.0,
+        max_depth=4,
+        debug=True,
+        show_debug=False,
+        plot_vertices=True,
+    )
+
+    assert masked['triangles'].shape[1] == 3 or masked['triangles'].shape[0] == 0
+    assert masked['triangle_area_sum'] <= mesh['triangle_area_sum'] + 1e-10
+    assert masked['triangle_area_sum'] < mesh['triangle_area_sum']
+    assert masked['clipped_triangle_count'] >= 0
+    assert len(masked['active_circles']) > 0
+    assert 'debug_figure' in masked
+    assert 'debug_axes' in masked
+    assert masked['debug_axes'] is not None
+
 if __name__ == "__main__":
     runtests(__file__)
