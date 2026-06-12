@@ -909,15 +909,61 @@ class DonutTriangleFactory:
         self, *,
         R_outer=4.18, R_inner=2.5498,
         pupil_R_outer=None, pupil_R_inner=None,
+        mask_params=None,
         focal_length=10.31,
         pixel_scale=10e-6,
+        nrad=18,
+        naz=96,
+        boundary_naz=720,
     ):
         self.R_outer = R_outer
         self.R_inner = R_inner
         self.pupil_R_outer = pupil_R_outer if pupil_R_outer is not None else R_outer
         self.pupil_R_inner = pupil_R_inner if pupil_R_inner is not None else R_inner * 0.9
+        self.mask_params = mask_params
         self.focal_length = focal_length
         self.pixel_scale = pixel_scale
+        self.nrad = nrad
+        self.naz = naz
+        self.boundary_naz = boundary_naz
+        # Cache: (thx_rounded, thy_rounded) -> masked mesh dict
+        self._mesh_cache = {}
+
+    def _get_mesh(self, thx, thy):
+        """Return a circle-clipped mesh for the given field angle, cached.
+
+        The mesh (triangulation + obscuration clipping) depends only on the
+        field angle, not on the wavefront aberrations, so it is built once
+        per unique (thx, thy) and reused across all calls to image().
+
+        Parameters
+        ----------
+        thx, thy : float
+            Field angle in radians.
+
+        Returns
+        -------
+        dict
+            Masked mesh dictionary as returned by apply_circle_obscurations
+            (or build_annulus_mesh if mask_params is None).
+        """
+        # Round to ~0.1 arcsec to allow cache hits even with floating-point jitter
+        key = (round(thx, 7), round(thy, 7))
+        if key not in self._mesh_cache:
+            mesh = self.build_annulus_mesh(
+                nrad=self.nrad,
+                naz=self.naz,
+                boundary_naz=self.boundary_naz,
+            )
+            if self.mask_params is not None:
+                mesh = self.apply_circle_obscurations(
+                    mesh,
+                    mask_params=self.mask_params,
+                    thx=thx,
+                    thy=thy,
+                )
+            self._mesh_cache[key] = mesh
+        return self._mesh_cache[key]
 
     def build_annulus_mesh(
         self, *,
@@ -1494,6 +1540,62 @@ class DonutTriangleFactory:
 
     def image(
         self,
+        *,
+        Z=None,
+        aberrations=None,
+        thx=0.0,
+        thy=0.0,
+        npix=181,
+        # The following parameters are accepted for API compatibility with
+        # DonutFactory.image() but are not used: DonutTriangleFactory uses a
+        # forward mapping and does not require focal-to-pupil inversion.
+        x_offset=None,
+        y_offset=None,
+        prefit_order=None,
+        maxiter=None,
+        tol=None,
+        strict=None,
+        debug=False,
+    ):
+        """Compute aberrated donut image via forward triangle accumulation.
+
+        This method is API-compatible with ``DonutFactory.image()`` so that
+        ``DonutTriangleFactory`` can be used as a drop-in replacement inside
+        ``SingleDonutModel`` and related fitters.
+
+        The circle-clipped mesh for ``(thx, thy)`` is built once and cached;
+        subsequent calls with the same field angle reuse it directly.
+
+        Parameters
+        ----------
+        Z : galsim.zernike.Zernike, optional
+            Aberrations in meters.  Supply either Z or aberrations.
+        aberrations : array of float, optional
+            Aberrations in meters.
+        thx, thy : float
+            Field angle in radians.
+        npix : int
+            Number of pixels along each edge.  Must be odd.
+        x_offset, y_offset, prefit_order, maxiter, tol, strict, debug :
+            Accepted for API compatibility; ignored.
+
+        Returns
+        -------
+        image : ndarray, shape (npix, npix)
+            Accumulated flux image.
+        """
+        mesh = self._get_mesh(thx, thy)
+        return self._image_from_mesh(
+            mesh,
+            Z=Z,
+            aberrations=aberrations,
+            focal_length=self.focal_length,
+            pixel_scale=self.pixel_scale,
+            npix=npix,
+        )
+
+    def _image_from_mesh(
+        self,
         mesh,
         *,
         Z=None,
@@ -1533,7 +1635,7 @@ class DonutTriangleFactory:
 
         if Z is None:
             Z = galsim.zernike.Zernike(
-                aberrations, R_outer=self.pupil_R_outer, R_inner=self.pupil_R_inner
+                aberrations, R_outer=self.R_outer, R_inner=self.R_inner
             )
 
         no2 = (npix - 1) // 2
@@ -1574,6 +1676,14 @@ class DonutTriangleFactory:
             len(proj_areas),
             npix,
         )
+        # Normalize so sum(image) ≈ 1 (matching DonutFactory convention so that
+        # flux ≈ sum(data)).  The triangle image accumulates pupil area in m²
+        # per focal pixel, while DonutFactory accumulates the inverse Jacobian
+        # in m²_pupil/m²_focal.  The two differ by pixel_scale², so the
+        # normalization is the same annulus-area formula but without /pixel_scale²:
+        #   triangle: image /= π*(R_outer² - R_inner²)         [÷ m²_pupil]
+        #   donut:    img   /= π*(R_outer² - R_inner²)/pix_sc² [÷ m²_pupil/m²_focal]
+        image /= np.pi * (self.pupil_R_outer**2 - self.pupil_R_inner**2)
         return image
 
 
