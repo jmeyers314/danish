@@ -39,6 +39,7 @@ from scipy.spatial import Delaunay
 from ._danish import (
     poly_grid_contains, pixel_frac, enclosed_circle, enclosed_strut,
     clip_triangles_to_circle as _clip_triangles_to_circle_cpp,
+    clip_triangles_to_strut as _clip_triangles_to_strut_cpp,
     accumulate_triangles as _accumulate_triangles_cpp,
 )
 from .utils import hexapolar, gq_points
@@ -910,6 +911,7 @@ class DonutTriangleFactory:
         R_outer=4.18, R_inner=2.5498,
         pupil_R_outer=None, pupil_R_inner=None,
         mask_params=None,
+        spider_angle=None,
         focal_length=10.31,
         pixel_scale=10e-6,
         nrad=18,
@@ -921,6 +923,7 @@ class DonutTriangleFactory:
         self.pupil_R_outer = pupil_R_outer if pupil_R_outer is not None else R_outer
         self.pupil_R_inner = pupil_R_inner if pupil_R_inner is not None else R_inner * 0.9
         self.mask_params = mask_params
+        self.spider_angle = spider_angle
         self.focal_length = focal_length
         self.pixel_scale = pixel_scale
         self.nrad = nrad
@@ -957,6 +960,12 @@ class DonutTriangleFactory:
             )
             if self.mask_params is not None:
                 mesh = self.apply_circle_obscurations(
+                    mesh,
+                    mask_params=self.mask_params,
+                    thx=thx,
+                    thy=thy,
+                )
+                mesh = self.apply_strut_obscurations(
                     mesh,
                     mask_params=self.mask_params,
                     thx=thx,
@@ -1319,6 +1328,91 @@ class DonutTriangleFactory:
 
         return masked
 
+    def apply_strut_obscurations(
+        self,
+        mesh,
+        *,
+        mask_params,
+        thx=0.0,
+        thy=0.0,
+        tol=1e-12,
+        debug=False,
+        show_debug=True,
+        plot_vertices=False,
+    ):
+        """Apply spider vane (strut) obscurations to a triangle mesh.
+
+        Requires self.spider_angle to be set (not None). Each vane from
+        mask_params["Spider_3D"] is projected onto the pupil plane and the
+        triangles crossing the resulting band are clipped.
+        """
+        if self.spider_angle is None:
+            return mesh
+        vanes = mask_params.get("Spider_3D", [])
+        if not vanes:
+            return mesh
+
+        if 'triangles' in mesh and 'vertices' in mesh:
+            tri_coords = mesh['vertices'][mesh['triangles']]
+        else:
+            tri_coords = mesh.get('inside_triangles', np.empty((0, 3, 2)))
+
+        kept = np.ascontiguousarray(tri_coords, dtype=np.float64)
+        removed_count = 0
+        clipped_count = 0
+        n_rem = np.zeros(1, dtype=np.int32)
+        n_clip = np.zeros(1, dtype=np.int32)
+        active_struts = []
+
+        for vane in vanes:
+            p1x, p1y, sth1, cth1, p2x, p2y, sth2, cth2 = _project_spider_vane(
+                vane["r0"], vane["v0"],
+                vane["width"], vane["length"],
+                vane["angle"] + self.spider_angle, thx, thy
+            )
+            cx = 0.5 * (p1x + p2x)
+            cy = 0.5 * (p1y + p2y)
+            active_struts.append({
+                'p1': np.array([p1x, p1y]),
+                'p2': np.array([p2x, p2y]),
+                'sth1': sth1, 'cth1': cth1,
+                'sth2': sth2, 'cth2': cth2,
+                'center': np.array([cx, cy]),
+                'length': vane["length"],
+            })
+
+            if len(kept) > 0:
+                out_buf = np.empty((len(kept) * 6, 3, 2), dtype=np.float64)
+                n_rem[0] = 0
+                n_clip[0] = 0
+                ntri_out = _clip_triangles_to_strut_cpp(
+                    kept.ctypes.data,
+                    len(kept),
+                    float(p1x), float(p1y), float(sth1), float(cth1),
+                    float(p2x), float(p2y), float(sth2), float(cth2),
+                    float(cx), float(cy), float(vane["length"]),
+                    float(tol),
+                    out_buf.ctypes.data,
+                    n_rem.ctypes.data,
+                    n_clip.ctypes.data,
+                )
+                kept = np.ascontiguousarray(out_buf[:ntri_out])
+                removed_count += int(n_rem[0])
+                clipped_count += int(n_clip[0])
+
+        masked = self._mesh_from_triangles(kept, tol=tol)
+        masked['kept_triangle_count'] = int(len(masked['triangles']))
+        masked['removed_triangle_count'] = int(removed_count)
+        masked['clipped_triangle_count'] = int(clipped_count)
+        masked['active_struts'] = active_struts
+        masked['source_mesh'] = mesh
+        if 'active_circles' in mesh:
+            masked['active_circles'] = mesh['active_circles']
+        if 'field_angle_deg' in mesh:
+            masked['field_angle_deg'] = mesh['field_angle_deg']
+
+        return masked
+
     def plot_circle_obscuration_debug(
         self,
         mesh,
@@ -1361,7 +1455,7 @@ class DonutTriangleFactory:
                 color='k', linewidth=1.0, linestyle='--',
             )
 
-        def _add_mesh_lines(tris, color, linewidth, alpha):
+        def _add_mesh_lines(tris, color, linewidth, alpha, zorder=1):
             if len(tris) == 0:
                 return
             tv = tris if tris.ndim == 3 else tris[mesh['triangles']]
@@ -1370,13 +1464,13 @@ class DonutTriangleFactory:
                 tv[:, [1, 2], :],
                 tv[:, [2, 0], :],
             ], axis=0)
-            ax.add_collection(LineCollection(segs, colors=color, linewidths=linewidth, alpha=alpha))
+            ax.add_collection(LineCollection(segs, colors=color, linewidths=linewidth, alpha=alpha, zorder=zorder))
 
-        _add_mesh_lines(mesh['vertices'][mesh['triangles']], 'steelblue', 0.45, 0.55)
+        _add_mesh_lines(mesh['vertices'][mesh['triangles']], 'steelblue', 1.2, 0.55, zorder=1)
         if masked_mesh is not mesh:
-            _add_mesh_lines(masked_mesh['vertices'][masked_mesh['triangles']], 'forestgreen', 0.8, 0.85)
+            _add_mesh_lines(masked_mesh['vertices'][masked_mesh['triangles']], 'forestgreen', 1.8, 0.85, zorder=2)
         else:
-            _add_mesh_lines(masked_mesh['vertices'][masked_mesh['triangles']], 'forestgreen', 0.8, 0.85)
+            _add_mesh_lines(masked_mesh['vertices'][masked_mesh['triangles']], 'forestgreen', 1.8, 0.85, zorder=2)
 
         circle_specs = masked_mesh.get('active_circles', [])
         th_c = np.linspace(0.0, 2.0*np.pi, 400)
@@ -1385,7 +1479,27 @@ class DonutTriangleFactory:
             r = spec['radius']
             color = 'purple' if spec['keep_inside'] else 'tomato'
             linestyle = '--' if spec['keep_inside'] else ':'
-            ax.plot(c[0] + r*np.cos(th_c), c[1] + r*np.sin(th_c), color=color, linestyle=linestyle, linewidth=1.0, alpha=0.9)
+            ax.plot(c[0] + r*np.cos(th_c), c[1] + r*np.sin(th_c), color=color, linestyle=linestyle, linewidth=1.0, alpha=0.9, zorder=5)
+
+        strut_specs = masked_mesh.get('active_struts', [])
+        for spec in strut_specs:
+            p1, p2 = spec['p1'], spec['p2']
+            cth1, sth1 = spec['cth1'], spec['sth1']
+            cth2, sth2 = spec['cth2'], spec['sth2']
+            center = spec.get('center', 0.5*(p1 + p2))
+            half_len = spec.get('length', 10.0) * 0.5
+            along_cth = 0.5*(cth1 + cth2)
+            along_sth = 0.5*(sth1 + sth2)
+            norm = np.sqrt(along_cth**2 + along_sth**2)
+            along_cth /= norm
+            along_sth /= norm
+            for px, py, cth, sth in [(p1[0], p1[1], cth1, sth1), (p2[0], p2[1], cth2, sth2)]:
+                end1 = np.array([px, py]) + half_len * np.array([along_cth, along_sth])
+                end2 = np.array([px, py]) - half_len * np.array([along_cth, along_sth])
+                ax.plot(
+                    [end1[0], end2[0]], [end1[1], end2[1]],
+                    color='darkorange', linestyle='-', linewidth=0.8, alpha=0.7, zorder=5,
+                )
 
         if plot_vertices:
             verts = mesh['vertices']
@@ -1399,25 +1513,30 @@ class DonutTriangleFactory:
         src_area = mesh.get('triangle_area_sum', 0.0)
         masked_area = masked_mesh.get('triangle_area_sum', 0.0)
         ax.set_title(
-            'Circle Obscuration Debug\n'
+            'Obscuration Debug\n'
             f"source area={src_area:.4f}, masked area={masked_area:.4f}, "
-            f"active circles={len(circle_specs)}"
+            f"active circles={len(circle_specs)}, active struts={len(strut_specs)}"
         )
-        ax.legend(handles=[
+        handles = [
             Line2D([0], [0], color='k', linestyle='-', linewidth=1.2),
             Line2D([0], [0], color='k', linestyle='--', linewidth=1.0),
             Line2D([0], [0], color='steelblue', linewidth=0.8),
             Line2D([0], [0], color='forestgreen', linewidth=0.8),
             Line2D([0], [0], color='purple', linestyle='--', linewidth=1.0),
             Line2D([0], [0], color='tomato', linestyle=':', linewidth=1.0),
-        ], labels=[
+        ]
+        labels = [
             'Outer annulus boundary',
             'Inner annulus boundary',
             'Source annulus mesh',
-            'Circle-clipped mesh',
+            'Clipped mesh',
             'Clear circle boundary',
             'Opaque circle boundary',
-        ], loc='best')
+        ]
+        if strut_specs:
+            handles.append(Line2D([0], [0], color='darkorange', linewidth=0.8))
+            labels.append('Strut edge')
+        ax.legend(handles=handles, labels=labels, loc='best')
 
         if show:
             plt.show()

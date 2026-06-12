@@ -556,6 +556,274 @@ int clip_triangles_to_circle(
 
 
 // ---------------------------------------------------------------------------
+// Clip triangles to a strut (band between two parallel lines)
+// ---------------------------------------------------------------------------
+
+// Signed distance from point (x,y) to line through (px,py) with direction (cth,sth).
+// Positive = left side of the line (looking along the direction).
+static inline double line_signed_dist(
+    double x, double y,
+    double px, double py, double sth, double cth
+) {
+    return -(x - px)*sth + (y - py)*cth;
+}
+
+// Clip a convex polygon against one half-plane defined by a line.
+// Keeps vertices where line_signed_dist >= 0 (or <= 0 if flip).
+// poly_in: flat (x0,y0, x1,y1, ...) with n vertices.
+// poly_out: output buffer.  Returns output vertex count.
+static int sh_clip_line(
+    const double* poly_in, int n, double* poly_out,
+    double px, double py, double sth, double cth, bool keep_positive
+) {
+    if (n < 3) return 0;
+    int m = 0;
+    for (int i = 0; i < n; i++) {
+        int j = (i + 1) % n;
+        double ix = poly_in[2*i], iy = poly_in[2*i+1];
+        double jx = poly_in[2*j], jy = poly_in[2*j+1];
+        double di = line_signed_dist(ix, iy, px, py, sth, cth);
+        double dj = line_signed_dist(jx, jy, px, py, sth, cth);
+        bool i_in = keep_positive ? (di >= 0) : (di <= 0);
+        bool j_in = keep_positive ? (dj >= 0) : (dj <= 0);
+        if (i_in) {
+            poly_out[2*m] = ix; poly_out[2*m+1] = iy; m++;
+            if (!j_in) {
+                double t = di / (di - dj);
+                poly_out[2*m]   = ix + t*(jx - ix);
+                poly_out[2*m+1] = iy + t*(jy - iy);
+                m++;
+            }
+        } else if (j_in) {
+            double t = di / (di - dj);
+            poly_out[2*m]   = ix + t*(jx - ix);
+            poly_out[2*m+1] = iy + t*(jy - iy);
+            m++;
+        }
+    }
+    return m;
+}
+
+// Clip one triangle against a finite strut rectangle, keeping the EXTERIOR.
+//
+// The strut is the intersection of 4 half-planes:
+//   - Between width edges (d1 >= 0 AND d2 >= 0, after orientation)
+//   - Between length ends (along-strut distance from center <= half_length)
+//
+// Strategy: compute the portion of the triangle that is INSIDE all 4 half-planes
+// (= inside the strut rectangle), then the kept exterior is the original minus
+// that interior. We split iteratively: at each half-plane, the "outside" piece
+// is emitted directly, and only the "inside" piece is carried forward to the
+// next clip. Whatever remains inside all 4 is discarded.
+//
+// Returns number of output triangles written to out_buf (flat, 6 doubles each).
+// Returns -1 if triangle is entirely outside (keep as-is, nothing written).
+// Returns 0 if triangle is entirely inside (discard).
+static int clip_one_triangle_to_strut(
+    const double tri[3][2],
+    double p1x, double p1y, double sth1, double cth1,
+    double p2x, double p2y, double sth2, double cth2,
+    double cx, double cy, double along_sth, double along_cth, double half_length,
+    double tol,
+    double* out_buf
+) {
+    // Compute signed distances to all 4 bounding lines.
+    double d1[3], d2[3], dL[3], dR[3];
+    for (int i = 0; i < 3; i++) {
+        d1[i] = line_signed_dist(tri[i][0], tri[i][1], p1x, p1y, sth1, cth1);
+        d2[i] = line_signed_dist(tri[i][0], tri[i][1], p2x, p2y, sth2, cth2);
+        // Along-strut distance from center: project onto strut direction.
+        // "Inside" the length means |projection| <= half_length.
+        // We use two half-planes: one at +half_length (keep < side) and one at -half_length (keep > side).
+        // dL = along_dist + half_length (positive = inside the left end)
+        // dR = half_length - along_dist (positive = inside the right end)
+        double along_dist = (tri[i][0] - cx) * along_cth + (tri[i][1] - cy) * along_sth;
+        dL[i] = along_dist + half_length;
+        dR[i] = half_length - along_dist;
+    }
+
+    // Quick classification: if triangle is entirely outside ANY bounding line, keep as-is.
+    if ((d1[0] <= -tol && d1[1] <= -tol && d1[2] <= -tol) ||
+        (d2[0] <= -tol && d2[1] <= -tol && d2[2] <= -tol) ||
+        (dL[0] <= -tol && dL[1] <= -tol && dL[2] <= -tol) ||
+        (dR[0] <= -tol && dR[1] <= -tol && dR[2] <= -tol)) {
+        return -1;
+    }
+
+    // If entirely inside ALL bounding lines, discard.
+    if ((d1[0] >= tol && d1[1] >= tol && d1[2] >= tol) &&
+        (d2[0] >= tol && d2[1] >= tol && d2[2] >= tol) &&
+        (dL[0] >= tol && dL[1] >= tol && dL[2] >= tol) &&
+        (dR[0] >= tol && dR[1] >= tol && dR[2] >= tol)) {
+        return 0;
+    }
+
+    // Iterative split: 4 half-planes.
+    // For each plane, split current "inside" polygon into outside (emit) + inside (carry forward).
+    // Planes defined as: point, sth, cth, keep_positive=true means "inside the strut".
+    // Length ends: the line at +half_length along the strut has normal = along direction.
+    //   Point on line: (cx + half_length*along_cth, cy + half_length*along_sth)
+    //   Normal pointing inward: (-along_sth, along_cth)? No — we want "inside" = toward center.
+    //   signed_dist for "left end": -(x-ex)*along_sth + (y-ey)*along_cth ... that's perpendicular.
+    //   Actually simpler: use the along_dist formulation directly via sh_clip_line with a
+    //   synthetic line. The "left end" line passes through (cx - half_length*along_cth, cy - half_length*along_sth)
+    //   with perpendicular direction (along_cth, along_sth) as the line direction...
+    //   Actually let's just define 4 (px,py,sth,cth) tuples:
+    struct HalfPlane { double px, py, sth, cth; };
+    // Length end lines: perpendicular to strut direction.
+    // The "left end" line at -half_length: point = center - half_length * along_dir.
+    //   Its normal pointing "inward" (toward center) is +along direction.
+    //   signed_dist = -(x-px)*sth + (y-py)*cth with (sth,cth) = (-along_cth, -along_sth)?
+    //   Wait, line_signed_dist(x,y, px,py,sth,cth) = -(x-px)*sth + (y-py)*cth
+    //   For the left end: we want "inside" = points where along_dist > -half_length
+    //   i.e. (x-cx)*along_cth + (y-cy)*along_sth > -half_length
+    //   i.e. (x-(cx-hl*ac))*ac + (y-(cy-hl*as))*as > 0
+    //   We need: -(x-px)*sth + (y-py)*cth > 0 to match keep_positive=true
+    //   So: sth = -along_cth, cth = along_sth, px = cx - hl*along_cth, py = cy - hl*along_sth
+    //   Check: -(x-px)*(-ac) + (y-py)*(as) = (x-px)*ac + (y-py)*as
+    //         = (x-cx+hl*ac)*ac + (y-cy+hl*as)*as = (x-cx)*ac + (y-cy)*as + hl*(ac²+as²)
+    //         = along_dist + hl. Yes! That's dL. Good.
+    // For the right end: "inside" = along_dist < half_length
+    //   i.e. hl - along_dist > 0
+    //   sth = along_cth, cth = -along_sth, px = cx + hl*along_cth, py = cy + hl*along_sth
+    //   Check: -(x-px)*(ac) + (y-py)*(-as) = -(x-cx-hl*ac)*ac - (y-cy-hl*as)*as
+    //         = -((x-cx)*ac + (y-cy)*as - hl) = hl - along_dist = dR. Good.
+    double lx = cx - half_length*along_cth, ly = cy - half_length*along_sth;
+    double rx = cx + half_length*along_cth, ry = cy + half_length*along_sth;
+    HalfPlane planes[4] = {
+        {p1x, p1y, sth1, cth1},
+        {p2x, p2y, sth2, cth2},
+        {lx, ly, -along_cth, along_sth},
+        {rx, ry, along_cth, -along_sth},
+    };
+
+    int ntri_out = 0;
+    auto emit_poly = [&](const double* poly, int nv) {
+        for (int i = 1; i <= nv - 2; i++) {
+            double ax = poly[2*i] - poly[0], ay = poly[2*i+1] - poly[1];
+            double bx = poly[2*(i+1)] - poly[0], by = poly[2*(i+1)+1] - poly[1];
+            if (std::abs(ax*by - ay*bx) < 2e-30) continue;
+            double* dst = out_buf + ntri_out*6;
+            dst[0] = poly[0]; dst[1] = poly[1];
+            dst[2] = poly[2*i]; dst[3] = poly[2*i+1];
+            dst[4] = poly[2*(i+1)]; dst[5] = poly[2*(i+1)+1];
+            ntri_out++;
+        }
+    };
+
+    // We process the triangle through each half-plane. At each step we have a set of
+    // "inside" polygons. For each, we split by the next plane: outside pieces are emitted,
+    // inside pieces carried forward.
+    // Max polygon vertices after N clips: 3 + N = 7. Flat = 14 doubles.
+    // We'll maintain a list of "inside" polygons. After 4 planes, max inside polygons = 1
+    // (since we're intersecting convex half-planes against a convex polygon = convex result).
+    // But we can have multiple outside pieces. Max output triangles ~ 4*3 = 12 (generous).
+    double inside_buf[2][16];  // double-buffer for the single inside polygon
+    int inside_n = 3;
+    double* inside_cur = inside_buf[0];
+    double* inside_tmp = inside_buf[1];
+    inside_cur[0] = tri[0][0]; inside_cur[1] = tri[0][1];
+    inside_cur[2] = tri[1][0]; inside_cur[3] = tri[1][1];
+    inside_cur[4] = tri[2][0]; inside_cur[5] = tri[2][1];
+
+    double outside_buf[16];
+    for (int p = 0; p < 4; p++) {
+        if (inside_n < 3) break;
+        // Split inside_cur by planes[p]: outside piece emitted, inside piece kept.
+        int n_outside = sh_clip_line(inside_cur, inside_n, outside_buf,
+                                     planes[p].px, planes[p].py, planes[p].sth, planes[p].cth, false);
+        int n_inside  = sh_clip_line(inside_cur, inside_n, inside_tmp,
+                                     planes[p].px, planes[p].py, planes[p].sth, planes[p].cth, true);
+        if (n_outside >= 3) emit_poly(outside_buf, n_outside);
+        inside_n = n_inside;
+        // Swap buffers
+        double* swap = inside_cur; inside_cur = inside_tmp; inside_tmp = swap;
+    }
+    // Whatever remains in inside_cur after all 4 planes is inside the strut → discard.
+
+    return ntri_out > 0 ? ntri_out : 0;
+}
+
+// Clip all triangles against one finite strut rectangle, keeping the exterior.
+//
+// tri_in_ptr  : (ntri_in, 3, 2) float64, C-contiguous
+// p1x..cth2  : projected strut edge parameters (from _project_spider_vane)
+// cx, cy     : strut center in pupil coords
+// length     : strut length (clipping extends ±length/2 from center along strut)
+// tol         : boundary tolerance
+// tri_out_ptr : pre-allocated output buffer (ntri_in * 6 triangles max)
+// n_removed_ptr, n_clipped_ptr : int32* counters
+//
+// Returns: number of output triangles.
+int clip_triangles_to_strut(
+    size_t tri_in_ptr, int ntri_in,
+    double p1x, double p1y, double sth1, double cth1,
+    double p2x, double p2y, double sth2, double cth2,
+    double cx, double cy, double length,
+    double tol,
+    size_t tri_out_ptr,
+    size_t n_removed_ptr, size_t n_clipped_ptr
+) {
+    const double* in  = reinterpret_cast<const double*>(tri_in_ptr);
+    double*       out = reinterpret_cast<double*>(tri_out_ptr);
+    int* nrem  = reinterpret_cast<int*>(n_removed_ptr);
+    int* nclip = reinterpret_cast<int*>(n_clipped_ptr);
+
+    // Orient edges so that the strut interior has positive signed distance
+    // to both lines. The midpoint between the two edge centers is inside.
+    double mx = 0.5*(p1x + p2x), my = 0.5*(p1y + p2y);
+    double d1_mid = line_signed_dist(mx, my, p1x, p1y, sth1, cth1);
+    double d2_mid = line_signed_dist(mx, my, p2x, p2y, sth2, cth2);
+    double s1 = (d1_mid >= 0) ? 1.0 : -1.0;
+    double s2 = (d2_mid >= 0) ? 1.0 : -1.0;
+    double eff_sth1 = sth1 * s1, eff_cth1 = cth1 * s1;
+    double eff_sth2 = sth2 * s2, eff_cth2 = cth2 * s2;
+
+    // Along-strut direction: average of the two edge directions (they should be parallel).
+    double along_cth = 0.5*(cth1 + cth2);
+    double along_sth = 0.5*(sth1 + sth2);
+    double norm = std::sqrt(along_cth*along_cth + along_sth*along_sth);
+    along_cth /= norm;
+    along_sth /= norm;
+    double half_length = length * 0.5;
+
+    int ntri_out = 0;
+    for (int k = 0; k < ntri_in; k++) {
+        const double* tv = in + k*6;
+        double tri[3][2] = {{tv[0],tv[1]},{tv[2],tv[3]},{tv[4],tv[5]}};
+
+        // Max output per triangle: 6 (split by 4 half-planes)
+        double local_buf[6*6];
+        int nv = clip_one_triangle_to_strut(
+            tri, p1x, p1y, eff_sth1, eff_cth1,
+            p2x, p2y, eff_sth2, eff_cth2,
+            cx, cy, along_sth, along_cth, half_length,
+            tol, local_buf
+        );
+
+        if (nv == -1) {
+            double* dst = out + ntri_out*6;
+            dst[0]=tv[0]; dst[1]=tv[1]; dst[2]=tv[2];
+            dst[3]=tv[3]; dst[4]=tv[4]; dst[5]=tv[5];
+            ntri_out++;
+        } else if (nv > 0) {
+            (*nclip)++;
+            for (int i = 0; i < nv; i++) {
+                double* dst = out + ntri_out*6;
+                double* src = local_buf + i*6;
+                dst[0]=src[0]; dst[1]=src[1]; dst[2]=src[2];
+                dst[3]=src[3]; dst[4]=src[4]; dst[5]=src[5];
+                ntri_out++;
+            }
+        } else {
+            (*nrem)++;
+        }
+    }
+    return ntri_out;
+}
+
+
+// ---------------------------------------------------------------------------
 // Triangle image accumulation
 // ---------------------------------------------------------------------------
 
@@ -702,5 +970,6 @@ PYBIND11_MODULE(_danish, m) {
     m.def("enclosed_circle", &enclosed_circle);
     m.def("enclosed_strut", &enclosed_strut);
     m.def("clip_triangles_to_circle", &clip_triangles_to_circle);
+    m.def("clip_triangles_to_strut", &clip_triangles_to_strut);
     m.def("accumulate_triangles", &accumulate_triangles);
 }
