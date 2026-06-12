@@ -993,14 +993,20 @@ class DonutTriangleFactory:
             theta_count = 12
         if theta_count % kfold:
             theta_count += kfold - (theta_count % kfold)
-        thetas = np.linspace(0.0, 2.0*np.pi, theta_count, endpoint=False)
+        dtheta = 2.0 * np.pi / theta_count
 
         n_layers = max(2, int(nrad))
         # Space layers approximately uniformly in area for better boundary fidelity.
         t = np.linspace(0.0, 1.0, n_layers)
         radii = np.sqrt(inner*inner + t*(outer*outer - inner*inner))
 
-        rings = [np.column_stack([r*np.cos(thetas), r*np.sin(thetas)]) for r in radii]
+        # Offset alternate rings by ±1/4 theta step so the diagonal cut
+        # of each quad produces isosceles rather than right triangles.
+        rings = []
+        for i, r in enumerate(radii):
+            offset = dtheta * (0.25 if i % 2 else -0.25)
+            thetas = np.linspace(offset, 2.0*np.pi + offset, theta_count, endpoint=False)
+            rings.append(np.column_stack([r*np.cos(thetas), r*np.sin(thetas)]))
         vertices = np.vstack(rings)
         triangles = []
 
@@ -1013,9 +1019,13 @@ class DonutTriangleFactory:
                 b = vid(layer + 1, j)
                 c = vid(layer + 1, j + 1)
                 d = vid(layer, j + 1)
-                # Two triangles per quad, all oriented CCW.
-                triangles.append([a, b, c])
-                triangles.append([a, c, d])
+                # Cut along the short diagonal of the parallelogram.
+                if layer % 2 == 0:
+                    triangles.append([a, b, d])
+                    triangles.append([b, c, d])
+                else:
+                    triangles.append([a, b, c])
+                    triangles.append([a, c, d])
 
         triangles = np.asarray(triangles, dtype=np.int32)
         tv = vertices[triangles]
