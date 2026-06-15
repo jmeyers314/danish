@@ -1032,6 +1032,8 @@ class DonutTriangleFactory:
         self.nrad = nrad
         eps = self.pupil_R_inner / self.pupil_R_outer
         self.naz = naz if naz is not None else int(2 * np.pi * nrad / (1 - eps))
+        if self.naz <= 0:
+            raise ValueError(f"naz must be positive, got {self.naz}")
         self.bandpass_filter = bandpass_filter
         self.thruput_by_aoi = None
         if bandpass_filter is not None:
@@ -1107,6 +1109,8 @@ class DonutTriangleFactory:
         if naz is None:
             eps = inner / outer
             naz = int(2 * np.pi * nrad / (1 - eps))
+        if naz <= 0:
+            raise ValueError(f"naz must be positive, got {naz}")
         theta_count = max(12, int(naz))
         if theta_count % kfold:
             theta_count += kfold - (theta_count % kfold)
