@@ -899,6 +899,68 @@ def _enclosed_fraction(
     return frac
 
 
+def _load_thruput_by_aoi(bandpass_filter, stellar_Tbb, airmass):
+    """Load and bilinearly interpolate the AOI-dependent throughput curve.
+
+    The JSON table is sampled on a discrete (Tbb, airmass) grid.  Input
+    values are clamped to the available range and then bilinearly
+    interpolated across the four surrounding grid points so that
+    off-grid values (e.g. airmass=1.49999) work without error.
+
+    Returns dict with 'aoi' (array of AOI in degrees) and 'value' (throughput factors).
+    """
+    aoi_dep_file = os.path.join(
+        os.path.dirname(__file__), 'data', 'Tbb_airmass_aoi_dep_integrals.json'
+    )
+    with open(aoi_dep_file, mode='r') as f:
+        catalog = json.load(f)[bandpass_filter]
+
+    tbb_key_map = {float(k): k for k in catalog.keys()}
+    tbb_keys    = sorted(tbb_key_map.keys())
+    am_key_map  = {float(k): k for k in catalog[tbb_key_map[tbb_keys[0]]].keys()}
+    am_keys     = sorted(am_key_map.keys())
+
+    tbb_val = float(np.clip(stellar_Tbb, tbb_keys[0], tbb_keys[-1]))
+    am_val  = float(np.clip(airmass,     am_keys[0],  am_keys[-1]))
+
+    def _bounds(val, keys):
+        if val <= keys[0]:  return keys[0], keys[0], 0.0
+        if val >= keys[-1]: return keys[-1], keys[-1], 0.0
+        for lo, hi in zip(keys, keys[1:]):
+            if lo <= val <= hi:
+                return lo, hi, (val - lo) / (hi - lo)
+        return keys[-1], keys[-1], 0.0
+
+    tbb_lo, tbb_hi, tbb_t = _bounds(tbb_val, tbb_keys)
+    am_lo,  am_hi,  am_t  = _bounds(am_val,  am_keys)
+
+    def _load(tbb, am):
+        data = catalog[tbb_key_map[tbb]][am_key_map[am]]
+        lut = sorted(
+            ({'aoi': float(k), 'thruput': v} for k, v in data.items() if k != '_comment'),
+            key=lambda x: x['aoi']
+        )
+        return (
+            np.array([e['aoi']     for e in lut]),
+            np.array([e['thruput'] for e in lut]),
+        )
+
+    aoi_grid, t00 = _load(tbb_lo, am_lo)
+    _,        t01 = _load(tbb_lo, am_hi)
+    _,        t10 = _load(tbb_hi, am_lo)
+    _,        t11 = _load(tbb_hi, am_hi)
+
+    return {
+        'aoi':   aoi_grid,
+        'value': (
+            (1-tbb_t)*(1-am_t)*t00 +
+            (1-tbb_t)*am_t    *t01 +
+            tbb_t    *(1-am_t)*t10 +
+            tbb_t    *am_t    *t11
+        ),
+    }
+
+
 class DonutTriangleFactory:
     """Build an annulus-clipped pupil triangle mesh for forward projection.
 
@@ -917,6 +979,9 @@ class DonutTriangleFactory:
         nrad=18,
         naz=96,
         boundary_naz=720,
+        bandpass_filter=None,
+        stellar_Tbb=6000,
+        airmass=1.5,
     ):
         self.R_outer = R_outer
         self.R_inner = R_inner
@@ -929,6 +994,12 @@ class DonutTriangleFactory:
         self.nrad = nrad
         self.naz = naz
         self.boundary_naz = boundary_naz
+        self.bandpass_filter = bandpass_filter
+        self.thruput_by_aoi = None
+        if bandpass_filter is not None:
+            self.thruput_by_aoi = _load_thruput_by_aoi(
+                bandpass_filter, stellar_Tbb, airmass
+            )
         # Cache: (thx_rounded, thy_rounded) -> masked mesh dict
         self._mesh_cache = {}
 
@@ -1776,6 +1847,15 @@ class DonutTriangleFactory:
         # Pupil-space areas (flux per triangle)
         pupil_areas = _shoelace_area(tri_uv)  # m²
 
+        # AOI throughput preburner: weight each triangle by the throughput
+        # factor at its centroid's radial pupil position.
+        if self.thruput_by_aoi is not None:
+            centroids_uv = np.mean(tri_uv, axis=1)  # (M, 2)
+            r_pupil = np.sqrt(centroids_uv[:, 0]**2 + centroids_uv[:, 1]**2)
+            aoi_deg = np.rad2deg(np.arctan(r_pupil / self.focal_length))
+            tput = np.interp(aoi_deg, self.thruput_by_aoi['aoi'], self.thruput_by_aoi['value'])
+            pupil_areas = pupil_areas * tput
+
         # Forward-map all vertices to centred pixel coordinates
         u_all = verts_uv[:, 0]
         v_all = verts_uv[:, 1]
@@ -1943,69 +2023,7 @@ class DonutFactory:
             )
 
     def _load_thruput_by_aoi(self, bandpass_filter, stellar_Tbb, airmass):
-        """Load and bilinearly interpolate the AOI-dependent throughput curve.
-
-        The JSON table is sampled on a discrete (Tbb, airmass) grid.  Input
-        values are clamped to the available range and then bilinearly
-        interpolated across the four surrounding grid points so that
-        off-grid values (e.g. airmass=1.49999) work without error.
-        """
-        aoi_dep_file = os.path.join(
-            os.path.dirname(__file__), 'data', 'Tbb_airmass_aoi_dep_integrals.json'
-        )
-        with open(aoi_dep_file, mode='r') as f:
-            catalog = json.load(f)[bandpass_filter]
-
-        # Build float→JSON-string key maps (airmass keys are not uniform:
-        # e.g. '1' and '2' rather than '1.0' and '2.0').
-        tbb_key_map = {float(k): k for k in catalog.keys()}
-        tbb_keys    = sorted(tbb_key_map.keys())
-        am_key_map  = {float(k): k for k in catalog[tbb_key_map[tbb_keys[0]]].keys()}
-        am_keys     = sorted(am_key_map.keys())
-
-        # Clamp inputs to the available grid range.
-        tbb_val = float(np.clip(stellar_Tbb, tbb_keys[0], tbb_keys[-1]))
-        am_val  = float(np.clip(airmass,     am_keys[0],  am_keys[-1]))
-
-        def _bounds(val, keys):
-            """Return (lo, hi, t) bracketing val; t is the fractional weight toward hi."""
-            if val <= keys[0]:  return keys[0], keys[0], 0.0
-            if val >= keys[-1]: return keys[-1], keys[-1], 0.0
-            for lo, hi in zip(keys, keys[1:]):
-                if lo <= val <= hi:
-                    return lo, hi, (val - lo) / (hi - lo)
-            return keys[-1], keys[-1], 0.0
-
-        tbb_lo, tbb_hi, tbb_t = _bounds(tbb_val, tbb_keys)
-        am_lo,  am_hi,  am_t  = _bounds(am_val,  am_keys)
-
-        def _load(tbb, am):
-            """Return (aoi_array, throughput_array) for one grid point."""
-            data = catalog[tbb_key_map[tbb]][am_key_map[am]]
-            lut = sorted(
-                ({'aoi': float(k), 'thruput': v} for k, v in data.items() if k != '_comment'),
-                key=lambda x: x['aoi']
-            )
-            return (
-                np.array([e['aoi']     for e in lut]),
-                np.array([e['thruput'] for e in lut]),
-            )
-
-        # Bilinear interpolation across the four surrounding grid points.
-        aoi_grid, t00 = _load(tbb_lo, am_lo)
-        _,        t01 = _load(tbb_lo, am_hi)
-        _,        t10 = _load(tbb_hi, am_lo)
-        _,        t11 = _load(tbb_hi, am_hi)
-
-        return {
-            'aoi':   aoi_grid,
-            'value': (
-                (1-tbb_t)*(1-am_t)*t00 +
-                (1-tbb_t)*am_t    *t01 +
-                tbb_t    *(1-am_t)*t10 +
-                tbb_t    *am_t    *t11
-            ),
-        }
+        return _load_thruput_by_aoi(bandpass_filter, stellar_Tbb, airmass)
 
     def image(
         self, *,
