@@ -1128,7 +1128,6 @@ def test_triangle_factory_annulus_mesh_area():
     mesh = factory.build_annulus_mesh(
         nrad=16,
         naz=84,
-        boundary_naz=360,
         debug=False,
     )
 
@@ -1150,7 +1149,6 @@ def test_triangle_factory_debug_plot_smoke():
     mesh = factory.build_annulus_mesh(
         nrad=12,
         naz=72,
-        boundary_naz=240,
         debug=True,
         show_debug=False,
     )
@@ -1169,7 +1167,6 @@ def test_triangle_factory_circle_obscurations_smoke():
     mesh = factory.build_annulus_mesh(
         nrad=12,
         naz=72,
-        boundary_naz=240,
         debug=False,
     )
 

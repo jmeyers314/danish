@@ -964,8 +964,47 @@ def _load_thruput_by_aoi(bandpass_filter, stellar_Tbb, airmass):
 class DonutTriangleFactory:
     """Build an annulus-clipped pupil triangle mesh for forward projection.
 
-    This class intentionally focuses on mesh construction/diagnostics first.
-    Projection and pixel accumulation are future milestones.
+    Renders donut images via forward triangle accumulation and is
+    API-compatible with ``DonutFactory`` for use inside fitters.
+
+    Parameters
+    ----------
+    R_outer : float
+        Zernike normalization radius in meters.
+    R_inner : float
+        Zernike normalization inner radius in meters.
+    pupil_R_outer : float, optional
+        Physical entrance pupil outer radius in meters.  Defaults to R_outer.
+    pupil_R_inner : float, optional
+        Physical entrance pupil inner radius in meters.  Defaults to
+        ``R_inner * 0.9``.
+    mask_params : dict, optional
+        Nested dictionary containing the mask model (same format as
+        ``DonutFactory``).  If None, no obscuration clipping is applied.
+    spider_angle : float, optional
+        Additional rotation for spider struts around the optic axis in
+        degrees.  If None, spider shadows are not modelled.
+    focal_length : float
+        Focal length in meters.
+    pixel_scale : float
+        Pixel scale in meters per pixel.
+    nrad : int
+        Number of radial rings in the annular mesh.
+    naz : int, optional
+        Number of azimuthal vertices per ring.  If None (default), chosen
+        automatically as ``int(2 * pi * nrad / (1 - eps))`` where
+        ``eps = pupil_R_inner / pupil_R_outer``, giving roughly equilateral
+        triangles.
+    bandpass_filter : str, optional
+        Bandpass filter name for AOI-dependent throughput correction.
+        Choose from: ['u', 'g', 'r', 'i', 'z', 'y'].  If None (default),
+        no throughput correction is applied.
+    stellar_Tbb : float, optional
+        Blackbody temperature in Kelvin for the throughput lookup table.
+        Clamped to the available grid range (4000–10000 K).  Default 6000.
+    airmass : float, optional
+        Airmass for the throughput lookup table.  Clamped to the available
+        grid range (1.0–2.5).  Default 1.5.
     """
 
     def __init__(
@@ -976,9 +1015,8 @@ class DonutTriangleFactory:
         spider_angle=None,
         focal_length=10.31,
         pixel_scale=10e-6,
-        nrad=18,
-        naz=96,
-        boundary_naz=720,
+        nrad=15,
+        naz=None,
         bandpass_filter=None,
         stellar_Tbb=6000,
         airmass=1.5,
@@ -992,8 +1030,8 @@ class DonutTriangleFactory:
         self.focal_length = focal_length
         self.pixel_scale = pixel_scale
         self.nrad = nrad
-        self.naz = naz
-        self.boundary_naz = boundary_naz
+        eps = self.pupil_R_inner / self.pupil_R_outer
+        self.naz = naz if naz is not None else int(2 * np.pi * nrad / (1 - eps))
         self.bandpass_filter = bandpass_filter
         self.thruput_by_aoi = None
         if bandpass_filter is not None:
@@ -1027,7 +1065,6 @@ class DonutTriangleFactory:
             mesh = self.build_annulus_mesh(
                 nrad=self.nrad,
                 naz=self.naz,
-                boundary_naz=self.boundary_naz,
             )
             if self.mask_params is not None:
                 mesh = self.apply_circle_obscurations(
@@ -1047,10 +1084,9 @@ class DonutTriangleFactory:
 
     def build_annulus_mesh(
         self, *,
-        nrad=18,
-        naz=96,
+        nrad=15,
+        naz=None,
         kfold=6,
-        boundary_naz=720,
         dedup_tol=1e-12,
         debug=False,
         show_debug=True,
@@ -1067,15 +1103,14 @@ class DonutTriangleFactory:
         if inner >= outer:
             raise ValueError("pupil_R_inner must be smaller than pupil_R_outer")
 
-        # Use explicit boundary rings plus smoothly interpolated interior rings.
-        theta_count = int(boundary_naz)
-        if theta_count < 12:
-            theta_count = 12
+        n_layers = max(2, int(nrad))
+        if naz is None:
+            eps = inner / outer
+            naz = int(2 * np.pi * nrad / (1 - eps))
+        theta_count = max(12, int(naz))
         if theta_count % kfold:
             theta_count += kfold - (theta_count % kfold)
         dtheta = 2.0 * np.pi / theta_count
-
-        n_layers = max(2, int(nrad))
         # Space layers approximately uniformly in area for better boundary fidelity.
         t = np.linspace(0.0, 1.0, n_layers)
         radii = np.sqrt(inner*inner + t*(outer*outer - inner*inner))
