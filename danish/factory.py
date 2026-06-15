@@ -1171,7 +1171,7 @@ class DonutTriangleFactory:
             'triangle_area_sum': float(np.sum(areas)),
         }
 
-        if debug:
+        if debug:  # pragma: no cover
             fig, ax = self.plot_mesh_debug(
                 mesh,
                 inside_triangles=tv[inside_mask],
@@ -1423,7 +1423,7 @@ class DonutTriangleFactory:
         masked['field_angle_deg'] = float(thr_deg)
         masked['source_mesh'] = mesh
 
-        if debug:
+        if debug:  # pragma: no cover
             fig, ax = self.plot_mesh_debug(
                 masked,
                 inside_triangles=kept,
@@ -1523,7 +1523,7 @@ class DonutTriangleFactory:
 
         return masked
 
-    def plot_circle_obscuration_debug(
+    def plot_circle_obscuration_debug(  # pragma: no cover
         self,
         mesh,
         masked_mesh=None,
@@ -1652,7 +1652,7 @@ class DonutTriangleFactory:
             plt.show()
         return fig, ax
 
-    def plot_mesh_debug(
+    def plot_mesh_debug(  # pragma: no cover
         self,
         mesh,
         *,
@@ -2188,7 +2188,7 @@ class DonutFactory:
 
         wfail = np.where(np.isnan(u))[0]
 
-        if debug:
+        if debug:  # pragma: no cover
             import matplotlib.pyplot as plt
             from matplotlib.collections import PatchCollection
             from matplotlib.patches import Rectangle
