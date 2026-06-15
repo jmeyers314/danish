@@ -1295,5 +1295,60 @@ def test_triangle_factory_image_with_offsets():
     assert not np.allclose(img_no_offset, img_with_offset)
 
 
+@timer
+def test_spots_with_circle_mask():
+    """DonutFactory.spots() should mask pupil points obscured by circle obscurations."""
+    aberrations = np.zeros(22)
+    aberrations[4] = 25e-6
+
+    # Without mask: all spots unmasked
+    factory_no_mask = danish.DonutFactory(
+        R_outer=4.18, R_inner=2.5498,
+        focal_length=10.31, pixel_scale=10e-6,
+    )
+    _, _, w_no_mask = factory_no_mask.spots(aberrations=aberrations, nrad=20)
+    assert np.all(w_no_mask)
+
+    # With Rubin obscurations at an off-axis field angle: some spots masked
+    factory = danish.DonutFactory(
+        R_outer=4.18, R_inner=2.5498,
+        mask_params=Rubin_obsc,
+        focal_length=10.31, pixel_scale=10e-6,
+    )
+    _, _, w_masked = factory.spots(
+        aberrations=aberrations,
+        thx=np.deg2rad(1.7), thy=0.0,
+        nrad=20,
+    )
+    assert not np.all(w_masked)
+    assert np.any(w_masked)
+
+
+@timer
+def test_spots_with_spider():
+    """DonutFactory.spots() with spider_angle set should mask spots inside vane shadows."""
+    aberrations = np.zeros(22)
+    aberrations[4] = 25e-6
+
+    factory_no_spider = danish.DonutFactory(
+        R_outer=4.18, R_inner=2.5498,
+        mask_params=Rubin_obsc,
+        focal_length=10.31, pixel_scale=10e-6,
+        spider_angle=None,
+    )
+    factory_spider = danish.DonutFactory(
+        R_outer=4.18, R_inner=2.5498,
+        mask_params=Rubin_obsc,
+        focal_length=10.31, pixel_scale=10e-6,
+        spider_angle=0.0,
+    )
+
+    _, _, w_no_spider = factory_no_spider.spots(aberrations=aberrations, nrad=20)
+    _, _, w_spider    = factory_spider.spots(aberrations=aberrations, nrad=20)
+
+    # Spider should mask additional spots beyond circle obscurations alone
+    assert np.sum(w_spider) < np.sum(w_no_spider)
+
+
 if __name__ == "__main__":
     runtests(__file__)
