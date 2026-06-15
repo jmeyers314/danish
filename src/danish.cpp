@@ -947,6 +947,14 @@ void accumulate_triangles(
 }
 
 
+// Thin wrapper so clip_area_cpp is callable from Python.
+// tri_ptr: ctypes pointer to a C-contiguous (3,2) float64 array.
+double clip_area(size_t tri_ptr, int ix, int iy) {
+    const double* p = reinterpret_cast<const double*>(tri_ptr);
+    double tri[3][2] = {{p[0],p[1]},{p[2],p[3]},{p[4],p[5]}};
+    return clip_area_cpp(tri, ix, iy);
+}
+
 PYBIND11_MODULE(_danish, m) {
     m.def("poly_grid_contains", &poly_grid_contains);
     m.def(
@@ -972,4 +980,5 @@ PYBIND11_MODULE(_danish, m) {
     m.def("clip_triangles_to_circle", &clip_triangles_to_circle);
     m.def("clip_triangles_to_strut", &clip_triangles_to_strut);
     m.def("accumulate_triangles", &accumulate_triangles);
+    m.def("clip_area", &clip_area);
 }
