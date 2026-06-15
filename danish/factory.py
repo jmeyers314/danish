@@ -1815,7 +1815,10 @@ class DonutTriangleFactory:
             Field angle in radians.
         npix : int
             Number of pixels along each edge.  Must be odd.
-        x_offset, y_offset, prefit_order, maxiter, tol, strict, debug :
+        x_offset, y_offset : galsim.zernike.Zernike, optional
+            Focal-plane offset fields added to the forward mapping, matching
+            the ``DonutFactory`` convention.
+        prefit_order, maxiter, tol, strict, debug :
             Accepted for API compatibility; ignored.
 
         Returns
@@ -1831,6 +1834,8 @@ class DonutTriangleFactory:
             focal_length=self.focal_length,
             pixel_scale=self.pixel_scale,
             npix=npix,
+            x_offset=x_offset,
+            y_offset=y_offset,
         )
 
     def _image_from_mesh(
@@ -1842,6 +1847,8 @@ class DonutTriangleFactory:
         focal_length=10.31,
         pixel_scale=10e-6,
         npix=181,
+        x_offset=None,
+        y_offset=None,
     ):
         """Accumulate mesh triangles onto pixels via forward mapping.
 
@@ -1900,8 +1907,14 @@ class DonutTriangleFactory:
         v_all = verts_uv[:, 1]
 
         Z1 = Z * focal_length
-        xf = -Z1.gradX(u_all, v_all)
-        yf = -Z1.gradY(u_all, v_all)
+        zx = -Z1.gradX
+        zy = -Z1.gradY
+        if x_offset is not None:
+            zx += x_offset
+        if y_offset is not None:
+            zy += y_offset
+        xf = zx(u_all, v_all)
+        yf = zy(u_all, v_all)
 
         xp = xf / pixel_scale
         yp = yf / pixel_scale
