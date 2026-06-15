@@ -1187,5 +1187,113 @@ def test_triangle_factory_circle_obscurations_smoke():
     assert 'debug_axes' in masked
     assert masked['debug_axes'] is not None
 
+@timer
+def test_triangle_factory_strut_obscurations_smoke():
+    """apply_strut_obscurations should clip triangles when spider_angle is set."""
+    factory = danish.DonutTriangleFactory(
+        R_outer=4.18,
+        R_inner=2.5498,
+        spider_angle=0.0,
+    )
+    mesh = factory.build_annulus_mesh(nrad=12, naz=72)
+    circle_masked = factory.apply_circle_obscurations(
+        mesh,
+        mask_params=Rubin_obsc,
+        thx=np.deg2rad(1.0),
+        thy=0.0,
+    )
+    strut_masked = factory.apply_strut_obscurations(
+        circle_masked,
+        mask_params=Rubin_obsc,
+        thx=np.deg2rad(1.0),
+        thy=0.0,
+    )
+    # Struts should remove some triangles
+    assert strut_masked['triangle_area_sum'] < circle_masked['triangle_area_sum']
+    assert strut_masked['removed_triangle_count'] + strut_masked['clipped_triangle_count'] > 0
+    assert len(strut_masked['active_struts']) > 0
+    # active_circles should be propagated from the circle-masked mesh
+    assert 'active_circles' in strut_masked
+    assert 'field_angle_deg' in strut_masked
+
+
+@timer
+def test_triangle_factory_strut_obscurations_noop_when_no_spider_angle():
+    """apply_strut_obscurations should be a no-op when spider_angle is None."""
+    factory = danish.DonutTriangleFactory(
+        R_outer=4.18,
+        R_inner=2.5498,
+        spider_angle=None,  # default
+    )
+    mesh = factory.build_annulus_mesh(nrad=12, naz=72)
+    result = factory.apply_strut_obscurations(
+        mesh,
+        mask_params=Rubin_obsc,
+        thx=np.deg2rad(1.0),
+        thy=0.0,
+    )
+    # Must return the original mesh object unchanged
+    assert result is mesh
+
+
+@timer
+def test_triangle_factory_image_with_spider():
+    """DonutTriangleFactory.image() with spider_angle set should produce a valid image."""
+    factory = danish.DonutTriangleFactory(
+        R_outer=4.18,
+        R_inner=2.5498,
+        mask_params=Rubin_obsc,
+        spider_angle=0.0,
+        focal_length=10.31,
+        pixel_scale=10e-6,
+        nrad=12,
+    )
+    aberrations = np.zeros(22)
+    aberrations[4] = 25e-6
+    img = factory.image(aberrations=aberrations, thx=np.deg2rad(1.0), thy=0.0)
+    assert img.shape == (181, 181)
+    assert np.any(img != 0)
+    # Calling again hits the mesh cache (same field angle)
+    img2 = factory.image(aberrations=aberrations * 0.9, thx=np.deg2rad(1.0), thy=0.0)
+    assert img2.shape == (181, 181)
+
+
+@timer
+def test_triangle_factory_image_with_offsets():
+    """_image_from_mesh should respect x_offset / y_offset and produce a shifted image."""
+    from galsim.zernike import Zernike
+
+    R_outer = 4.18
+    R_inner = 2.5498
+    factory = danish.DonutTriangleFactory(
+        R_outer=R_outer,
+        R_inner=R_inner,
+        focal_length=10.31,
+        pixel_scale=10e-6,
+        nrad=12,
+    )
+    aberrations = np.zeros(22)
+    aberrations[4] = 25e-6
+
+    img_no_offset = factory.image(aberrations=aberrations)
+
+    # Tip / tilt offset (Z2) as a Zernike in x and y
+    tip_coefs = np.zeros(4)
+    tip_coefs[2] = 50e-6 / 10.31  # small tip in x
+    x_off = Zernike(tip_coefs, R_outer=R_outer, R_inner=R_inner)
+    y_off = Zernike(np.zeros(4), R_outer=R_outer, R_inner=R_inner)
+
+    img_with_offset = factory.image(
+        aberrations=aberrations,
+        x_offset=x_off,
+        y_offset=y_off,
+    )
+
+    assert img_no_offset.shape == img_with_offset.shape
+    assert np.any(img_with_offset != 0)
+    # Offset should change the image
+    assert not np.allclose(img_no_offset, img_with_offset)
+
+
 if __name__ == "__main__":
     runtests(__file__)
