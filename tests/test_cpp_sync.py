@@ -19,12 +19,14 @@ from danish.factory import (
     _pixel_frac_1,
     _enclosed_circle_1,
     _enclosed_strut_1,
+    _clip_area,
     _pixel_frac,
     _enclosed_fraction,
     _strut_masked_fraction,
     DonutTriangleFactory,
 )
 from danish._danish import clip_triangles_to_circle as _clip_triangles_to_circle_cpp
+from danish._danish import clip_area as _clip_area_cpp
 from danish_test_helpers import timer, runtests
 
 def _jacobian(n, step=0.05):
@@ -174,6 +176,26 @@ def test_enclosed_strut_wide():
     cpp_out = _cpp(v_out)
     np.testing.assert_array_equal(py_out,  0.0)
     np.testing.assert_array_equal(cpp_out, 0.0)
+
+
+@timer
+def test_clip_area_sync():
+    """_clip_area (Python scalar) must match clip_area (C++) for random triangles."""
+    rng = np.random.default_rng(16180)
+    n = 500
+
+    # Random triangles in pixel-coords ranging well outside and inside pixels
+    tris = rng.uniform(-5.0, 5.0, (n, 3, 2))
+    # Random pixel integer coordinates
+    ixs = rng.integers(-4, 5, n)
+    iys = rng.integers(-4, 5, n)
+
+    for i in range(n):
+        tri = np.ascontiguousarray(tris[i], dtype=np.float64)
+        ix, iy = int(ixs[i]), int(iys[i])
+        py_val  = _clip_area(tri, ix, iy)
+        cpp_val = _clip_area_cpp(tri.ctypes.data, ix, iy)
+        np.testing.assert_allclose(py_val, cpp_val, rtol=1e-12, atol=1e-14)
 
 
 @timer
