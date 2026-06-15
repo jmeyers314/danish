@@ -7,6 +7,10 @@ Each test generates a batch of inputs, evaluates the Python _1 scalar
 function for each point, then evaluates the C++ vectorised wrapper on the
 whole batch and compares.  test_enclosed_strut_wide additionally checks the
 wide-strut code path (pixels far from both edges) that was previously buggy.
+
+The triangle-clipping tests (test_clip_triangle_*) verify the pure-Python
+_clip_triangle_to_circle and _triangle_relation_to_circle helpers against the
+C++ _clip_triangles_to_circle_cpp path exercised by apply_circle_obscurations.
 """
 
 import numpy as np
@@ -18,7 +22,9 @@ from danish.factory import (
     _pixel_frac,
     _enclosed_fraction,
     _strut_masked_fraction,
+    DonutTriangleFactory,
 )
+from danish._danish import clip_triangles_to_circle as _clip_triangles_to_circle_cpp
 from danish_test_helpers import timer, runtests
 
 def _jacobian(n, step=0.05):
@@ -168,6 +174,186 @@ def test_enclosed_strut_wide():
     cpp_out = _cpp(v_out)
     np.testing.assert_array_equal(py_out,  0.0)
     np.testing.assert_array_equal(cpp_out, 0.0)
+
+
+@timer
+def test_clip_triangle_to_circle_keep_inside():
+    """_clip_triangle_to_circle (Python) must match the C++ path for keep_inside=True."""
+    rng = np.random.default_rng(11235)
+    center = np.array([0.0, 0.0])
+    radius = 2.0
+    tol = 1e-12
+
+    py_areas = []
+    cpp_areas = []
+
+    for _ in range(200):
+        tri = rng.uniform(-3.0, 3.0, (3, 2))
+
+        # Python scalar path
+        clipped = DonutTriangleFactory._clip_triangle_to_circle(
+            tri, center, radius, keep_inside=True
+        )
+        py_area = sum(
+            0.5 * abs(
+                (t[1, 0] - t[0, 0]) * (t[2, 1] - t[0, 1])
+                - (t[1, 1] - t[0, 1]) * (t[2, 0] - t[0, 0])
+            )
+            for t in clipped
+        )
+        py_areas.append(py_area)
+
+        # C++ path via the batch wrapper (one triangle at a time)
+        tri_batch = np.ascontiguousarray(tri[None], dtype=np.float64)
+        out_buf = np.empty((3, 3, 2), dtype=np.float64)
+        n_rem = np.zeros(1, dtype=np.int32)
+        n_clip = np.zeros(1, dtype=np.int32)
+        ntri_out = _clip_triangles_to_circle_cpp(
+            tri_batch.ctypes.data, 1,
+            float(center[0]), float(center[1]), float(radius),
+            1,          # keep_inside
+            float(tol),
+            out_buf.ctypes.data,
+            n_rem.ctypes.data,
+            n_clip.ctypes.data,
+        )
+        cpp_area = sum(
+            0.5 * abs(
+                (out_buf[k, 1, 0] - out_buf[k, 0, 0]) * (out_buf[k, 2, 1] - out_buf[k, 0, 1])
+                - (out_buf[k, 1, 1] - out_buf[k, 0, 1]) * (out_buf[k, 2, 0] - out_buf[k, 0, 0])
+            )
+            for k in range(ntri_out)
+        )
+        cpp_areas.append(cpp_area)
+
+    np.testing.assert_allclose(py_areas, cpp_areas, rtol=1e-10, atol=1e-14)
+
+
+@timer
+def test_clip_triangle_to_circle_keep_outside():
+    """_clip_triangle_to_circle (Python) must match the C++ path for keep_inside=False."""
+    rng = np.random.default_rng(31415)
+    center = np.array([0.5, -0.3])
+    radius = 1.5
+    tol = 1e-12
+
+    py_areas = []
+    cpp_areas = []
+
+    for _ in range(200):
+        tri = rng.uniform(-3.0, 3.0, (3, 2))
+
+        clipped = DonutTriangleFactory._clip_triangle_to_circle(
+            tri, center, radius, keep_inside=False
+        )
+        py_area = sum(
+            0.5 * abs(
+                (t[1, 0] - t[0, 0]) * (t[2, 1] - t[0, 1])
+                - (t[1, 1] - t[0, 1]) * (t[2, 0] - t[0, 0])
+            )
+            for t in clipped
+        )
+        py_areas.append(py_area)
+
+        tri_batch = np.ascontiguousarray(tri[None], dtype=np.float64)
+        out_buf = np.empty((3, 3, 2), dtype=np.float64)
+        n_rem = np.zeros(1, dtype=np.int32)
+        n_clip = np.zeros(1, dtype=np.int32)
+        ntri_out = _clip_triangles_to_circle_cpp(
+            tri_batch.ctypes.data, 1,
+            float(center[0]), float(center[1]), float(radius),
+            0,          # keep_inside=False
+            float(tol),
+            out_buf.ctypes.data,
+            n_rem.ctypes.data,
+            n_clip.ctypes.data,
+        )
+        cpp_area = sum(
+            0.5 * abs(
+                (out_buf[k, 1, 0] - out_buf[k, 0, 0]) * (out_buf[k, 2, 1] - out_buf[k, 0, 1])
+                - (out_buf[k, 1, 1] - out_buf[k, 0, 1]) * (out_buf[k, 2, 0] - out_buf[k, 0, 0])
+            )
+            for k in range(ntri_out)
+        )
+        cpp_areas.append(cpp_area)
+
+    np.testing.assert_allclose(py_areas, cpp_areas, rtol=1e-10, atol=1e-14)
+
+
+@timer
+def test_triangle_relation_to_circle():
+    """_triangle_relation_to_circle returns 'keep', 'discard', or 'partial' correctly."""
+    center = np.array([0.0, 0.0])
+    radius = 1.0
+
+    # Triangle fully inside (all vertices within radius)
+    tri_in = np.array([[0.1, 0.0], [0.0, 0.1], [-0.1, 0.0]])
+    assert DonutTriangleFactory._triangle_relation_to_circle(
+        tri_in, center, radius, keep_inside=True) == 'keep'
+    assert DonutTriangleFactory._triangle_relation_to_circle(
+        tri_in, center, radius, keep_inside=False) == 'discard'
+
+    # Triangle fully outside (all vertices beyond radius)
+    tri_out = np.array([[2.0, 0.0], [3.0, 0.0], [2.5, 1.0]])
+    assert DonutTriangleFactory._triangle_relation_to_circle(
+        tri_out, center, radius, keep_inside=True) == 'discard'
+    assert DonutTriangleFactory._triangle_relation_to_circle(
+        tri_out, center, radius, keep_inside=False) == 'keep'
+
+    # Triangle straddling the boundary
+    tri_partial = np.array([[0.5, 0.0], [1.5, 0.0], [1.0, 1.0]])
+    assert DonutTriangleFactory._triangle_relation_to_circle(
+        tri_partial, center, radius, keep_inside=True) == 'partial'
+    assert DonutTriangleFactory._triangle_relation_to_circle(
+        tri_partial, center, radius, keep_inside=False) == 'partial'
+
+
+@timer
+def test_clip_triangle_output_vertices_in_correct_region():
+    """All output vertices of _clip_triangle_to_circle must lie in the kept region.
+
+    Note: area(inside) + area(outside) is NOT guaranteed to equal area(original)
+    because the algorithm uses chords (straight lines) rather than arcs at the
+    circle boundary.  Instead we verify the geometric region membership of every
+    output vertex, which is the property the algorithm actually guarantees.
+    """
+    rng = np.random.default_rng(57721)
+    center = np.array([0.2, -0.1])
+    radius = 1.8
+    tol = 1e-9  # boundary tolerance
+
+    def _area(tris):
+        return sum(
+            0.5 * abs(
+                (t[1, 0] - t[0, 0]) * (t[2, 1] - t[0, 1])
+                - (t[1, 1] - t[0, 1]) * (t[2, 0] - t[0, 0])
+            )
+            for t in tris
+        )
+
+    for _ in range(300):
+        tri = rng.uniform(-3.0, 3.0, (3, 2))
+        orig_area = 0.5 * abs(
+            (tri[1, 0] - tri[0, 0]) * (tri[2, 1] - tri[0, 1])
+            - (tri[1, 1] - tri[0, 1]) * (tri[2, 0] - tri[0, 0])
+        )
+
+        inside_tris  = DonutTriangleFactory._clip_triangle_to_circle(tri, center, radius, keep_inside=True)
+        outside_tris = DonutTriangleFactory._clip_triangle_to_circle(tri, center, radius, keep_inside=False)
+
+        # Clipped output area must not exceed the original
+        assert _area(inside_tris)  <= orig_area + 1e-12
+        assert _area(outside_tris) <= orig_area + 1e-12
+
+        # Every vertex of every inside triangle must be within radius + tol
+        for t in inside_tris:
+            r = np.hypot(t[:, 0] - center[0], t[:, 1] - center[1])
+            assert np.all(r <= radius + tol), f"inside vertex outside circle: r={r.max():.6f} > {radius}"
+
+        # Every vertex of every outside triangle must be outside radius - tol
+        for t in outside_tris:
+            r = np.hypot(t[:, 0] - center[0], t[:, 1] - center[1])
+            assert np.all(r >= radius - tol), f"outside vertex inside circle: r={r.min():.6f} < {radius}"
 
 
 if __name__ == "__main__":
