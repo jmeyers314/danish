@@ -69,9 +69,9 @@ class BaseDonutModel:
     prefit_order : int, optional
         Order of prefit for focal-to-pupil transformation.  Default 2.
     maxiter : int, optional
-        Maximum Newton iterations for focal-to-pupil transformation.  Default 20.
+        Maximum Newton iterations for focal-to-pupil transformation.  Default 10.
     tol : float, optional
-        Convergence tolerance for focal-to-pupil transformation.  Default 1e-9.
+        Convergence tolerance for focal-to-pupil transformation.  Default 1e-7.
     strict : bool, optional
         If True, raise RuntimeError on failed transformation; otherwise set to
         nan.  Default False.
@@ -302,9 +302,9 @@ class SingleDonutModel(BaseDonutModel):
     prefit_order : int, optional
         Order of prefit for focal-to-pupil transformation.  Default 2.
     maxiter : int, optional
-        Maximum Newton iterations for focal-to-pupil transformation.  Default 20.
+        Maximum Newton iterations for focal-to-pupil transformation.  Default 10.
     tol : float, optional
-        Convergence tolerance for focal-to-pupil transformation.  Default 1e-9.
+        Convergence tolerance for focal-to-pupil transformation.  Default 1e-7.
     strict : bool, optional
         If True, raise RuntimeError on failed transformation; otherwise set to
         nan.  Default False.
@@ -520,9 +520,9 @@ class BaseMultiDonutModel(BaseDonutModel):
     prefit_order : int, optional
         Order of prefit for focal-to-pupil transformation.  Default 2.
     maxiter : int, optional
-        Maximum Newton iterations for focal-to-pupil transformation.  Default 20.
+        Maximum Newton iterations for focal-to-pupil transformation.  Default 10.
     tol : float, optional
-        Convergence tolerance for focal-to-pupil transformation.  Default 1e-9.
+        Convergence tolerance for focal-to-pupil transformation.  Default 1e-7.
     strict : bool, optional
         If True, raise RuntimeError on failed transformation; otherwise set to
         nan.  Default False.
