@@ -2164,7 +2164,6 @@ class DonutFactory:
         # _focal_to_pupil (saves Newton iterations, no accuracy loss).
         if self.pupil_R_inner > 0:
             u_inner = self.pupil_R_inner*np.cos(ph)
-            v_inner = _R_inner_eff*np.sin(ph)
             v_inner = self.pupil_R_inner*np.sin(ph)
             x_inner, y_inner = _pupil_to_focal(
                 u_inner, v_inner, Z1, x_offset=x_offset, y_offset=y_offset
