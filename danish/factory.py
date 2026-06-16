@@ -970,14 +970,17 @@ class DonutTriangleFactory:
     Parameters
     ----------
     R_outer : float
-        Zernike normalization radius in meters.
+        Outer radius for Zernike polynomial normalization, in meters.
     R_inner : float
-        Zernike normalization inner radius in meters.
+        Inner radius for Zernike polynomial normalization, in meters.
     pupil_R_outer : float, optional
-        Physical entrance pupil outer radius in meters.  Defaults to R_outer.
+        Nominal outer edge of the unobscured entrance pupil, in meters.
+        Used for mesh geometry and flux normalization; further refined by
+        ``mask_params`` obscurations.  Defaults to ``R_outer``.
     pupil_R_inner : float, optional
-        Physical entrance pupil inner radius in meters.  Defaults to
-        ``R_inner * 0.9``.
+        Nominal inner edge of the unobscured entrance pupil, in meters.
+        Used for mesh geometry and flux normalization; further refined by
+        ``mask_params`` obscurations.  Defaults to ``R_inner * 0.9``.
     mask_params : dict, optional
         Nested dictionary containing the mask model (same format as
         ``DonutFactory``).  If None, no obscuration clipping is applied.
@@ -1956,16 +1959,17 @@ class DonutFactory:
     Parameters
     ----------
     R_outer : float
-        Zernike normalization radius in meters.
+        Outer radius for Zernike polynomial normalization, in meters.
     R_inner : float
-        Zernike normalization inner radius in meters.
+        Inner radius for Zernike polynomial normalization, in meters.
     pupil_R_outer : float, optional
-        Physical entrance pupil outer radius in meters.  Used for pixel
-        selection and primary mirror clip.  Defaults to R_outer.
+        Nominal outer edge of the unobscured entrance pupil, in meters.
+        Used for pixel selection and flux normalization; further refined by
+        ``mask_params`` obscurations.  Defaults to ``R_outer``.
     pupil_R_inner : float, optional
-        Physical entrance pupil inner radius in meters.  Used for inner
-        obscuration early exclusion and flux normalization.
-        Defaults to ``R_inner * 0.9``.
+        Nominal inner edge of the unobscured entrance pupil, in meters.
+        Used for pixel selection and flux normalization; further refined by
+        ``mask_params`` obscurations.  Defaults to ``R_inner * 0.9``.
     mask_params : dict
         Nested dictionary containing the mask model. See the notes below
         for details on the format.
@@ -2159,9 +2163,9 @@ class DonutFactory:
         # Exclude pixels fully inside the inner obscuration before calling
         # _focal_to_pupil (saves Newton iterations, no accuracy loss).
         if self.pupil_R_inner > 0:
-            _R_inner_eff = self.pupil_R_inner - 0.02
-            u_inner = _R_inner_eff*np.cos(ph)
+            u_inner = self.pupil_R_inner*np.cos(ph)
             v_inner = _R_inner_eff*np.sin(ph)
+            v_inner = self.pupil_R_inner*np.sin(ph)
             x_inner, y_inner = _pupil_to_focal(
                 u_inner, v_inner, Z1, x_offset=x_offset, y_offset=y_offset
             )
