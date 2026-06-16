@@ -30,6 +30,7 @@
 
 import json
 import os
+from collections import OrderedDict
 from functools import lru_cache
 
 import galsim
@@ -1039,8 +1040,8 @@ class DonutTriangleFactory:
             self.thruput_by_aoi = _load_thruput_by_aoi(
                 bandpass_filter, stellar_Tbb, airmass
             )
-        # Cache: (thx_rounded, thy_rounded) -> masked mesh dict
-        self._mesh_cache = {}
+        # Cache: (thx_rounded, thy_rounded) -> masked mesh dict; capped at 10 entries
+        self._mesh_cache = OrderedDict()
 
     def _get_mesh(self, thx, thy):
         """Return a circle-clipped mesh for the given field angle, cached.
@@ -1060,8 +1061,8 @@ class DonutTriangleFactory:
             Masked mesh dictionary as returned by apply_circle_obscurations
             (or build_annulus_mesh if mask_params is None).
         """
-        # Round to ~0.1 arcsec to allow cache hits even with floating-point jitter
-        key = (round(thx, 7), round(thy, 7))
+        # Round to ~0.2 arcsec to allow cache hits even with floating-point jitter
+        key = (round(thx, 6), round(thy, 6))
         if key not in self._mesh_cache:
             mesh = self.build_annulus_mesh(
                 nrad=self.nrad,
@@ -1080,6 +1081,8 @@ class DonutTriangleFactory:
                     thx=thx,
                     thy=thy,
                 )
+            if len(self._mesh_cache) >= 10:
+                self._mesh_cache.popitem(last=False)
             self._mesh_cache[key] = mesh
         return self._mesh_cache[key]
 
