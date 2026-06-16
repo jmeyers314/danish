@@ -34,7 +34,6 @@ from functools import lru_cache
 
 import galsim
 import numpy as np
-from scipy.spatial import Delaunay
 
 from ._danish import (
     poly_grid_contains, pixel_frac, enclosed_circle, enclosed_strut,
