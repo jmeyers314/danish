@@ -1,5 +1,8 @@
-import threadpoolctl
-threadpoolctl.threadpool_limits(1)
+try:
+    import threadpoolctl
+    threadpoolctl.threadpool_limits(1)
+except ImportError:
+    pass
 
 import pytest
 
