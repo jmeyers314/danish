@@ -198,8 +198,10 @@ def test_thruput_interpolation():
     # Minimal factory — no batoid needed.
     f = danish.DonutFactory(bandpass_filter='r')
 
+    from danish.factory import _load_thruput_by_aoi
+
     def load(tbb=6000, am=1.5):
-        return f._load_thruput_by_aoi('r', tbb, am)['value']
+        return _load_thruput_by_aoi('r', tbb, am)['value']
 
     # Off-grid airmass: 1.49999 should be indistinguishable from 1.5.
     assert np.allclose(load(am=1.5), load(am=1.49999), atol=1e-4)
@@ -888,7 +890,7 @@ def test_spots(run_slow):
                 mask_params=Rubin_obsc,
                 focal_length=focal_length, pixel_scale=10e-6
             )
-            sx, sy, sw = factory.spots(
+            sx, sy, sw = factory.spot_factory.spots(
                 aberrations=zTA,
                 thx=thx, thy=thy,
                 nrad=nrad
@@ -999,18 +1001,18 @@ def test_spot_image():
                 mask_params=Rubin_obsc,
                 focal_length=focal_length, pixel_scale=10e-6
             )
-            sx, sy, sw = factory.spots(
+            sx, sy, sw = factory.spot_factory.spots(
                 aberrations=zTA,
                 thx=thx, thy=thy,
                 nrad=nrad
             )
-            simg, sx1, sy1, sw1 = factory.spot_image(
+            simg, sx1, sy1, sw1 = factory.spot_factory.spot_image(
                 aberrations=zTA,
                 thx=thx, thy=thy,
                 nrad=nrad,
                 gq_kwargs=dict(cov=cov, rmax=3.5)
             )
-            simg2, sx2, sy2, sw2 = factory.spot_image(
+            simg2, sx2, sy2, sw2 = factory.spot_factory.spot_image(
                 aberrations=zTA,
                 thx=thx, thy=thy,
                 nrad=nrad,
@@ -1306,7 +1308,7 @@ def test_spots_with_circle_mask():
         R_outer=4.18, R_inner=2.5498,
         focal_length=10.31, pixel_scale=10e-6,
     )
-    _, _, w_no_mask = factory_no_mask.spots(aberrations=aberrations, nrad=20)
+    _, _, w_no_mask = factory_no_mask.spot_factory.spots(aberrations=aberrations, nrad=20)
     assert np.all(w_no_mask)
 
     # With Rubin obscurations at an off-axis field angle: some spots masked
@@ -1315,7 +1317,7 @@ def test_spots_with_circle_mask():
         mask_params=Rubin_obsc,
         focal_length=10.31, pixel_scale=10e-6,
     )
-    _, _, w_masked = factory.spots(
+    _, _, w_masked = factory.spot_factory.spots(
         aberrations=aberrations,
         thx=np.deg2rad(1.7), thy=0.0,
         nrad=20,
@@ -1343,8 +1345,8 @@ def test_spots_with_spider():
         spider_angle=0.0,
     )
 
-    _, _, w_no_spider = factory_no_spider.spots(aberrations=aberrations, nrad=20)
-    _, _, w_spider    = factory_spider.spots(aberrations=aberrations, nrad=20)
+    _, _, w_no_spider = factory_no_spider.spot_factory.spots(aberrations=aberrations, nrad=20)
+    _, _, w_spider    = factory_spider.spot_factory.spots(aberrations=aberrations, nrad=20)
 
     # Spider should mask additional spots beyond circle obscurations alone
     assert np.sum(w_spider) < np.sum(w_no_spider)

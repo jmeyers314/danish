@@ -33,7 +33,11 @@ from functools import lru_cache
 import numpy as np
 import galsim
 
-from .factory import F2P_PREFIT_ORDER, F2P_MAXITER, F2P_TOL, F2P_STRICT
+import warnings
+
+from .factory import (
+    F2P_PREFIT_ORDER, F2P_MAXITER, F2P_TOL, F2P_STRICT, DonutInverseFactory
+)
 from .loss import chi2_loss
 
 try:
@@ -56,7 +60,7 @@ class BaseDonutModel:
 
     Parameters
     ----------
-    factory : DonutFactory
+    factory : DonutInverseFactory or DonutTriangleFactory
     bkg_order : int
         Order of polynomial background model to use.  If -1, no background.
     npix : int
@@ -110,10 +114,11 @@ class BaseDonutModel:
         self.nbkg = (bkg_order+1)*(bkg_order+2)//2
         self.atm_mode = atm_mode
         self.loss_fn = loss_fn if loss_fn is not None else chi2_loss
-        self.prefit_order = prefit_order
-        self.maxiter = maxiter
-        self.tol = tol
-        self.strict = strict
+        if isinstance(factory, DonutInverseFactory):
+            factory.prefit_order = prefit_order
+            factory.maxiter = maxiter
+            factory.tol = tol
+            factory.strict = strict
 
     @property
     def natm(self):
@@ -171,10 +176,6 @@ class BaseDonutModel:
             x_offset=x_offset, y_offset=y_offset,
             thx=thx, thy=thy,
             npix=self.npix,
-            prefit_order=self.prefit_order,
-            maxiter=self.maxiter,
-            tol=self.tol,
-            strict=self.strict,
         )
         return result
 
@@ -282,7 +283,7 @@ class SingleDonutModel(BaseDonutModel):
 
     Parameters
     ----------
-    factory : DonutFactory
+    factory : DonutInverseFactory or DonutTriangleFactory
     bkg_order : int, optional
         Order of polynomial background model to use.  If -1, no background.
     z_ref : array of float
@@ -496,7 +497,7 @@ class BaseMultiDonutModel(BaseDonutModel):
 
     Parameters
     ----------
-    factory : DonutFactory
+    factory : DonutInverseFactory or DonutTriangleFactory
     bkg_order : int, optional
         Order of the background polynomial to fit.  If -1, no background.
     dz_ref : DoubleZernike
@@ -927,7 +928,7 @@ class DZMultiDonutModel(BaseMultiDonutModel):
 
     Parameters
     ----------
-    factory : DonutFactory
+    factory : DonutInverseFactory or DonutTriangleFactory
     dz_terms : sequence of tuple of int
         List of (k, j) indices specifying which double Zernike terms to use.
     bkg_order : int, optional
@@ -986,7 +987,7 @@ class DZBasisMultiDonutModel(BaseMultiDonutModel):
 
     Parameters
     ----------
-    factory : DonutFactory
+    factory : DonutInverseFactory or DonutTriangleFactory
     sensitivity : array of float
         Sensitivity matrix that converts mode coefficients into double Zernike
         coefficients.  Dimensions are (nmode, k_max+1, j_max+1)

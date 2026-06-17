@@ -2233,7 +2233,7 @@ def test_spot_image_regression():
 
     # Get the factory result
     cov_meters = np.array([[Ixx_m, Ixy_m], [Ixy_m, Iyy_m]])
-    factory_img, _, _, _ = factory.spot_image(
+    factory_img, _, _, _ = factory.spot_factory.spot_image(
         aberrations=zTA,
         thx=thx, thy=thy,
         nrad=nrad,

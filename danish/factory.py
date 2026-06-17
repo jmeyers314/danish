@@ -961,7 +961,83 @@ def _load_thruput_by_aoi(bandpass_filter, stellar_Tbb, airmass):
     }
 
 
-class DonutTriangleFactory:
+import warnings
+
+
+class DonutFactoryBase:
+    """Shared base for all donut factory classes.
+
+    Holds the parameters that are common to every rendering strategy:
+    Zernike normalisation radii, entrance-pupil geometry, mask model,
+    and throughput correction.
+
+    Parameters
+    ----------
+    R_outer : float
+        Outer radius for Zernike polynomial normalization, in meters.
+    R_inner : float
+        Inner radius for Zernike polynomial normalization, in meters.
+    pupil_R_outer : float, optional
+        Nominal outer edge of the unobscured entrance pupil, in meters.
+        Used for pixel selection and flux normalization; further refined by
+        ``mask_params`` obscurations.  Defaults to ``R_outer``.
+    pupil_R_inner : float, optional
+        Nominal inner edge of the unobscured entrance pupil, in meters.
+        Used for pixel selection and flux normalization; further refined by
+        ``mask_params`` obscurations.  Defaults to ``R_inner * 0.9``.
+    mask_params : dict, optional
+        Nested obscuration dictionary (see ``DonutInverseFactory`` notes for
+        format details).
+    spider_angle : float, optional
+        Additional rotation for spider struts around the optic axis in
+        degrees.  If None, spider shadows are not modelled.
+    focal_length : float
+        Focal length in meters.  Default 10.31 (LSST).
+    pixel_scale : float
+        Pixel scale in metres per pixel.  Default 10e-6 (LSST).
+    bandpass_filter : str, optional
+        Bandpass filter name for AOI-dependent throughput correction.
+        Choose from: ['u', 'g', 'r', 'i', 'z', 'y'].  If None (default),
+        no throughput correction is applied.
+    stellar_Tbb : float, optional
+        Blackbody temperature in Kelvin for the throughput lookup table.
+        Clamped to the available grid range (4000–10000 K).  Default 6000.
+    airmass : float, optional
+        Airmass for the throughput lookup table.  Clamped to the available
+        grid range (1.0–2.5).  Default 1.5.
+    """
+
+    def __init__(
+        self, *,
+        R_outer=4.18, R_inner=2.5498,
+        pupil_R_outer=None, pupil_R_inner=None,
+        mask_params=None,
+        spider_angle=None,
+        focal_length=10.31,
+        pixel_scale=10e-6,
+        bandpass_filter=None,
+        stellar_Tbb=6000,
+        airmass=1.5,
+    ):
+        self.R_outer = R_outer
+        self.R_inner = R_inner
+        self.pupil_R_outer = pupil_R_outer if pupil_R_outer is not None else R_outer
+        self.pupil_R_inner = pupil_R_inner if pupil_R_inner is not None else R_inner * 0.9
+        self.mask_params = mask_params
+        self.spider_angle = spider_angle
+        self.focal_length = focal_length
+        self.pixel_scale = pixel_scale
+        self.bandpass_filter = bandpass_filter
+        self.stellar_Tbb = stellar_Tbb
+        self.airmass = airmass
+        self.thruput_by_aoi = None
+        if bandpass_filter is not None:
+            self.thruput_by_aoi = _load_thruput_by_aoi(
+                bandpass_filter, stellar_Tbb, airmass
+            )
+
+
+class DonutTriangleFactory(DonutFactoryBase):
     """Build an annulus-clipped pupil triangle mesh for forward projection.
 
     Renders donut images via forward triangle accumulation and is
@@ -1024,25 +1100,19 @@ class DonutTriangleFactory:
         stellar_Tbb=6000,
         airmass=1.5,
     ):
-        self.R_outer = R_outer
-        self.R_inner = R_inner
-        self.pupil_R_outer = pupil_R_outer if pupil_R_outer is not None else R_outer
-        self.pupil_R_inner = pupil_R_inner if pupil_R_inner is not None else R_inner * 0.9
-        self.mask_params = mask_params
-        self.spider_angle = spider_angle
-        self.focal_length = focal_length
-        self.pixel_scale = pixel_scale
+        super().__init__(
+            R_outer=R_outer, R_inner=R_inner,
+            pupil_R_outer=pupil_R_outer, pupil_R_inner=pupil_R_inner,
+            mask_params=mask_params, spider_angle=spider_angle,
+            focal_length=focal_length, pixel_scale=pixel_scale,
+            bandpass_filter=bandpass_filter,
+            stellar_Tbb=stellar_Tbb, airmass=airmass,
+        )
         self.nrad = nrad
         eps = self.pupil_R_inner / self.pupil_R_outer
         self.naz = naz if naz is not None else int(2 * np.pi * nrad / (1 - eps))
         if self.naz <= 0:
             raise ValueError(f"naz must be positive, got {self.naz}")
-        self.bandpass_filter = bandpass_filter
-        self.thruput_by_aoi = None
-        if bandpass_filter is not None:
-            self.thruput_by_aoi = _load_thruput_by_aoi(
-                bandpass_filter, stellar_Tbb, airmass
-            )
         # Cache: (thx_rounded, thy_rounded) -> masked mesh dict; capped at 10 entries
         self._mesh_cache = OrderedDict()
 
@@ -1790,22 +1860,10 @@ class DonutTriangleFactory:
         thx=0.0,
         thy=0.0,
         npix=181,
-        # The following parameters are accepted for API compatibility with
-        # DonutFactory.image() but are not used: DonutTriangleFactory uses a
-        # forward mapping and does not require focal-to-pupil inversion.
         x_offset=None,
         y_offset=None,
-        prefit_order=None,
-        maxiter=None,
-        tol=None,
-        strict=None,
-        debug=False,
     ):
         """Compute aberrated donut image via forward triangle accumulation.
-
-        This method is API-compatible with ``DonutFactory.image()`` so that
-        ``DonutTriangleFactory`` can be used as a drop-in replacement inside
-        ``SingleDonutModel`` and related fitters.
 
         The circle-clipped mesh for ``(thx, thy)`` is built once and cached;
         subsequent calls with the same field angle reuse it directly.
@@ -1821,10 +1879,7 @@ class DonutTriangleFactory:
         npix : int
             Number of pixels along each edge.  Must be odd.
         x_offset, y_offset : galsim.zernike.Zernike, optional
-            Focal-plane offset fields added to the forward mapping, matching
-            the ``DonutFactory`` convention.
-        prefit_order, maxiter, tol, strict, debug :
-            Accepted for API compatibility; ignored.
+            Focal-plane offset fields added to the forward mapping.
 
         Returns
         -------
@@ -1953,8 +2008,161 @@ class DonutTriangleFactory:
         return image
 
 
-class DonutFactory:
-    """Build and render geometric donut (and spot) images for a given telescope.
+class SpotFactory(DonutFactoryBase):
+    """Render spot diagrams for a given telescope.
+
+    Inherits all construction parameters from ``DonutFactoryBase``.
+    Use this class (or ``DonutInverseFactory``) when you need to compute
+    spot diagrams or spot-based images.
+    """
+
+    def spots(
+        self, *,
+        Z=None, aberrations=None,
+        x_offset=None, y_offset=None,
+        thx=0, thy=0,
+        nrad=5, naz=None,
+    ):
+        """Compute aberrated spot diagram.
+
+        Parameters
+        ----------
+        Z : galsim.zernike.Zernike, optional
+            Aberrations in meters.
+        aberrations : array of float, optional
+            Aberrations in meters.
+        x_offset, y_offset : galsim.zernike.Zernike, optional
+            Additional focal plane offsets (in meters) represented as Zernike
+            series.
+        thx, thy : float
+            Field angles in radians.
+        nrad : int
+            Number of pupil radii to use between R_inner and R_outer.
+        naz : int, optional
+            Approximate number of azimuthal angles to use along the outer most radius.
+            See hexapolar for details.
+
+        Returns
+        -------
+        x_spots, y_spots, w_spots : array of float
+            Focal plane coordinates of spots and weights.
+        """
+        if Z is None:
+            Z = galsim.zernike.Zernike(
+                aberrations, R_outer=self.R_outer, R_inner=self.R_inner
+            )
+        Z1 = Z*self.focal_length
+
+        u, v = hexapolar(
+            outer=self.R_outer, inner=self.R_inner, nrad=nrad, naz=naz)
+        w = np.ones_like(u, dtype=bool)
+
+        if self.mask_params is not None:
+            thr = np.sqrt(thx*thx + thy*thy)
+            thr_deg = np.rad2deg(thr)
+            for item, val in self.mask_params.items():
+                if item == "Spider_3D":
+                    if self.spider_angle is None:
+                        continue
+                    for vane in val:
+                        p1x, p1y, sth1, cth1, p2x, p2y, sth2, cth2 = _project_spider_vane(
+                            vane["r0"], vane["v0"],
+                            vane["width"], vane["length"],
+                            vane["angle"]+self.spider_angle, thx, thy
+                        )
+                        cu = 0.5 * (p1x + p2x)
+                        cv = 0.5 * (p1y + p2y)
+                        half_len = vane["length"] / 2
+                        du = u - cu
+                        dv = v - cv
+                        near = du*du + dv*dv < half_len*half_len
+                        left1 = cth1*(v - p1y) - sth1*(u - p1x) > 0
+                        left2 = cth2*(v - p2y) - sth2*(u - p2x) > 0
+                        w[near & ~left1 & left2] = False
+                else:
+                    for edge, edge_params in val.items():
+                        if thr_deg < edge_params["thetaMin"] or thr_deg > edge_params["thetaMax"]:
+                            continue
+
+                        radius = np.polyval(edge_params["radius"], thr_deg)
+                        center = np.polyval(edge_params["center"], thr_deg)
+                        cx = center*thx/thr if thr > 0 else 0
+                        cy = center*thy/thr if thr > 0 else 0
+
+                        r = np.hypot(u-cx, v-cy)
+                        if edge_params["clear"]:
+                            w[r > radius] = False
+                        else:
+                            w[r < radius] = False
+        x, y = _pupil_to_focal(
+            u, v, Z1,
+            x_offset=x_offset, y_offset=y_offset
+        )
+        return x, y, w
+
+    def spot_image(
+        self, *,
+        Z=None, aberrations=None,
+        x_offset=None, y_offset=None,
+        thx=0, thy=0,
+        nrad=5, naz=None,
+        npix=15,
+        gq_kwargs=None,
+    ):
+        """Compute image from spots.
+
+        Parameters
+        ----------
+        Z : galsim.zernike.Zernike, optional
+            Aberrations in meters.
+        aberrations : array of float, optional
+            Aberrations in meters.
+        x_offset, y_offset : galsim.zernike.Zernike, optional
+            Additional focal plane offsets (in meters) represented as Zernike
+            series.
+        thx, thy : float
+            Field angles in radians.
+        nrad : int
+            Number of pupil radii to use between R_inner and R_outer.
+        naz : int, optional
+            Approximate number of azimuthal angles to use along the outer most radius.
+            See hexapolar for details.
+        npix : int
+            Number of pixels along image edge.  Must be odd.
+        gq_kwargs : dict, optional
+            Additional keyword arguments to pass to gq_points.
+
+        Returns
+        -------
+        img : array of float
+            Spot diagram image.
+        x, y : array of float
+            Focal plane coordinates of convolved spots.
+        w : array of float
+            Weights of convolved spots.
+        """
+        sx, sy, sw = self.spots(
+            Z=Z, aberrations=aberrations,
+            x_offset=x_offset, y_offset=y_offset,
+            thx=thx, thy=thy,
+            nrad=nrad, naz=naz
+        )
+        gx, gy, gw = gq_points(
+            **(gq_kwargs or {})
+        )
+        x = np.add.outer(sx, gx)
+        y = np.add.outer(sy, gy)
+        w = np.multiply.outer(sw, gw)
+
+        img = np.zeros((npix, npix))
+        no2 = (npix-1)//2
+        bds = np.linspace(-no2-0.5, no2+0.5, npix+1)*self.pixel_scale
+        H, *_ = np.histogram2d(y.ravel(), x.ravel(), bins=[bds, bds], weights=w.ravel(), density=False)
+        return H, x, y, w
+
+
+class DonutInverseFactory(DonutFactoryBase):
+    """Render donut images via inverse (focal-to-pupil) mapping.
 
     Parameters
     ----------
@@ -1971,8 +2179,7 @@ class DonutFactory:
         Used for pixel selection and flux normalization; further refined by
         ``mask_params`` obscurations.  Defaults to ``R_inner * 0.9``.
     mask_params : dict
-        Nested dictionary containing the mask model. See the notes below
-        for details on the format.
+        Nested dictionary containing the mask model. See notes below for format.
     spider_angle: float, optional
         Additional rotation for spider struts around optic axis in degrees.  If None,
         then don't model the spider shadows.
@@ -1990,6 +2197,15 @@ class DonutFactory:
     airmass : float, optional
         Airmass used to select the throughput lookup. Must be in range
         1.0-2.5 in steps of 0.1. Default 1.5.
+    prefit_order : int, optional
+        Order of prefit for focal-to-pupil transformation.  Default 2.
+    maxiter : int, optional
+        Maximum Newton iterations for focal-to-pupil transformation.  Default 10.
+    tol : float, optional
+        Convergence tolerance for focal-to-pupil transformation.  Default 1e-7.
+    strict : bool, optional
+        If True, raise RuntimeError on failed focal-to-pupil transformations;
+        otherwise set failed pixels to zero.  Default False.
 
     Notes
     -----
@@ -2063,25 +2279,37 @@ class DonutFactory:
         bandpass_filter=None,
         stellar_Tbb=6000,
         airmass=1.5,
+        prefit_order=F2P_PREFIT_ORDER,
+        maxiter=F2P_MAXITER,
+        tol=F2P_TOL,
+        strict=F2P_STRICT,
     ):
-        self.R_outer = R_outer
-        self.R_inner = R_inner
-        self.pupil_R_outer = pupil_R_outer if pupil_R_outer is not None else R_outer
-        self.pupil_R_inner = pupil_R_inner if pupil_R_inner is not None else R_inner * 0.9
-        self.mask_params = mask_params
-        self.spider_angle = spider_angle
-        self.focal_length = focal_length
-        self.pixel_scale = pixel_scale
-        self.bandpass_filter = bandpass_filter
-        self.stellar_Tbb = stellar_Tbb
-        self.airmass = airmass
-        if self.bandpass_filter is not None:
-            self.thruput_by_aoi = self._load_thruput_by_aoi(
-                bandpass_filter, stellar_Tbb, airmass
-            )
+        super().__init__(
+            R_outer=R_outer, R_inner=R_inner,
+            pupil_R_outer=pupil_R_outer, pupil_R_inner=pupil_R_inner,
+            mask_params=mask_params, spider_angle=spider_angle,
+            focal_length=focal_length, pixel_scale=pixel_scale,
+            bandpass_filter=bandpass_filter,
+            stellar_Tbb=stellar_Tbb, airmass=airmass,
+        )
+        self.prefit_order = prefit_order
+        self.maxiter = maxiter
+        self.tol = tol
+        self.strict = strict
 
-    def _load_thruput_by_aoi(self, bandpass_filter, stellar_Tbb, airmass):
-        return _load_thruput_by_aoi(bandpass_filter, stellar_Tbb, airmass)
+    @property
+    def spot_factory(self):
+        """A :class:`SpotFactory` sharing this factory's configuration."""
+        if not hasattr(self, '_spot_factory'):
+            self._spot_factory = SpotFactory(
+                R_outer=self.R_outer, R_inner=self.R_inner,
+                pupil_R_outer=self.pupil_R_outer, pupil_R_inner=self.pupil_R_inner,
+                mask_params=self.mask_params, spider_angle=self.spider_angle,
+                focal_length=self.focal_length, pixel_scale=self.pixel_scale,
+                bandpass_filter=self.bandpass_filter,
+                stellar_Tbb=self.stellar_Tbb, airmass=self.airmass,
+            )
+        return self._spot_factory
 
     def image(
         self, *,
@@ -2089,7 +2317,7 @@ class DonutFactory:
         x_offset=None, y_offset=None,
         thx=0, thy=0,
         npix=181,
-        prefit_order=F2P_PREFIT_ORDER, maxiter=F2P_MAXITER, tol=F2P_TOL, strict=F2P_STRICT,
+        prefit_order=None, maxiter=None, tol=None, strict=None,
         debug=False
     ):
         """Compute aberrated donut image.
@@ -2107,18 +2335,8 @@ class DonutFactory:
             Field angles in radians.
         npix : int
             Number of pixels along image edge.  Must be odd.
-        prefit_order : int
-            Order of prefit used to get good initial guesses for focal-to-pupil
-            coordinate transformation.
-        maxiter : int
-            Number of Newton iterations to attempt for focal-to-pupil
-            coordinate transformation before failing.
-        tol : float
-            Tolerance for successful focal-to-pupil coordinate transformation.
-        strict: bool
-            If True, then raise a RuntimeError if any failed focal-to-pupil
-            transformations occurred.
-            If False, then set image to zero at failed coordinates.
+        prefit_order, maxiter, tol, strict :
+            Deprecated.  Set these on the factory constructor instead.
         debug : bool
             If True, show a diagnostic plot of the projected pupil grid and
             pixel classification (valid pixels in blue, caustic/failed pixels
@@ -2129,6 +2347,20 @@ class DonutFactory:
         img : array of float
             Donut image.
         """
+        _depr = {k: v for k, v in dict(
+            prefit_order=prefit_order, maxiter=maxiter, tol=tol, strict=strict
+        ).items() if v is not None}
+        if _depr:
+            warnings.warn(
+                f"Passing {list(_depr)} to image() is deprecated; set them on "
+                "the DonutInverseFactory constructor instead.",
+                DeprecationWarning, stacklevel=2,
+            )
+        prefit_order = _depr.get('prefit_order', self.prefit_order)
+        maxiter      = _depr.get('maxiter',      self.maxiter)
+        tol          = _depr.get('tol',          self.tol)
+        strict       = _depr.get('strict',       self.strict)
+
         if npix%2 == 0:
             raise ValueError(f"Argument npix={npix} must be odd.")
         no2 = (npix-1)//2
@@ -2456,146 +2688,5 @@ class DonutFactory:
         else:
             return False
 
-    def spots(
-        self, *,
-        Z=None, aberrations=None,
-        x_offset=None, y_offset=None,
-        thx=0, thy=0,
-        nrad=5, naz=None,
-    ):
-        """Compute aberrated spot diagram.
 
-        Parameters
-        ----------
-        Z : galsim.zernike.Zernike, optional
-            Aberrations in meters.
-        aberrations : array of float, optional
-            Aberrations in meters.
-        x_offset, y_offset : galsim.zernike.Zernike, optional
-            Additional focal plane offsets (in meters) represented as Zernike
-            series.
-        thx, thy : float
-            Field angles in radians.
-        nrad : int
-            Number of pupil radii to use between R_inner and R_outer.
-        naz : int, optional
-            Approximate number of azimuthal angles to use along the outer most radius.
-            See hexapolar for details.
-
-        Returns
-        -------
-        x_spots, y_spots, w_spots : array of float
-            Focal plane coordinates of spots and weights.
-        """
-        if Z is None:
-            Z = galsim.zernike.Zernike(
-                aberrations, R_outer=self.R_outer, R_inner=self.R_inner
-            )
-        Z1 = Z*self.focal_length
-
-        u, v = hexapolar(
-            outer=self.R_outer, inner=self.R_inner, nrad=nrad, naz=naz)
-        w = np.ones_like(u, dtype=bool)
-
-        if self.mask_params is not None:
-            thr = np.sqrt(thx*thx + thy*thy)
-            thr_deg = np.rad2deg(thr)
-            for item, val in self.mask_params.items():
-                if item == "Spider_3D":
-                    if self.spider_angle is None:
-                        continue
-                    for vane in val:
-                        p1x, p1y, sth1, cth1, p2x, p2y, sth2, cth2 = _project_spider_vane(
-                            vane["r0"], vane["v0"],
-                            vane["width"], vane["length"],
-                            vane["angle"]+self.spider_angle, thx, thy
-                        )
-                        cu = 0.5 * (p1x + p2x)
-                        cv = 0.5 * (p1y + p2y)
-                        half_len = vane["length"] / 2
-                        du = u - cu
-                        dv = v - cv
-                        near = du*du + dv*dv < half_len*half_len
-                        left1 = cth1*(v - p1y) - sth1*(u - p1x) > 0
-                        left2 = cth2*(v - p2y) - sth2*(u - p2x) > 0
-                        w[near & ~left1 & left2] = False
-                else:
-                    for edge, edge_params in val.items():
-                        if thr_deg < edge_params["thetaMin"] or thr_deg > edge_params["thetaMax"]:
-                            continue
-
-                        radius = np.polyval(edge_params["radius"], thr_deg)
-                        center = np.polyval(edge_params["center"], thr_deg)
-                        cx = center*thx/thr if thr > 0 else 0
-                        cy = center*thy/thr if thr > 0 else 0
-
-                        r = np.hypot(u-cx, v-cy)
-                        if edge_params["clear"]:
-                            w[r > radius] = False
-                        else:
-                            w[r < radius] = False
-        x, y = _pupil_to_focal(
-            u, v, Z1,
-            x_offset=x_offset, y_offset=y_offset
-        )
-        return x, y, w
-
-    def spot_image(
-        self, *,
-        Z=None, aberrations=None,
-        x_offset=None, y_offset=None,
-        thx=0, thy=0,
-        nrad=5, naz=None,
-        npix=15,
-        gq_kwargs=None,
-    ):
-        """Compute image from spots.
-
-        Parameters
-        ----------
-        Z : galsim.zernike.Zernike, optional
-            Aberrations in meters.
-        aberrations : array of float, optional
-            Aberrations in meters.
-        x_offset, y_offset : galsim.zernike.Zernike, optional
-            Additional focal plane offsets (in meters) represented as Zernike
-            series.
-        thx, thy : float
-            Field angles in radians.
-        nrad : int
-            Number of pupil radii to use between R_inner and R_outer.
-        naz : int, optional
-            Approximate number of azimuthal angles to use along the outer most radius.
-            See hexapolar for details.
-        npix : int
-            Number of pixels along image edge.  Must be odd.
-        gq_kwargs : dict, optional
-            Additional keyword arguments to pass to gq_points.
-
-        Returns
-        -------
-        img : array of float
-            Spot diagram image.
-        x, y : array of float
-            Focal plane coordinates of convolved spots.
-        w : array of float
-            Weights of convolved spots.
-        """
-        sx, sy, sw = self.spots(
-            Z=Z, aberrations=aberrations,
-            x_offset=x_offset, y_offset=y_offset,
-            thx=thx, thy=thy,
-            nrad=nrad, naz=naz
-        )
-        gx, gy, gw = gq_points(
-            **(gq_kwargs or {})
-        )
-        x = np.add.outer(sx, gx)
-        y = np.add.outer(sy, gy)
-        w = np.multiply.outer(sw, gw)
-
-        img = np.zeros((npix, npix))
-        no2 = (npix-1)//2
-        bds = np.linspace(-no2-0.5, no2+0.5, npix+1)*self.pixel_scale
-        H, *_ = np.histogram2d(y.ravel(), x.ravel(), bins=[bds, bds], weights=w.ravel(), density=False)
-        return H, x, y, w
+DonutFactory = DonutInverseFactory  # backwards compatibility alias
