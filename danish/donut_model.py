@@ -33,11 +33,7 @@ from functools import lru_cache
 import numpy as np
 import galsim
 
-import warnings
 
-from .factory import (
-    F2P_PREFIT_ORDER, F2P_MAXITER, F2P_TOL, F2P_STRICT, DonutInverseFactory
-)
 from .loss import chi2_loss
 
 try:
@@ -70,15 +66,6 @@ class BaseDonutModel:
     atm_mode : str, optional
         Atmospheric PSF parameterization.  'fwhm' for scalar FWHM (default),
         'ixx' for second moment tensor (Ixx, Ixy, Iyy) in arcsec^2.
-    prefit_order : int, optional
-        Order of prefit for focal-to-pupil transformation.  Default 2.
-    maxiter : int, optional
-        Maximum Newton iterations for focal-to-pupil transformation.  Default 10.
-    tol : float, optional
-        Convergence tolerance for focal-to-pupil transformation.  Default 1e-7.
-    strict : bool, optional
-        If True, raise RuntimeError on failed transformation; otherwise set to
-        nan.  Default False.
     """
     # I think Ixx might formally diverge for a Kolmogorov profile, but we need
     # something to convert between FWHM and Ixx/Iyy for the atmospheric kernel,
@@ -95,7 +82,6 @@ class BaseDonutModel:
 
     def __init__(
         self, factory, npix, seed, bkg_order, atm_mode='fwhm', loss_fn=None,
-        prefit_order=F2P_PREFIT_ORDER, maxiter=F2P_MAXITER, tol=F2P_TOL, strict=F2P_STRICT
     ):
         assert npix % 2 == 1, "npix must be odd"
         assert atm_mode in ('fwhm', 'ixx'), "atm_mode must be 'fwhm' or 'ixx'"
@@ -114,11 +100,6 @@ class BaseDonutModel:
         self.nbkg = (bkg_order+1)*(bkg_order+2)//2
         self.atm_mode = atm_mode
         self.loss_fn = loss_fn if loss_fn is not None else chi2_loss
-        if isinstance(factory, DonutInverseFactory):
-            factory.prefit_order = prefit_order
-            factory.maxiter = maxiter
-            factory.tol = tol
-            factory.strict = strict
 
     @property
     def natm(self):
@@ -300,15 +281,6 @@ class SingleDonutModel(BaseDonutModel):
         Number of pixels along image edge.  Must be odd.
     seed : int
         Random seed for use when creating noisy donut images with this class.
-    prefit_order : int, optional
-        Order of prefit for focal-to-pupil transformation.  Default 2.
-    maxiter : int, optional
-        Maximum Newton iterations for focal-to-pupil transformation.  Default 10.
-    tol : float, optional
-        Convergence tolerance for focal-to-pupil transformation.  Default 1e-7.
-    strict : bool, optional
-        If True, raise RuntimeError on failed transformation; otherwise set to
-        nan.  Default False.
     """
     def __init__(
         self,
@@ -321,11 +293,9 @@ class SingleDonutModel(BaseDonutModel):
         npix=181,
         seed=57721,
         loss_fn=None,
-        prefit_order=F2P_PREFIT_ORDER, maxiter=F2P_MAXITER, tol=F2P_TOL, strict=F2P_STRICT,
     ):
         super().__init__(
             factory, npix, seed, bkg_order, loss_fn=loss_fn,
-            prefit_order=prefit_order, maxiter=maxiter, tol=tol, strict=strict,
         )
         self.z_ref = z_ref
         self.x_offset = x_offset
@@ -518,15 +488,6 @@ class BaseMultiDonutModel(BaseDonutModel):
         Number of pixels along image edge.  Must be odd.
     seed : int
         Random seed for use when creating noisy donut images with this class.
-    prefit_order : int, optional
-        Order of prefit for focal-to-pupil transformation.  Default 2.
-    maxiter : int, optional
-        Maximum Newton iterations for focal-to-pupil transformation.  Default 10.
-    tol : float, optional
-        Convergence tolerance for focal-to-pupil transformation.  Default 1e-7.
-    strict : bool, optional
-        If True, raise RuntimeError on failed transformation; otherwise set to
-        nan.  Default False.
     """
     def __init__(
         self,
@@ -541,11 +502,9 @@ class BaseMultiDonutModel(BaseDonutModel):
         seed=577215,
         atm_mode='fwhm',
         loss_fn=None,
-        prefit_order=F2P_PREFIT_ORDER, maxiter=F2P_MAXITER, tol=F2P_TOL, strict=F2P_STRICT,
     ):
         super().__init__(
             factory, npix, seed, bkg_order, atm_mode=atm_mode, loss_fn=loss_fn,
-            prefit_order=prefit_order, maxiter=maxiter, tol=tol, strict=strict,
         )
 
         if dz_ref is None and z_refs is None:
