@@ -1140,7 +1140,7 @@ def test_triangle_factory_annulus_mesh_area():
 
     analytic = np.pi * (factory.pupil_R_outer**2 - factory.pupil_R_inner**2)
     rel_err = abs(mesh['triangle_area_sum'] - analytic) / analytic
-    assert rel_err < 2e-2
+    assert rel_err < 1e-3
 
 
 @timer
