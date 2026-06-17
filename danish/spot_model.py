@@ -32,6 +32,7 @@ from functools import lru_cache
 
 import numpy as np
 import galsim
+from .factory import DonutInverseFactory
 from .loss import chi2_loss
 from .utils import gq_points
 
@@ -41,7 +42,7 @@ class BaseSpotModel:
 
     Parameters
     ----------
-    factory : DonutFactory
+    factory : SpotFactory or DonutInverseFactory
     bkg_order : int
         Order of polynomial background model to use.  If -1, no background.
     npix : int
@@ -67,6 +68,8 @@ class BaseSpotModel:
         assert npix % 2 == 1, "npix must be odd"
         assert atm_mode in ('fwhm', 'ixx'), "atm_mode must be 'fwhm' or 'ixx'"
 
+        if isinstance(factory, DonutInverseFactory):
+            factory = factory.spot_factory
         self.factory = factory
         self.npix = npix
         self.no2 = (npix-1)//2
@@ -225,7 +228,7 @@ class BaseMultiSpotModel(BaseSpotModel):
 
     Parameters
     ----------
-    factory : DonutFactory
+    factory : SpotFactory or DonutInverseFactory
     bkg_order : int, optional
         Order of the background polynomial to fit.  If -1, no background.
     dz_ref : DoubleZernike
