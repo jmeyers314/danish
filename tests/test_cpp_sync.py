@@ -29,6 +29,17 @@ from danish._danish import clip_triangles_to_circle as _clip_triangles_to_circle
 from danish._danish import clip_area as _clip_area_cpp
 from danish_test_helpers import timer, runtests
 
+def _tri_area(tris):
+    """Sum of signed areas of a sequence of triangles, each shape (3, 2)."""
+    return sum(
+        0.5 * abs(
+            (t[1, 0] - t[0, 0]) * (t[2, 1] - t[0, 1])
+            - (t[1, 1] - t[0, 1]) * (t[2, 0] - t[0, 0])
+        )
+        for t in tris
+    )
+
+
 def _jacobian(n, step=0.05):
     """Simple axis-aligned Jacobian arrays (no shear)."""
     return (
@@ -216,14 +227,7 @@ def test_clip_triangle_to_circle_keep_inside():
         clipped = DonutTriangleFactory._clip_triangle_to_circle(
             tri, center, radius, keep_inside=True
         )
-        py_area = sum(
-            0.5 * abs(
-                (t[1, 0] - t[0, 0]) * (t[2, 1] - t[0, 1])
-                - (t[1, 1] - t[0, 1]) * (t[2, 0] - t[0, 0])
-            )
-            for t in clipped
-        )
-        py_areas.append(py_area)
+        py_areas.append(_tri_area(clipped))
 
         # C++ path via the batch wrapper (one triangle at a time)
         tri_batch = np.ascontiguousarray(tri[None], dtype=np.float64)
@@ -239,14 +243,7 @@ def test_clip_triangle_to_circle_keep_inside():
             n_rem.ctypes.data,
             n_clip.ctypes.data,
         )
-        cpp_area = sum(
-            0.5 * abs(
-                (out_buf[k, 1, 0] - out_buf[k, 0, 0]) * (out_buf[k, 2, 1] - out_buf[k, 0, 1])
-                - (out_buf[k, 1, 1] - out_buf[k, 0, 1]) * (out_buf[k, 2, 0] - out_buf[k, 0, 0])
-            )
-            for k in range(ntri_out)
-        )
-        cpp_areas.append(cpp_area)
+        cpp_areas.append(_tri_area(out_buf[:ntri_out]))
 
     np.testing.assert_allclose(py_areas, cpp_areas, rtol=1e-10, atol=1e-14)
 
@@ -268,14 +265,7 @@ def test_clip_triangle_to_circle_keep_outside():
         clipped = DonutTriangleFactory._clip_triangle_to_circle(
             tri, center, radius, keep_inside=False
         )
-        py_area = sum(
-            0.5 * abs(
-                (t[1, 0] - t[0, 0]) * (t[2, 1] - t[0, 1])
-                - (t[1, 1] - t[0, 1]) * (t[2, 0] - t[0, 0])
-            )
-            for t in clipped
-        )
-        py_areas.append(py_area)
+        py_areas.append(_tri_area(clipped))
 
         tri_batch = np.ascontiguousarray(tri[None], dtype=np.float64)
         out_buf = np.empty((3, 3, 2), dtype=np.float64)
@@ -290,14 +280,7 @@ def test_clip_triangle_to_circle_keep_outside():
             n_rem.ctypes.data,
             n_clip.ctypes.data,
         )
-        cpp_area = sum(
-            0.5 * abs(
-                (out_buf[k, 1, 0] - out_buf[k, 0, 0]) * (out_buf[k, 2, 1] - out_buf[k, 0, 1])
-                - (out_buf[k, 1, 1] - out_buf[k, 0, 1]) * (out_buf[k, 2, 0] - out_buf[k, 0, 0])
-            )
-            for k in range(ntri_out)
-        )
-        cpp_areas.append(cpp_area)
+        cpp_areas.append(_tri_area(out_buf[:ntri_out]))
 
     np.testing.assert_allclose(py_areas, cpp_areas, rtol=1e-10, atol=1e-14)
 
@@ -344,28 +327,16 @@ def test_clip_triangle_output_vertices_in_correct_region():
     radius = 1.8
     tol = 1e-9  # boundary tolerance
 
-    def _area(tris):
-        return sum(
-            0.5 * abs(
-                (t[1, 0] - t[0, 0]) * (t[2, 1] - t[0, 1])
-                - (t[1, 1] - t[0, 1]) * (t[2, 0] - t[0, 0])
-            )
-            for t in tris
-        )
-
     for _ in range(300):
         tri = rng.uniform(-3.0, 3.0, (3, 2))
-        orig_area = 0.5 * abs(
-            (tri[1, 0] - tri[0, 0]) * (tri[2, 1] - tri[0, 1])
-            - (tri[1, 1] - tri[0, 1]) * (tri[2, 0] - tri[0, 0])
-        )
+        orig_area = _tri_area([tri])
 
         inside_tris  = DonutTriangleFactory._clip_triangle_to_circle(tri, center, radius, keep_inside=True)
         outside_tris = DonutTriangleFactory._clip_triangle_to_circle(tri, center, radius, keep_inside=False)
 
         # Clipped output area must not exceed the original
-        assert _area(inside_tris)  <= orig_area + 1e-12
-        assert _area(outside_tris) <= orig_area + 1e-12
+        assert _tri_area(inside_tris)  <= orig_area + 1e-12
+        assert _tri_area(outside_tris) <= orig_area + 1e-12
 
         # Every vertex of every inside triangle must be within radius + tol
         for t in inside_tris:
