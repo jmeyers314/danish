@@ -60,7 +60,7 @@ class BaseDonutModel:
 
     Parameters
     ----------
-    factory : DonutInverseFactory or DonutTriangleFactory
+    factory : DonutFactoryBase
     bkg_order : int
         Order of polynomial background model to use.  If -1, no background.
     npix : int
@@ -283,7 +283,7 @@ class SingleDonutModel(BaseDonutModel):
 
     Parameters
     ----------
-    factory : DonutInverseFactory or DonutTriangleFactory
+    factory : DonutFactoryBase
     bkg_order : int, optional
         Order of polynomial background model to use.  If -1, no background.
     z_ref : array of float
@@ -497,7 +497,7 @@ class BaseMultiDonutModel(BaseDonutModel):
 
     Parameters
     ----------
-    factory : DonutInverseFactory or DonutTriangleFactory
+    factory : DonutFactoryBase
     bkg_order : int, optional
         Order of the background polynomial to fit.  If -1, no background.
     dz_ref : DoubleZernike
@@ -928,7 +928,7 @@ class DZMultiDonutModel(BaseMultiDonutModel):
 
     Parameters
     ----------
-    factory : DonutInverseFactory or DonutTriangleFactory
+    factory : DonutFactoryBase
     dz_terms : sequence of tuple of int
         List of (k, j) indices specifying which double Zernike terms to use.
     bkg_order : int, optional
@@ -987,7 +987,7 @@ class DZBasisMultiDonutModel(BaseMultiDonutModel):
 
     Parameters
     ----------
-    factory : DonutInverseFactory or DonutTriangleFactory
+    factory : DonutFactoryBase
     sensitivity : array of float
         Sensitivity matrix that converts mode coefficients into double Zernike
         coefficients.  Dimensions are (nmode, k_max+1, j_max+1)

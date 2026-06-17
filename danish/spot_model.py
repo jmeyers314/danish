@@ -42,7 +42,7 @@ class BaseSpotModel:
 
     Parameters
     ----------
-    factory : SpotFactory or DonutInverseFactory
+    factory : SpotFactory
     bkg_order : int
         Order of polynomial background model to use.  If -1, no background.
     npix : int
@@ -228,7 +228,7 @@ class BaseMultiSpotModel(BaseSpotModel):
 
     Parameters
     ----------
-    factory : SpotFactory or DonutInverseFactory
+    factory : SpotFactory
     bkg_order : int, optional
         Order of the background polynomial to fit.  If -1, no background.
     dz_ref : DoubleZernike
