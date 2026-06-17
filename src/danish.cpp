@@ -792,8 +792,9 @@ int clip_triangles_to_strut(
         const double* tv = in + k*6;
         double tri[3][2] = {{tv[0],tv[1]},{tv[2],tv[3]},{tv[4],tv[5]}};
 
-        // Max output per triangle: 6 (split by 4 half-planes)
-        double local_buf[6*6];
+        // Max output per triangle: 7 (proven: T = 9 - m4, and m4 >= 2 because
+        // plane-3 intersections lie on x=-hl which is inside plane 4's x<=hl).
+        double local_buf[7*6];
         int nv = clip_one_triangle_to_strut(
             tri, p1x, p1y, eff_sth1, eff_cth1,
             p2x, p2y, eff_sth2, eff_cth2,

@@ -1497,7 +1497,7 @@ class DonutTriangleFactory:
             })
 
             if len(kept) > 0:
-                out_buf = np.empty((len(kept) * 6, 3, 2), dtype=np.float64)
+                out_buf = np.empty((len(kept) * 7, 3, 2), dtype=np.float64)
                 n_rem[0] = 0
                 n_clip[0] = 0
                 ntri_out = _clip_triangles_to_strut_cpp(
