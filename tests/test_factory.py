@@ -3,6 +3,7 @@ from contextlib import ExitStack
 import os
 import yaml
 import numpy as np
+import pytest
 
 import danish
 from galsim.zernike import Zernike
@@ -1144,6 +1145,7 @@ def test_triangle_factory_annulus_mesh_area():
 
 @timer
 def test_triangle_factory_debug_plot_smoke():
+    pytest.importorskip("matplotlib")
     factory = danish.DonutTriangleFactory(
         R_outer=4.18,
         R_inner=2.5498,

@@ -1,6 +1,6 @@
 try:
     import threadpoolctl
-    threadpoolctl.threadpool_limits(1)
+    _threadpool_limiter = threadpoolctl.threadpool_limits(1)
 except ImportError:
     pass
 
