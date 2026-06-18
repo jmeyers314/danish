@@ -272,9 +272,14 @@ def main(args):
 
     # Render movie sequentially from stored frame data.
     if write_movie:
-        fig = Figure(figsize=(16, 12), constrained_layout=True)
+        # Grid sized to the number of traced surfaces (varies by optic
+        # version, e.g. v1000 adds M1/M2/M3 baffles).
+        nsurf = len(results[0]["frame_surfs"]) if results else 0
+        ncols = 4
+        nrows = max(1, -(-nsurf // ncols))  # ceil division
+        fig = Figure(figsize=(4 * ncols, 4 * nrows), constrained_layout=True)
         FigureCanvasAgg(fig)
-        axs = fig.subplots(3, 4)
+        axs = fig.subplots(nrows, ncols)
         writer = FFMpegWriter(fps=args.fps)
         with writer.saving(fig, args.output, dpi=100):
             for result in tqdm(results, desc="movie",

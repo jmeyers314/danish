@@ -26,11 +26,11 @@ from tqdm import tqdm
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
 
-def stem(band, rtp, az, piston):
+def stem(version, band, rtp, az, piston):
     rtp_str    = f"{rtp:+d}".replace("+", "p").replace("-", "m")
     az_str     = f"{int(az):+d}".replace("+", "p").replace("-", "m")
     piston_str = f"{piston:+.1f}".replace("+", "p").replace("-", "m").replace(".", "d")
-    return f"v3.14_{band}_rtp{rtp_str}_az{az_str}_p{piston_str}"
+    return f"v{version}_{band}_rtp{rtp_str}_az{az_str}_p{piston_str}"
 
 
 def build_runs():
@@ -71,7 +71,7 @@ def _run_cmd(cmd, logfile=None):
 
 def run_one(run, outdir, yamldir, args):
     band, rtp, az, piston = run["band"], run["rtp"], run["az"], run["piston"]
-    s = stem(band, rtp, az, piston)
+    s = stem(args.version, band, rtp, az, piston)
     edges_out = outdir / f"{s}.asdf"
     movie_out = outdir / f"{s}.mp4"
     yaml_out  = yamldir / f"RubinObsc_{s}.yaml"
@@ -95,7 +95,7 @@ def run_one(run, outdir, yamldir, args):
         cmd = [
             sys.executable,
             str(REPO_ROOT / "devel" / "mask_model" / "generate_mask_model.py"),
-            "--version", "3.14",
+            "--version", args.version,
             "--band", band,
             "--rtp-deg", str(rtp),
             "--camera-piston-mm", str(piston),
@@ -131,6 +131,8 @@ def run_one(run, outdir, yamldir, args):
 def main():
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--version", type=str, default="3.14",
+                        help="StarSharp optic version to trace (default: 3.14)")
     parser.add_argument("--outdir", type=Path,
                         default=REPO_ROOT / "devel" / "mask_model" / "edges",
                         help="Directory for .asdf and .mp4 files (default: devel/mask_model/edges/)")
@@ -159,7 +161,7 @@ def main():
 
     if args.dry_run:
         for run in runs:
-            s = stem(run["band"], run["rtp"], run["az"], run["piston"])
+            s = stem(args.version, run["band"], run["rtp"], run["az"], run["piston"])
             print(f"  {args.outdir}/{s}.asdf")
             print(f"  {args.yamldir}/RubinObsc_{s}.yaml")
         return
@@ -169,7 +171,7 @@ def main():
 
     with tqdm(runs, position=0, leave=True, unit="run") as pbar:
         for run in pbar:
-            s = stem(run["band"], run["rtp"], run["az"], run["piston"])
+            s = stem(args.version, run["band"], run["rtp"], run["az"], run["piston"])
             pbar.set_description(s)
             try:
                 _, status = run_one(run, args.outdir, args.yamldir, args)
