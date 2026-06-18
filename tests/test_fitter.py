@@ -14,6 +14,11 @@ from danish_test_helpers import timer, runtests
 directory = os.path.dirname(__file__)
 
 Rubin_obsc = yaml.safe_load(open(os.path.join(danish.datadir, 'RubinObsc.yaml')))
+# v3.14 lacks the extra M1/M2/M3 baffle added in v1000 (now the RubinObsc.yaml
+# default). A few fitter tests were validated against v3.14 geometry, so they
+# pin to it explicitly rather than tracking the default.
+Rubin_obsc_v314 = yaml.safe_load(open(
+    os.path.join(danish.datadir, 'RubinObsc_v3.14_r_rtpp0_azp45_pp0d0.yaml')))
 AuxTel_obsc = yaml.safe_load(open(os.path.join(danish.datadir, 'AuxTelObsc.yaml')))
 
 
@@ -505,12 +510,12 @@ def test_fitter_LSST_kolm(run_slow):
 
     factory = danish.DonutFactory(
         R_outer=4.18, R_inner=2.5498,
-        mask_params=Rubin_obsc,
+        mask_params=Rubin_obsc_v314,
         focal_length=10.31, pixel_scale=10e-6
     )
     binned_factory = danish.DonutFactory(
         R_outer=4.18, R_inner=2.5498,
-        mask_params=Rubin_obsc,
+        mask_params=Rubin_obsc_v314,
         focal_length=10.31, pixel_scale=20e-6
     )
 
@@ -564,7 +569,7 @@ def test_fitter_LSST_kolm(run_slow):
         np.testing.assert_allclose(fwhm_fit, fwhm, rtol=0, atol=5e-2)
         np.testing.assert_allclose(z_fit, z_true, rtol=0, atol=0.15*wavelength)
         rms1x1 = np.sqrt(np.sum(((z_true-z_fit)/wavelength)**2))
-        assert rms1x1 < 0.2, "rms %9.3f > %9.3" % (rms1x1, 0.2)
+        assert rms1x1 < 0.2, "rms %9.3f > %9.3f" % (rms1x1, 0.2)
 
         # Try binning 2x2
         binned_fitter = danish.SingleDonutModel(
@@ -594,7 +599,7 @@ def test_fitter_LSST_kolm(run_slow):
         np.testing.assert_allclose(fwhm_fit, fwhm, rtol=0, atol=5e-2)
         np.testing.assert_allclose(z_fit, z_true, rtol=0, atol=0.15*wavelength)
         rms2x2 = np.sqrt(np.sum(((z_true-z_fit)/wavelength)**2))
-        assert rms2x2 < 0.2, "rms %9.3f > %9.3" % (rms2x2, 0.2)
+        assert rms2x2 < 0.2, "rms %9.3f > %9.3f" % (rms2x2, 0.2)
 
         print("\n"*4)
         print(f"1x1 fit time: {t1x1:.3f} sec")
@@ -1314,7 +1319,7 @@ def test_dz_fitter_LSST_atm():
 
     factory = danish.DonutFactory(
         R_outer=4.18, R_inner=2.5498,
-        mask_params=Rubin_obsc,
+        mask_params=Rubin_obsc_v314,
         focal_length=10.31, pixel_scale=10e-6
     )
     sky_level = data[0]['sky_level']
@@ -1840,7 +1845,7 @@ def test_dz_multi_spot_model_rigid_perturbation():
 
     factory = danish.DonutFactory(
         R_outer=4.18, R_inner=2.5498,
-        mask_params=Rubin_obsc,
+        mask_params=Rubin_obsc_v314,
         focal_length=10.31, pixel_scale=10e-6
     )
 
