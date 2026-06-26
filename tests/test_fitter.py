@@ -2653,6 +2653,374 @@ def test_dz_joint_model_roundtrip():
 
 
 @timer
+def test_multi_group_joint_model_jac():
+    """Verify MultiGroupJointModel.jac == _jac2 for a 3-group setup.
+
+    Groups: intra-focal donuts, extra-focal donuts, in-focus spots — each
+    with its own atmospheric kernel.  Also tests DZBasisMultiGroupJointModel.
+    """
+    from danish.joint_model import (
+        ModelGroup,
+        DZMultiGroupJointModel,
+        DZBasisMultiGroupJointModel,
+    )
+
+    telescope = batoid.Optic.fromYaml("LSST_i.yaml")
+    intra_tel = telescope.withGloballyShiftedOptic("Detector", [0, 0,  0.0015])
+    extra_tel = telescope.withGloballyShiftedOptic("Detector", [0, 0, -0.0015])
+    wavelength = 750e-9
+
+    rng = np.random.default_rng(20240527)
+    thr = np.sqrt(rng.uniform(0, 1.8**2, 3))
+    ph  = rng.uniform(0, 2*np.pi, 3)
+    thxs = np.deg2rad(thr * np.cos(ph))
+    thys = np.deg2rad(thr * np.sin(ph))
+
+    zk_kwargs = dict(
+        wavelength=wavelength, nrad=20, naz=120,
+        reference='chief', jmax=66, eps=0.61,
+    )
+    z_ref_intra = batoid.zernikeTA(intra_tel, thxs[0], thys[0], **zk_kwargs) * wavelength
+    z_ref_extra = batoid.zernikeTA(extra_tel, thxs[1], thys[1], **zk_kwargs) * wavelength
+    z_ref_spot  = batoid.zernikeTA(telescope,  thxs[2], thys[2], **zk_kwargs) * wavelength
+
+    factory = danish.DonutFactory(
+        R_outer=4.18, R_inner=2.5498,
+        mask_params=Rubin_obsc,
+        focal_length=10.31, pixel_scale=10e-6,
+    )
+
+    dz_terms = (
+        (1, 4),
+        (2, 4), (3, 4),
+        (2, 5), (3, 5), (2, 6), (3, 6),
+        (1, 7), (1, 8),
+    )
+
+    intra_model = danish.DZMultiDonutModel(
+        factory, z_refs=z_ref_intra[np.newaxis], dz_terms=dz_terms,
+        field_radius=np.deg2rad(1.8), thxs=thxs[:1], thys=thys[:1], bkg_order=0,
+    )
+    extra_model = danish.DZMultiDonutModel(
+        factory, z_refs=z_ref_extra[np.newaxis], dz_terms=dz_terms,
+        field_radius=np.deg2rad(1.8), thxs=thxs[1:2], thys=thys[1:2], bkg_order=0,
+    )
+    spot_model = danish.DZMultiSpotModel(
+        factory, z_refs=z_ref_spot[np.newaxis], dz_terms=dz_terms,
+        field_radius=np.deg2rad(1.8), thxs=thxs[2:], thys=thys[2:],
+        bkg_order=0, spot_nrad=40, gq_kwargs=dict(rmax=3.5),
+    )
+
+    # Three separate atm groups — each model gets its own atmospheric kernel.
+    joint = DZMultiGroupJointModel([
+        [ModelGroup(intra_model, weight=1.0, label="intra")],
+        [ModelGroup(extra_model, weight=1.5, label="extra")],
+        [ModelGroup(spot_model,  weight=2.0, label="spots")],
+    ])
+
+    dz_vals = rng.uniform(-0.3, 0.3, len(dz_terms)) * wavelength
+    fwhm = 0.7
+    intra_imgs = intra_model.model([5e6], [0.1], [-0.1], fwhm, dz_vals, sky_levels=[500.0])
+    extra_imgs = extra_model.model([5e6], [-0.1], [0.1], fwhm, dz_vals, sky_levels=[500.0])
+    spot_imgs  = spot_model.model( [1e6], [0.0],  [0.0], fwhm, dz_vals, sky_levels=[200.0])
+
+    data_list = [intra_imgs, extra_imgs, spot_imgs]
+    var_list  = [[500.0], [500.0], [200.0]]
+
+    guess = joint.pack_params(
+        wavefront_params=[0.0] * len(dz_terms),
+        outer_groups=[
+            {'atm': {'fwhm': 0.7},
+             'models': [{'fluxes': [np.sum(intra_imgs[0])], 'dxs': [0.0], 'dys': [0.0],
+                         'bkgs': [(0.0,)]}]},
+            {'atm': {'fwhm': 0.7},
+             'models': [{'fluxes': [np.sum(extra_imgs[0])], 'dxs': [0.0], 'dys': [0.0],
+                         'bkgs': [(0.0,)]}]},
+            {'atm': {'fwhm': 0.7},
+             'models': [{'fluxes': [np.sum(spot_imgs[0])],  'dxs': [0.0], 'dys': [0.0],
+                         'bkgs': [(0.0,)]}]},
+        ],
+    )
+
+    j1 = joint.jac(guess, data_list, var_list)
+    j2 = joint._jac2(guess, data_list, var_list)
+    np.testing.assert_allclose(j1, j2, atol=1e-10)
+
+    # --- Also test DZBasisMultiGroupJointModel ---
+    dz_kw = dict(field=np.deg2rad(1.8), wavelength=wavelength, kmax=3, jmax=11)
+    dz0 = batoid.doubleZernike(telescope, **dz_kw) * wavelength
+    sens = []
+    for transform in [
+        lambda t: t.withGloballyShiftedOptic("LSSTCamera", [0, 0, 10e-6]),
+        lambda t: t.withGloballyRotatedOptic("LSSTCamera", batoid.RotX(np.deg2rad(10/3600))),
+        lambda t: t.withGloballyRotatedOptic("LSSTCamera", batoid.RotY(np.deg2rad(10/3600))),
+    ]:
+        dz1 = batoid.doubleZernike(transform(telescope), **dz_kw) * wavelength
+        sens.append((dz1 - dz0) / 10)
+    sens = np.array(sens)
+    sens[:, 0] = 0
+    sens[..., :4] = 0
+
+    intra_basis = danish.DZBasisMultiDonutModel(
+        factory, sensitivity=sens, z_refs=z_ref_intra[np.newaxis],
+        field_radius=np.deg2rad(1.8), thxs=thxs[:1], thys=thys[:1],
+        bkg_order=0, wavefront_step=0.1,
+    )
+    extra_basis = danish.DZBasisMultiDonutModel(
+        factory, sensitivity=sens, z_refs=z_ref_extra[np.newaxis],
+        field_radius=np.deg2rad(1.8), thxs=thxs[1:2], thys=thys[1:2],
+        bkg_order=0, wavefront_step=0.1,
+    )
+    spot_basis = danish.DZBasisMultiSpotModel(
+        factory, sensitivity=sens, z_refs=z_ref_spot[np.newaxis],
+        field_radius=np.deg2rad(1.8), thxs=thxs[2:], thys=thys[2:],
+        bkg_order=0, spot_nrad=40, gq_kwargs=dict(rmax=3.5), wavefront_step=0.1,
+    )
+
+    joint_basis = DZBasisMultiGroupJointModel([
+        [ModelGroup(intra_basis, weight=1.0)],
+        [ModelGroup(extra_basis, weight=1.5)],
+        [ModelGroup(spot_basis,  weight=2.0)],
+    ])
+
+    guess_basis = joint_basis.pack_params(
+        wavefront_params=[0.0] * sens.shape[0],
+        outer_groups=[
+            {'atm': {'fwhm': 0.7},
+             'models': [{'fluxes': [np.sum(intra_imgs[0])], 'dxs': [0.0], 'dys': [0.0],
+                         'bkgs': [(0.0,)]}]},
+            {'atm': {'fwhm': 0.7},
+             'models': [{'fluxes': [np.sum(extra_imgs[0])], 'dxs': [0.0], 'dys': [0.0],
+                         'bkgs': [(0.0,)]}]},
+            {'atm': {'fwhm': 0.7},
+             'models': [{'fluxes': [np.sum(spot_imgs[0])],  'dxs': [0.0], 'dys': [0.0],
+                         'bkgs': [(0.0,)]}]},
+        ],
+    )
+
+    j1b = joint_basis.jac(guess_basis, data_list, var_list)
+    j2b = joint_basis._jac2(guess_basis, data_list, var_list)
+    np.testing.assert_allclose(j1b, j2b, atol=1e-10)
+
+    # --- Also test ixx atm_mode (3-parameter atm block per group) ---
+    intra_ixx = danish.DZMultiDonutModel(
+        factory, z_refs=z_ref_intra[np.newaxis], dz_terms=dz_terms,
+        field_radius=np.deg2rad(1.8), thxs=thxs[:1], thys=thys[:1],
+        bkg_order=0, atm_mode='ixx',
+    )
+    spot_ixx = danish.DZMultiSpotModel(
+        factory, z_refs=z_ref_spot[np.newaxis], dz_terms=dz_terms,
+        field_radius=np.deg2rad(1.8), thxs=thxs[2:], thys=thys[2:],
+        bkg_order=0, spot_nrad=40, gq_kwargs=dict(rmax=3.5), atm_mode='ixx',
+    )
+
+    Ixx, Ixy, Iyy = 0.20, 0.01, 0.18
+    intra_imgs_ixx = intra_ixx.model(
+        [5e6], [0.1], [-0.1], wavefront_params=dz_vals,
+        Ixx=Ixx, Ixy=Ixy, Iyy=Iyy, sky_levels=[500.0],
+    )
+    spot_imgs_ixx = spot_ixx.model(
+        [1e6], [0.0], [0.0], wavefront_params=dz_vals,
+        Ixx=Ixx, Ixy=Ixy, Iyy=Iyy, sky_levels=[200.0],
+    )
+
+    joint_ixx = DZMultiGroupJointModel([
+        [ModelGroup(intra_ixx, weight=1.0, label="intra")],
+        [ModelGroup(spot_ixx,  weight=2.0, label="spots")],
+    ])
+
+    guess_ixx = joint_ixx.pack_params(
+        wavefront_params=[0.0] * len(dz_terms),
+        outer_groups=[
+            {'atm': {'Ixx': Ixx, 'Ixy': Ixy, 'Iyy': Iyy},
+             'models': [{'fluxes': [np.sum(intra_imgs_ixx[0])], 'dxs': [0.0], 'dys': [0.0],
+                         'bkgs': [(0.0,)]}]},
+            {'atm': {'Ixx': Ixx, 'Ixy': Ixy, 'Iyy': Iyy},
+             'models': [{'fluxes': [np.sum(spot_imgs_ixx[0])],  'dxs': [0.0], 'dys': [0.0],
+                         'bkgs': [(0.0,)]}]},
+        ],
+    )
+
+    data_ixx  = [intra_imgs_ixx, spot_imgs_ixx]
+    var_ixx   = [[500.0], [200.0]]
+    j1i = joint_ixx.jac(guess_ixx, data_ixx, var_ixx)
+    j2i = joint_ixx._jac2(guess_ixx, data_ixx, var_ixx)
+    np.testing.assert_allclose(j1i, j2i, atol=1e-10)
+
+
+@timer
+def test_multi_group_joint_model_pack_unpack():
+    """pack_params -> unpack_params should recover all values exactly.
+
+    Also verifies that pack_params(** unpack_params(x)) == x (roundtrip
+    through the nested dict representation).
+    """
+    from danish.joint_model import ModelGroup, DZMultiGroupJointModel
+
+    telescope = batoid.Optic.fromYaml("LSST_i.yaml")
+    intra_tel = telescope.withGloballyShiftedOptic("Detector", [0, 0,  0.0015])
+    extra_tel = telescope.withGloballyShiftedOptic("Detector", [0, 0, -0.0015])
+    wavelength = 750e-9
+    thx, thy = np.deg2rad(1.5), np.deg2rad(0.3)
+
+    zk_kw = dict(wavelength=wavelength, nrad=20, naz=120,
+                 reference='chief', jmax=66, eps=0.61)
+    z_ref_intra = batoid.zernikeTA(intra_tel, thx, thy, **zk_kw) * wavelength
+    z_ref_extra = batoid.zernikeTA(extra_tel, thx, thy, **zk_kw) * wavelength
+    z_ref_spot  = batoid.zernikeTA(telescope,  thx, thy, **zk_kw) * wavelength
+
+    factory = danish.DonutFactory(
+        R_outer=4.18, R_inner=2.5498,
+        mask_params=Rubin_obsc,
+        focal_length=10.31, pixel_scale=10e-6,
+    )
+
+    dz_terms = ((1, 4), (1, 5), (1, 6))
+
+    intra_model = danish.DZMultiDonutModel(
+        factory, z_refs=z_ref_intra[np.newaxis], dz_terms=dz_terms,
+        field_radius=np.deg2rad(1.8), thxs=[thx], thys=[thy], bkg_order=0,
+    )
+    extra_model = danish.DZMultiDonutModel(
+        factory, z_refs=z_ref_extra[np.newaxis], dz_terms=dz_terms,
+        field_radius=np.deg2rad(1.8), thxs=[thx], thys=[thy], bkg_order=0,
+    )
+    spot_model = danish.DZMultiSpotModel(
+        factory, z_refs=z_ref_spot[np.newaxis], dz_terms=dz_terms,
+        field_radius=np.deg2rad(1.8), thxs=[thx], thys=[thy], bkg_order=0,
+        spot_nrad=40, gq_kwargs=dict(rmax=3.5),
+    )
+
+    # Two outer groups: intra+extra share one atm, spot has its own.
+    joint = DZMultiGroupJointModel([
+        [ModelGroup(intra_model, weight=1.0, label="intra"),
+         ModelGroup(extra_model, weight=1.0, label="extra")],
+        [ModelGroup(spot_model,  weight=0.5, label="spots")],
+    ])
+
+    wf = [1.2e-7, -3.4e-8, 5.6e-8]
+    params_in = dict(
+        wavefront_params=wf,
+        outer_groups=[
+            {'atm': {'fwhm': 0.63},
+             'models': [
+                 {'fluxes': [4.2e7], 'dxs': [0.12],  'dys': [-0.08], 'bkgs': [(1100.0,)]},
+                 {'fluxes': [3.8e7], 'dxs': [-0.05], 'dys': [ 0.17], 'bkgs': [ (950.0,)]},
+             ]},
+            {'atm': {'fwhm': 0.41},
+             'models': [
+                 {'fluxes': [5.1e6], 'dxs': [0.03], 'dys': [-0.02], 'bkgs': [(200.0,)]},
+             ]},
+        ],
+    )
+
+    packed = joint.pack_params(**params_in)
+    recovered = joint.unpack_params(packed)
+
+    np.testing.assert_array_equal(recovered['wavefront_params'], wf)
+    for og_in, og_out in zip(params_in['outer_groups'], recovered['outer_groups']):
+        for k, v in og_in['atm'].items():
+            np.testing.assert_array_equal(og_out['atm'][k], v)
+        for m_in, m_out in zip(og_in['models'], og_out['models']):
+            np.testing.assert_array_equal(m_out['fluxes'], m_in['fluxes'])
+            np.testing.assert_array_equal(m_out['dxs'],    m_in['dxs'])
+            np.testing.assert_array_equal(m_out['dys'],    m_in['dys'])
+            np.testing.assert_array_equal(
+                list(m_out['bkgs'][0]), list(m_in['bkgs'][0])
+            )
+
+    # pack(unpack(x)) must reproduce x exactly.
+    np.testing.assert_array_equal(joint.pack_params(**recovered), packed)
+
+
+@timer
+def test_multi_group_joint_model_model():
+    """joint.model(params) must match the output of each sub-model called
+    individually with the same parameters.
+
+    Uses three separate atm groups (one per model) and no background, so the
+    comparison is unambiguous: any routing error in pack/unpack or in
+    _sub_model_packed will show up as image-level disagreement.
+    """
+    from danish.joint_model import ModelGroup, DZMultiGroupJointModel
+
+    telescope = batoid.Optic.fromYaml("LSST_i.yaml")
+    intra_tel = telescope.withGloballyShiftedOptic("Detector", [0, 0,  0.0015])
+    extra_tel = telescope.withGloballyShiftedOptic("Detector", [0, 0, -0.0015])
+    wavelength = 750e-9
+
+    rng = np.random.default_rng(20240529)
+    thx = np.deg2rad(rng.uniform(0.5, 1.5))
+    thy = np.deg2rad(rng.uniform(0.1, 0.5))
+
+    zk_kw = dict(wavelength=wavelength, nrad=20, naz=120,
+                 reference='chief', jmax=66, eps=0.61)
+    z_ref_intra = batoid.zernikeTA(intra_tel, thx, thy, **zk_kw) * wavelength
+    z_ref_extra = batoid.zernikeTA(extra_tel, thx, thy, **zk_kw) * wavelength
+    z_ref_spot  = batoid.zernikeTA(telescope,  thx, thy, **zk_kw) * wavelength
+
+    factory = danish.DonutFactory(
+        R_outer=4.18, R_inner=2.5498,
+        mask_params=Rubin_obsc,
+        focal_length=10.31, pixel_scale=10e-6,
+    )
+
+    dz_terms = ((1, 4), (1, 7), (1, 8))
+
+    intra_model = danish.DZMultiDonutModel(
+        factory, z_refs=z_ref_intra[np.newaxis], dz_terms=dz_terms,
+        field_radius=np.deg2rad(1.8), thxs=[thx], thys=[thy], bkg_order=-1,
+    )
+    extra_model = danish.DZMultiDonutModel(
+        factory, z_refs=z_ref_extra[np.newaxis], dz_terms=dz_terms,
+        field_radius=np.deg2rad(1.8), thxs=[thx], thys=[thy], bkg_order=-1,
+    )
+    spot_model = danish.DZMultiSpotModel(
+        factory, z_refs=z_ref_spot[np.newaxis], dz_terms=dz_terms,
+        field_radius=np.deg2rad(1.8), thxs=[thx], thys=[thy], bkg_order=-1,
+        spot_nrad=40, gq_kwargs=dict(rmax=3.5),
+    )
+
+    # Three separate atm groups — each model gets its own atmospheric kernel.
+    joint = DZMultiGroupJointModel([
+        [ModelGroup(intra_model, weight=1.0, label="intra")],
+        [ModelGroup(extra_model, weight=1.5, label="extra")],
+        [ModelGroup(spot_model,  weight=2.0, label="spots")],
+    ])
+
+    wf        = [1.5e-7, -8.0e-8, 3.0e-8]
+    fwhm_intra, fwhm_extra, fwhm_spot = 0.65, 0.58, 0.42
+    flux_d, flux_s = 4e7, 3e6
+    dx_intra, dy_intra =  0.15, -0.10
+    dx_extra, dy_extra = -0.08,  0.12
+    dx_spot,  dy_spot  =  0.02,  0.05
+
+    # Reference images from individual models.
+    ref_intra = intra_model.model([flux_d], [dx_intra], [dy_intra], fwhm_intra, wf)
+    ref_extra = extra_model.model([flux_d], [dx_extra], [dy_extra], fwhm_extra, wf)
+    ref_spot  = spot_model.model( [flux_s], [dx_spot],  [dy_spot],  fwhm_spot,  wf)
+
+    packed = joint.pack_params(
+        wavefront_params=wf,
+        outer_groups=[
+            {'atm': {'fwhm': fwhm_intra},
+             'models': [{'fluxes': [flux_d], 'dxs': [dx_intra], 'dys': [dy_intra]}]},
+            {'atm': {'fwhm': fwhm_extra},
+             'models': [{'fluxes': [flux_d], 'dxs': [dx_extra], 'dys': [dy_extra]}]},
+            {'atm': {'fwhm': fwhm_spot},
+             'models': [{'fluxes': [flux_s], 'dxs': [dx_spot],  'dys': [dy_spot]}]},
+        ],
+    )
+
+    joint_imgs = joint.model(packed)
+
+    assert len(joint_imgs) == 3
+    np.testing.assert_array_equal(joint_imgs[0], ref_intra)
+    np.testing.assert_array_equal(joint_imgs[1], ref_extra)
+    np.testing.assert_array_equal(joint_imgs[2], ref_spot)
+
+
+@timer
 def test_systematic_loss():
     rng = np.random.default_rng(12345)
     data = rng.poisson(100, size=(20, 20)).astype(float)
