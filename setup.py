@@ -29,14 +29,20 @@ def _version_kwarg():
 
 
 def _version_from_file():
+    import ast
+
     version_file = os.path.join(os.path.dirname(__file__), "danish", "_version.py")
-    namespace = {}
     try:
         with open(version_file) as f:
-            exec(f.read(), namespace)
-        return namespace["__version__"]
-    except (OSError, KeyError):
+            tree = ast.parse(f.read())
+    except OSError:
         return "0.0.0"
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Assign) and any(
+            isinstance(t, ast.Name) and t.id == "__version__" for t in node.targets
+        ):
+            return ast.literal_eval(node.value)
+    return "0.0.0"
 
 
 ext_modules = [
