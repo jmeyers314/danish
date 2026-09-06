@@ -1158,7 +1158,6 @@ class DonutTriangleFactory(DonutFactoryBase):
         nrad=15,
         naz=None,
         kfold=6,
-        dedup_tol=1e-12,
         debug=False,
         show_debug=True,
         plot_vertices=False,
@@ -1665,7 +1664,6 @@ class DonutTriangleFactory(DonutFactoryBase):
             p1, p2 = spec['p1'], spec['p2']
             cth1, sth1 = spec['cth1'], spec['sth1']
             cth2, sth2 = spec['cth2'], spec['sth2']
-            center = spec.get('center', 0.5*(p1 + p2))
             half_len = spec.get('length', 10.0) * 0.5
             along_cth = 0.5*(cth1 + cth2)
             along_sth = 0.5*(sth1 + sth2)
@@ -1938,8 +1936,6 @@ class DonutTriangleFactory(DonutFactoryBase):
                 aberrations, R_outer=self.R_outer, R_inner=self.R_inner
             )
 
-        no2 = (npix - 1) // 2
-
         verts_uv = mesh["vertices"]   # (N, 2) in meters
         tris     = mesh["triangles"]  # (M, 3) indices
         tri_uv   = verts_uv[tris]     # (M, 3, 2) in meters
@@ -2148,7 +2144,6 @@ class SpotFactory(DonutFactoryBase):
         y = np.add.outer(sy, gy)
         w = np.multiply.outer(sw, gw)
 
-        img = np.zeros((npix, npix))
         no2 = (npix-1)//2
         bds = np.linspace(-no2-0.5, no2+0.5, npix+1)*self.pixel_scale
         H, *_ = np.histogram2d(y.ravel(), x.ravel(), bins=[bds, bds], weights=w.ravel(), density=False)

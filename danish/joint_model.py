@@ -128,7 +128,6 @@ class JointModel:
         """
         nd = self.nd
         ns = self.ns
-        natm = self.natm
 
         idx = 0
         d_fluxes = params[idx:idx+nd]; idx += nd
