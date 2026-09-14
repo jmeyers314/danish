@@ -32,6 +32,7 @@ from functools import lru_cache
 
 import numpy as np
 import galsim
+from scipy.sparse import csc_matrix, hstack
 
 
 from .loss import chi2_loss
@@ -841,6 +842,148 @@ class BaseMultiDonutModel(BaseDonutModel):
                 out[s, 3*nstar + natm + nwavefront + nbkg*j + i] = (chi_bkg[s] - chi0[s]) / dbkg
 
         return out
+
+    def jac_sparse(
+        self, params, data, vars, format='csr'
+    ):
+        """Compute jacobian d(chi)/d(param) as a sparse matrix.
+
+        Same finite-difference scheme as `jac` -- same steps, same perturbed
+        `chi` evaluations in the same order -- so the two agree bit-for-bit.
+        Only the storage differs; see `.jac` for the parameter ordering this
+        relies on.
+
+        Each star's `chi` residuals depend on that star's flux, dx, dy and
+        background coefficients, on the shared atmospheric and wavefront
+        parameters, and on nothing else.  Every row block therefore has the
+        same `3 + natm + nwavefront + nbkg` nonzero columns out of
+        `len(params)`, so the density is that ratio: 1.0 at nstar=1, falling to
+        0.14 by nstar=40.
+
+        Note `scipy.optimize.least_squares` will not accept a sparse jacobian
+        with `tr_solver='exact'` or `method='lm'`.  Use `tr_solver='lsmr'`, or
+        leave `tr_solver` as None, which selects lsmr for a sparse jacobian.
+
+        Parameters
+        ----------
+        params : sequence of float
+            Order is: (fluxes, dxs, dys, fwhm, *wavefront_params, *bkgs)
+        data : array of float.  Shape: (nstar, npix, npix)
+            Images against which to compute chi.
+        vars : sequence of array (npix, npix) or sequence of float
+            Variances of the sky only.  Do not include Poisson contribution of
+            the signal, as this will be added from the current model.
+        format : str, optional
+            Sparse format to return, 'csr' (default) or 'csc'.
+
+        Returns
+        -------
+        jac : scipy.sparse matrix
+            Jacobian d(chi)/d(param), shape (nstar*npix**2, len(params)), in
+            `format`.  Rows are pixels, columns are parameters, as for `jac`.
+        """
+        nstar = self.nstar
+        npix = self.npix
+        nbkg = self.nbkg
+        natm = self.natm
+        nwavefront = len(params) - nbkg*nstar - (3*nstar + natm)
+        P = npix**2
+        M = nstar*P
+
+        chi0 = self.chi(params, data, vars)
+
+        # star_cols[k, i] is the single column that parameter k of star i
+        # contributes, restricted to star i's row block.  k = 0, 1, 2 is
+        # flux, dx, dy.
+        star_cols = np.empty((3, nstar, P))
+
+        # Flux — perturb all stars at once; divide by per-star step in the loop
+        dflux_eps = 1e-3
+        param_dict = self.unpack_params(params)
+        fluxes = np.array(param_dict["fluxes"])
+        dflux_param_dict = dict(param_dict)
+        dflux_param_dict["fluxes"] = fluxes * (1 + dflux_eps)
+        chi_flux = self.chi(self.pack_params(**dflux_param_dict), data, vars)
+        for i in range(nstar):
+            s = slice(i*P, (i+1)*P)
+            star_cols[0, i] = (chi_flux[s] - chi0[s]) / (dflux_eps * fluxes[i])
+
+        # Repeat for dx
+        dx = 0.01
+        dx_params = np.array(params)
+        dx_param_dict = self.unpack_params(dx_params)
+        dx_param_dict["dxs"] += dx
+        chi_dx = self.chi(self.pack_params(**dx_param_dict), data, vars)
+        for i in range(nstar):
+            s = slice(i*P, (i+1)*P)
+            star_cols[1, i] = (chi_dx[s] - chi0[s]) / dx
+
+        # Repeat for dy
+        dy = 0.01
+        dy_params = np.array(params)
+        dy_param_dict = self.unpack_params(dy_params)
+        dy_param_dict["dys"] += dy
+        chi_dy = self.chi(self.pack_params(**dy_param_dict), data, vars)
+        for i in range(nstar):
+            s = slice(i*P, (i+1)*P)
+            star_cols[2, i] = (chi_dy[s] - chi0[s]) / dy
+
+        # Atmospheric and wavefront parameters — dense, shared across all stars
+        dense = np.empty((M, natm + nwavefront))
+
+        datm = 0.01
+        for k in range(natm):
+            params1 = np.array(params)
+            params1[3*nstar + k] += datm
+            chi1 = self.chi(params1, data, vars)
+            dense[:, k] = (chi1 - chi0) / datm
+
+        for k in range(nwavefront):
+            params1 = np.array(params)
+            params1[3*nstar + natm + k] += self.wavefront_step
+            chi1 = self.chi(params1, data, vars)
+            dense[:, natm + k] = (chi1-chi0)/self.wavefront_step
+
+        # Background terms.  These are sparse too
+        bkg_cols = np.empty((nstar, nbkg, P))
+        dbkg = 0.01
+        for i in range(nbkg):
+            bkg_params = np.array(params)
+            bkg_param_dict = self.unpack_params(bkg_params)
+            for j in range(nstar):
+                bkgj = list(bkg_param_dict["bkgs"][j])
+                bkgj[i] += dbkg
+                bkg_param_dict["bkgs"][j] = tuple(bkgj)
+            chi_bkg = self.chi(self.pack_params(**bkg_param_dict), data, vars)
+            for j in range(nstar):
+                s = slice(j*P, (j+1)*P)
+                bkg_cols[j, i] = (chi_bkg[s] - chi0[s]) / dbkg
+
+        # Assemble.  The per-star blocks are already in CSC form: column i
+        # holds rows i*P through (i+1)*P, contiguous and ascending, so the
+        # indices and indptr are plain aranges rather than anything we have to
+        # build.  hstack then fixes the column order to match pack_params, and
+        # converts to `format`.
+        indices = np.arange(M)
+        indptr = np.arange(0, M + P, P)
+        blocks = [
+            csc_matrix((star_cols[k].ravel(), indices, indptr), shape=(M, nstar))
+            for k in range(3)
+        ]
+        blocks.append(csc_matrix(dense))
+        if nbkg > 0:
+            # Column nbkg*j + i belongs to star j, so it holds rows j*P
+            # through (j+1)*P.  Same aranges, repeated nbkg times per star.
+            rows = np.repeat(np.arange(nstar), nbkg*P).reshape(nstar, nbkg, P)
+            rows = (rows*P + np.arange(P)).ravel()
+            blocks.append(
+                csc_matrix(
+                    (bkg_cols.ravel(), rows, np.arange(0, nstar*nbkg*P + P, P)),
+                    shape=(M, nstar*nbkg)
+                )
+            )
+
+        return hstack(blocks, format=format)
 
     def _jac2(self, params, data, vars):
         nstar = self.nstar
