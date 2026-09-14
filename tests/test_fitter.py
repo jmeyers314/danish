@@ -4,6 +4,7 @@ import time
 import yaml
 
 from scipy.optimize import least_squares
+from scipy.sparse import issparse
 import numpy as np
 import batoid
 from galsim.zernike import Zernike
@@ -1563,6 +1564,44 @@ def test_basis_dz_fitter_rigid():
         # plt.show()
 
 
+def check_jac_sparse(fitter, guess, imgs, vars, formats=('csr',)):
+    """Assert `jac_sparse` reproduces `jac` exactly, and is really sparse.
+
+    Both methods run the same finite differences with the same steps in the
+    same order, so they should agree bit-for-bit rather than to a tolerance.
+
+    `formats` defaults to CSR alone since each extra format costs another 27
+    internal chi calls; pass both at one site to cover the CSC path, which is
+    selectable from ts_wep config.
+    """
+    dense = fitter.jac(guess, imgs, vars)
+
+    # assert_array_equal treats nan as equal to nan, so an all-nan jacobian
+    # would sail through the comparisons below while testing nothing at all.
+    assert np.all(np.isfinite(dense))
+    assert np.any(dense != 0)
+
+    nstar, nbkg, natm = fitter.nstar, fitter.nbkg, fitter.natm
+    nwavefront = len(guess) - nbkg*nstar - (3*nstar + natm)
+    band = 3 + natm + nwavefront + nbkg
+
+    for fmt in formats:
+        sparse = fitter.jac_sparse(guess, imgs, vars, format=fmt)
+        assert issparse(sparse)
+        assert sparse.format == fmt
+        assert sparse.shape == dense.shape
+        np.testing.assert_array_equal(sparse.toarray(), dense)
+
+        # Each star's residuals depend only on its own flux/dx/dy/bkg plus the
+        # shared atmospheric and wavefront terms, so the stored fraction should
+        # be that band of columns out of len(params).  Building the dense block
+        # with csc_matrix drops exact zeros, hence the inequality.  Shrinking
+        # the storage is the whole point, so check that it did.
+        assert sparse.nnz <= nstar * fitter.npix**2 * band
+        if nstar > 1:
+            assert sparse.nnz < dense.size
+
+
 @timer
 def test_multi_donut_model_jac():
     telescope = batoid.Optic.fromYaml("LSST_i.yaml")
@@ -1618,6 +1657,25 @@ def test_multi_donut_model_jac():
     j1 = fitter.jac(guess, imgs, [1000]*nstar)
     j2 = fitter._jac2(guess, imgs, [1000]*nstar)
     np.testing.assert_array_equal(j1, j2)
+    check_jac_sparse(fitter, guess, imgs, [1000]*nstar, formats=('csr', 'csc'))
+
+    # nbkg = 0 skips the background block entirely, which is the one branch of
+    # the sparse assembly that no bkg_order=0 fitter ever takes.  Three stars
+    # exercises it and keeps the extra jac evaluations cheap.
+    nsub = 3
+    fitter_nobkg = danish.DZMultiDonutModel(
+        factory, z_refs=np.array(z_refs[:nsub]), dz_terms=dz_terms,
+        field_radius=np.deg2rad(1.8), thxs=thxs[:nsub], thys=thys[:nsub],
+        bkg_order=-1
+    )
+    assert fitter_nobkg.nbkg == 0
+    imgs_nobkg = fitter_nobkg.model(
+        fluxes[:nsub], dxs[:nsub], dys[:nsub], fwhm, dz_true,
+        sky_levels=sky_levels[:nsub],
+    )
+    guess_nobkg = [np.sum(img) for img in imgs_nobkg]
+    guess_nobkg += [0.0]*nsub + [0.0]*nsub + [0.7] + [0.0]*len(dz_terms)
+    check_jac_sparse(fitter_nobkg, guess_nobkg, imgs_nobkg, [1000]*nsub)
 
     # Try basis fitter too
     # First compute the sensitivity matrix
@@ -1672,6 +1730,7 @@ def test_multi_donut_model_jac():
     j1 = fitter.jac(guess, imgs, [1000]*nstar)
     j2 = fitter._jac2(guess, imgs, [1000]*nstar)
     np.testing.assert_array_equal(j1, j2)
+    check_jac_sparse(fitter, guess, imgs, [1000]*nstar)
 
 
 @timer
@@ -2176,6 +2235,9 @@ def test_multi_spot_model_jac():
     j1_d = fitter_donut_ixx.jac(guess_donut_ixx, imgs_donut, [1000]*nstar)
     j2_d = fitter_donut_ixx._jac2(guess_donut_ixx, imgs_donut, [1000]*nstar)
     np.testing.assert_array_equal(j1_d, j2_d)
+    # Only the donut model has jac_sparse; ixx mode is also the only natm=3
+    # coverage it gets, and natm sets where the dense block starts.
+    check_jac_sparse(fitter_donut_ixx, guess_donut_ixx, imgs_donut, [1000]*nstar)
 
 
 @timer
