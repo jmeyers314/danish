@@ -1112,16 +1112,34 @@ class DonutTriangleFactory(DonutFactoryBase):
         self.naz = naz if naz is not None else int(2 * np.pi * nrad / (1 - eps))
         if self.naz <= 0:
             raise ValueError(f"naz must be positive, got {self.naz}")
+        # Memo for _get_mesh, keyed on field angle plus the attributes the mesh
+        # is built from.  Instance-level rather than an lru_cache on the method
+        # so that the key can include those attributes, and so the cache dies
+        # with the factory.  See _mesh_config_key.
+        self._mesh_cache = {}
 
-    @lru_cache(maxsize=100)
+    def _mesh_config_key(self):
+        """Signature of the attributes `_get_mesh` builds the mesh from.
+
+        Included in the `_mesh_cache` key so that reassigning any of them
+        invalidates previously built meshes instead of silently returning a
+        stale one.  `mask_params` is a nested dict, so it enters by identity:
+        rebinding it is caught, mutating it in place is not.
+        """
+        return (self.nrad, self.naz, self.spider_angle, id(self.mask_params))
+
     def _get_mesh(self, thx, thy):
-        """Return a circle-clipped mesh for the given field angle, cached.
+        """Return a circle-clipped mesh for the given field angle, memoized.
 
         The mesh (triangulation + obscuration clipping) depends only on the
         field angle, not on the wavefront aberrations, so it is built once
-        per unique (thx, thy) and reused across all calls to image(). This
-        is mostly useful for fitting multiple donuts simultaneously to
-        cache each donut's unique mesh.
+        per unique (thx, thy) and reused across all calls to image().  A build
+        costs far more than the render it enables, so this memo is load
+        bearing for anything that calls image() repeatedly.
+
+        Callers that already know their field angles -- the fitters, which take
+        thxs/thys up front -- build their meshes once in __init__ and pass them
+        to _image_from_mesh directly, bypassing this entirely.
 
         Parameters
         ----------
@@ -1133,6 +1151,26 @@ class DonutTriangleFactory(DonutFactoryBase):
         dict
             Masked mesh dictionary as returned by apply_circle_obscurations
             (or build_annulus_mesh if mask_params is None).
+        """
+        key = (thx, thy) + self._mesh_config_key()
+        if key in self._mesh_cache:
+            return self._mesh_cache[key]
+        mesh = self._build_mesh(thx, thy)
+        self._mesh_cache[key] = mesh
+        return mesh
+
+    def _build_mesh(self, thx, thy):
+        """Build a circle- and strut-clipped mesh for one field angle.
+
+        Parameters
+        ----------
+        thx, thy : float
+            Field angle in radians.
+
+        Returns
+        -------
+        dict
+            Masked mesh dictionary.  See `_get_mesh`.
         """
         mesh = self.build_annulus_mesh(
             nrad=self.nrad,

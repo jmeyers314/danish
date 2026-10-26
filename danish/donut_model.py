@@ -101,11 +101,34 @@ class BaseDonutModel:
         self.nbkg = (bkg_order+1)*(bkg_order+2)//2
         self.atm_mode = atm_mode
         self.loss_fn = loss_fn if loss_fn is not None else chi2_loss
+        # Triangle meshes for this model's field angles, keyed on (thx, thy).
+        # Populated by _precompute_meshes once the subclass knows its angles.
+        self._meshes = {}
 
     @property
     def natm(self):
         """Number of atmospheric parameters (1 for fwhm, 3 for ixx)."""
         return 1 if self.atm_mode == 'fwhm' else 3
+
+    def _precompute_meshes(self, thxs, thys):
+        """Build this model's triangle meshes once, up front.
+
+        A model's field angles are fixed at construction, so the meshes they
+        imply can be built eagerly.
+
+        No-op for factories that do not render from a mesh (the inverse
+        factory), in which case `_opt_kernel` falls back to `factory.image`.
+
+        Parameters
+        ----------
+        thxs, thys : sequence of float
+            Field angles in radians.
+        """
+        if not hasattr(self.factory, '_build_mesh'):
+            return
+        for thx, thy in zip(thxs, thys):
+            if (thx, thy) not in self._meshes:
+                self._meshes[(thx, thy)] = self.factory._build_mesh(thx, thy)
 
     @lru_cache(maxsize=1000)
     def _atm_kernel(self, dx, dy, Ixx, Ixy, Iyy):
@@ -153,6 +176,20 @@ class BaseDonutModel:
         array of float
             Optical kernel array.
         """
+        if hasattr(self.factory, '_image_from_mesh'):
+            # This model's angles are precomputed; fall back to the factory's
+            # own memo for any angle we were not constructed with.
+            mesh = self._meshes.get((thx, thy))
+            if mesh is None:
+                mesh = self.factory._get_mesh(thx, thy)
+            return self.factory._image_from_mesh(
+                mesh,
+                aberrations=zk,
+                focal_length=self.factory.focal_length,
+                pixel_scale=self.factory.pixel_scale,
+                npix=self.npix,
+                x_offset=x_offset, y_offset=y_offset,
+            )
         result = self.factory.image(
             aberrations=zk,
             x_offset=x_offset, y_offset=y_offset,
@@ -304,6 +341,8 @@ class SingleDonutModel(BaseDonutModel):
         self.z_terms = z_terms
         self.thx = thx
         self.thy = thy
+        if thx is not None and thy is not None:
+            self._precompute_meshes([thx], [thy])
 
     def model(
         self,
@@ -524,6 +563,7 @@ class BaseMultiDonutModel(BaseDonutModel):
         self.thys = thys
         self.nstar = len(thxs)
         self.wavefront_step = wavefront_step
+        self._precompute_meshes(thxs, thys)
 
     def model(
         self, fluxes, dxs, dys, fwhm=None, wavefront_params=None, *,
