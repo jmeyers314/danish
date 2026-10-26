@@ -1241,6 +1241,44 @@ def test_triangle_factory_strut_obscurations_noop_when_no_spider_angle():
 
 
 @timer
+def test_triangle_factory_mesh_memo_reuses_and_invalidates():
+    """_get_mesh must reuse a mesh per field angle, but not across configs.
+
+    The memo exists because a mesh build costs far more than the render it
+    enables, so reuse is load bearing.  But it is keyed on the attributes the
+    mesh is built from as well as the field angle, so reassigning one of those
+    must not hand back a mesh built for the old value.
+    """
+    factory = danish.DonutTriangleFactory(
+        R_outer=4.18,
+        R_inner=2.5498,
+        mask_params=Rubin_obsc,
+        nrad=15,
+    )
+    thx, thy = np.deg2rad(1.0), 0.0
+
+    # Same field angle and config: identical object, not just an equal one.
+    mesh = factory._get_mesh(thx, thy)
+    assert factory._get_mesh(thx, thy) is mesh
+
+    # A different field angle is a different mesh.
+    assert factory._get_mesh(thx, np.deg2rad(0.5)) is not mesh
+
+    # Changing a mesh-affecting attribute must invalidate.
+    factory.nrad = 25
+    factory.naz = 300
+    coarse_ntri = len(mesh["triangles"])
+    fine = factory._get_mesh(thx, thy)
+    assert fine is not mesh
+    assert len(fine["triangles"]) > coarse_ntri
+
+    # Rebinding mask_params invalidates too (it enters the key by identity).
+    obsc = {k: v for k, v in Rubin_obsc.items() if k != "Spider_3D"}
+    factory.mask_params = obsc
+    assert factory._get_mesh(thx, thy) is not fine
+
+
+@timer
 def test_triangle_factory_image_with_spider():
     """DonutTriangleFactory.image() with spider_angle set should produce a valid image."""
     factory = danish.DonutTriangleFactory(
