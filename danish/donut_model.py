@@ -119,6 +119,11 @@ class BaseDonutModel:
         self._meshes = {}
         # Projection bases parallel to _meshes; see _precompute_projections.
         self._projections = {}
+        # Focal-plane offsets, constant across a fit.  Only the single-donut
+        # model exposes them; the shared render paths read them from here so
+        # that they do not have to know which subclass they are serving.
+        self._x_offset = None
+        self._y_offset = None
 
     @property
     def natm(self):
@@ -411,6 +416,145 @@ class BaseDonutModel:
         result = self.loss_fn(data, model, var).ravel()
         return result
 
+    def _can_use_analytic(self):
+        """Whether the analytic wavefront Jacobian is available.
+
+        It needs the mesh renderer's projection bases, which only the triangle
+        factory provides and only when the fit varies something.
+        """
+        return bool(self._projections)
+
+    def _unpack_per_donut(self, params):
+        """Unpack `params` into the per-donut view the shared renders want.
+
+        The multi-donut parameterization is already per-donut, so this is just
+        `unpack_params` there.  The single-donut one is scalar -- `flux` not
+        `fluxes` -- and overrides this to present itself as the nstar=1 case.
+
+        Parameters
+        ----------
+        params : sequence of float
+            Packed parameters.
+
+        Returns
+        -------
+        dict
+            Keys 'fluxes', 'dxs', 'dys', 'bkgs' and 'wavefront_params', plus
+            the atmospheric keys for this model's `atm_mode`.  The per-donut
+            entries are indexable by donut.
+        """
+        return self.unpack_params(params)
+
+    def _dchi_dmodel(self, datum, model, var):
+        """d(chi)/d(model), elementwise.
+
+        The loss divides by an error that is itself a function of the model, so
+        this is not simply -1/sqrt(var + model).  Derived by differentiating
+        `danish.loss.systematic_loss`; `alpha` is recovered from the loss
+        rather than stored, so a custom loss falls back to a difference
+        quotient.
+
+        Parameters
+        ----------
+        datum : array of float
+            Observed image.
+        model : array of float
+            Model image.
+        var : float or array of float
+            Sky variance.
+
+        Returns
+        -------
+        array of float
+            d(chi)/d(model) at each pixel.
+        """
+        alpha = getattr(self.loss_fn, 'alpha', None)
+        if alpha is None:
+            # Unknown loss: perturb it rather than assume a functional form.
+            h = 1e-6 * max(np.abs(model).max(), 1.0)
+            return (
+                self.loss_fn(datum, model + h, var)
+                - self.loss_fn(datum, model - h, var)
+            ) / (2*h)
+        denom = var + model + (alpha*model)**2
+        return (
+            -1.0/np.sqrt(denom)
+            - (datum - model)*(1.0 + 2*alpha**2*model)/(2*denom**1.5)
+        )
+
+    def _wavefront_jac_analytic(self, params, data, vars):
+        """Analytic d(chi)/d(wavefront parameter), one column per parameter.
+
+        The wavefront reaches chi through the optical kernel alone, so
+
+            d(chi)/dp = d(chi)/d(model) * flux * convolve(d(opt)/dp, atm)
+
+        with d(opt)/dp coming from one clip pass over the mesh rather than a
+        re-render per parameter.  The convolution is linear, so it applies to
+        each derivative image just as it does to the kernel itself, and the
+        loss' own dependence on the model enters through d(chi)/d(model).
+
+        Written against the per-donut view every donut model shares --
+        `nstar` field angles, their meshes and projections -- so it serves the
+        single-donut case as the nstar=1 instance of it.  Only the wavefront
+        columns are returned; where they belong in the full Jacobian is the
+        caller's parameterization to know.
+
+        Parameters
+        ----------
+        params : sequence of float
+            Packed parameters, as for `jac`.
+        data : array of float.  Shape: (nstar, npix, npix)
+            Images against which chi is computed.
+        vars : sequence of array or sequence of float
+            Sky variances, as for `jac`.
+
+        Returns
+        -------
+        array of float, shape (nstar*npix**2, nwavefront)
+            Jacobian columns for the wavefront parameters.
+        """
+        npix = self.npix
+        pdict = self._unpack_per_donut(params)
+        nwavefront = self._dzkdp.shape[2]
+        out = np.empty((self.nstar*npix**2, nwavefront))
+
+        if self.atm_mode == 'fwhm':
+            Ixx = Iyy = (pdict['fwhm'] * self.KOLM_CONST) ** 2
+            Ixy = 0.0
+        else:
+            Ixx, Ixy, Iyy = pdict['Ixx'], pdict['Ixy'], pdict['Iyy']
+        z_fits = self._get_z_fits(pdict['wavefront_params'])
+
+        for i in range(self.nstar):
+            thx, thy = self.thxs[i], self.thys[i]
+            x0, y0, dxdz, dydz = self._projections[(thx, thy)]
+            zk = np.array(self.z_refs[i])
+            zk[:len(z_fits[i])] += z_fits[i]
+            head = zk[self._zk_reach]
+            verts_px = np.column_stack([x0 + dxdz @ head, y0 + dydz @ head])
+            dverts = np.stack(
+                [dxdz @ self._dzkdp[i], dydz @ self._dzkdp[i]], axis=1
+            )
+            dopt = self.factory._image_derivs_from_mesh(
+                self._meshes[(thx, thy)], verts_px, dverts, npix=npix
+            )
+
+            atm = self._atm_kernel(pdict['dxs'][i], pdict['dys'][i], Ixx, Ixy, Iyy)
+            model = self._model(
+                pdict['fluxes'][i], pdict['dxs'][i], pdict['dys'][i],
+                Ixx, Ixy, Iyy, tuple(zk), tuple(pdict['bkgs'][i]),
+                thx=thx, thy=thy,
+                x_offset=self._x_offset, y_offset=self._y_offset,
+            )
+            dchi_dmodel = self._dchi_dmodel(data[i], model, vars[i])
+
+            s = slice(i*npix**2, (i+1)*npix**2)
+            for p in range(nwavefront):
+                dmodel = pdict['fluxes'][i] * convolve(dopt[p], atm)
+                out[s, p] = (dchi_dmodel * dmodel).ravel()
+        return out
+
 
 class SingleDonutModel(BaseDonutModel):
     """Model individual donuts using single Zernike offsets to a reference
@@ -454,11 +598,65 @@ class SingleDonutModel(BaseDonutModel):
         self.z_ref = z_ref
         self.x_offset = x_offset
         self.y_offset = y_offset
+        self._x_offset = x_offset
+        self._y_offset = y_offset
         self.z_terms = z_terms
         self.thx = thx
         self.thy = thy
+        self._nwavefront = len(z_terms)
+        # One donut is the nstar=1 case of many, and the analytic Jacobian is
+        # written against that per-donut view.  Expose it so the shared code
+        # can address this model without special-casing; the scalar thx/thy/
+        # z_ref above stay the ones `model()` and callers use.
+        self.nstar = 1
+        self.thxs = [thx]
+        self.thys = [thy]
+        self.z_refs = [z_ref]
         if thx is not None and thy is not None:
             self._precompute_meshes([thx], [thy])
+            if z_ref is not None:
+                self._precompute_projections(
+                    [z_ref], x_offset=x_offset, y_offset=y_offset
+                )
+
+    def _get_z_fits(self, z_fit):
+        """Convert this class's wavefront parameterization into individual
+        donut Zernike coefficients.
+
+        The parameters here *are* Zernike offsets, so this just scatters them
+        into their Noll slots -- the same mapping `model` applies inline.
+
+        Parameters
+        ----------
+        z_fit : array of float
+            Zernike perturbations, one per entry of `z_terms`.
+
+        Returns
+        -------
+        z_fits : array of float, shape (1, max(z_terms)+1)
+            Single Zernike coefficients, wrapped in the one-donut outer
+            dimension the shared code indexes by donut.
+        """
+        nzk = max(self.z_terms, default=0) + 1
+        out = np.zeros((1, nzk))
+        for i, term in enumerate(self.z_terms):
+            out[0, term] = z_fit[i]
+        return out
+
+    def _unpack_per_donut(self, params):
+        """Present this model's scalar parameters as the nstar=1 case.
+
+        See `BaseDonutModel._unpack_per_donut`.
+        """
+        pdict = self.unpack_params(params)
+        return dict(
+            fluxes=[pdict["flux"]],
+            dxs=[pdict["dx"]],
+            dys=[pdict["dy"]],
+            fwhm=pdict["fwhm"],
+            wavefront_params=pdict["z_fit"],
+            bkgs=[pdict["bkg"]],
+        )
 
     def model(
         self,
@@ -576,7 +774,7 @@ class SingleDonutModel(BaseDonutModel):
         return self._chi(data, mod, var)
 
     def jac(
-        self, params, data, var
+        self, params, data, var, method='analytic'
     ):
         """Compute jacobian d(chi)/d(param).
 
@@ -589,13 +787,26 @@ class SingleDonutModel(BaseDonutModel):
         var : float or array of float (npix, npix)
             Variance of the sky only.  Do not include Poisson contribution of
             the signal, as this will be added from the current model.
+        method : str, optional
+            'analytic' (default) differentiates the Zernike columns in closed
+            form, which is both faster and more accurate than the alternative
+            -- a one-sided difference at 1e-8 m carries a few percent error.
+            'fd' forces the difference quotient for every column.  Falls back
+            to 'fd' where no analytic path exists, i.e. for any factory that
+            does not render from a mesh.
 
         Returns
         -------
         jac : array of float
             Jacobian array d(chi)/d(param).  First dimension is pixels, second
             dimension is param.
+
+        Raises
+        ------
+        ValueError
+            If `method` is neither 'analytic' nor 'fd'.
         """
+        _check_jac_method(method)
         out = np.zeros((self.npix**2, len(params)))
         chi0 = self.chi(params, data, var)
 
@@ -609,11 +820,24 @@ class SingleDonutModel(BaseDonutModel):
         step += [1e-8]*len(self.z_terms)  # Zernikes (in meters)
         step += [0.01]*self.nbkg
 
+        # Zernike columns, which the analytic path replaces.  3 offsets plus
+        # the atmospheric parameter precede them; see pack_params.
+        wf0 = 3 + self.natm
+        nwavefront = len(self.z_terms)
+        analytic = method == 'analytic' and self._can_use_analytic()
+
         for i in range(len(params)):
+            if analytic and wf0 <= i < wf0 + nwavefront:
+                continue
             params1 = np.array(params)
             params1[i] += step[i]
             chi1 = self.chi(params1, data, var)
             out[:, i] = (chi1-chi0)/step[i]
+
+        if analytic:
+            out[:, wf0:wf0+nwavefront] = self._wavefront_jac_analytic(
+                params, data[np.newaxis], [var]
+            )
 
         return out
 
@@ -892,117 +1116,6 @@ class BaseMultiDonutModel(BaseDonutModel):
         for i, (mod, datum) in enumerate(zip(mods, data)):
             chis[i] = self._chi(datum, mod, vars[i]).reshape(self.npix, self.npix)
         return chis.ravel()
-
-    def _can_use_analytic(self):
-        """Whether the analytic wavefront Jacobian is available.
-
-        It needs the mesh renderer's projection bases, which only the triangle
-        factory provides and only when the fit varies something.
-        """
-        return bool(self._projections)
-
-    def _wavefront_jac_analytic(self, params, data, vars):
-        """Analytic d(chi)/d(wavefront parameter), one column per parameter.
-
-        The wavefront reaches chi through the optical kernel alone, so
-
-            d(chi)/dp = d(chi)/d(model) * flux * convolve(d(opt)/dp, atm)
-
-        with d(opt)/dp coming from one clip pass over the mesh rather than a
-        re-render per parameter.  The convolution is linear, so it applies to
-        each derivative image just as it does to the kernel itself, and the
-        loss' own dependence on the model enters through d(chi)/d(model).
-
-        Parameters
-        ----------
-        params : sequence of float
-            Packed parameters, as for `jac`.
-        data : array of float.  Shape: (nstar, npix, npix)
-            Images against which chi is computed.
-        vars : sequence of array or sequence of float
-            Sky variances, as for `jac`.
-
-        Returns
-        -------
-        array of float, shape (nstar*npix**2, nwavefront)
-            Jacobian columns for the wavefront parameters.
-        """
-        npix = self.npix
-        pdict = self.unpack_params(params)
-        nwavefront = self._dzkdp.shape[2]
-        out = np.empty((self.nstar*npix**2, nwavefront))
-
-        if self.atm_mode == 'fwhm':
-            Ixx = Iyy = (pdict['fwhm'] * self.KOLM_CONST) ** 2
-            Ixy = 0.0
-        else:
-            Ixx, Ixy, Iyy = pdict['Ixx'], pdict['Ixy'], pdict['Iyy']
-        z_fits = self._get_z_fits(pdict['wavefront_params'])
-
-        for i in range(self.nstar):
-            thx, thy = self.thxs[i], self.thys[i]
-            x0, y0, dxdz, dydz = self._projections[(thx, thy)]
-            zk = np.array(self.z_refs[i])
-            zk[:len(z_fits[i])] += z_fits[i]
-            head = zk[self._zk_reach]
-            verts_px = np.column_stack([x0 + dxdz @ head, y0 + dydz @ head])
-            dverts = np.stack(
-                [dxdz @ self._dzkdp[i], dydz @ self._dzkdp[i]], axis=1
-            )
-            dopt = self.factory._image_derivs_from_mesh(
-                self._meshes[(thx, thy)], verts_px, dverts, npix=npix
-            )
-
-            atm = self._atm_kernel(pdict['dxs'][i], pdict['dys'][i], Ixx, Ixy, Iyy)
-            model = self._model(
-                pdict['fluxes'][i], pdict['dxs'][i], pdict['dys'][i],
-                Ixx, Ixy, Iyy, tuple(zk), tuple(pdict['bkgs'][i]),
-                thx=thx, thy=thy,
-            )
-            dchi_dmodel = self._dchi_dmodel(data[i], model, vars[i])
-
-            s = slice(i*npix**2, (i+1)*npix**2)
-            for p in range(nwavefront):
-                dmodel = pdict['fluxes'][i] * convolve(dopt[p], atm)
-                out[s, p] = (dchi_dmodel * dmodel).ravel()
-        return out
-
-    def _dchi_dmodel(self, datum, model, var):
-        """d(chi)/d(model), elementwise.
-
-        The loss divides by an error that is itself a function of the model, so
-        this is not simply -1/sqrt(var + model).  Derived by differentiating
-        `danish.loss.systematic_loss`; `alpha` is recovered from the loss
-        rather than stored, so a custom loss falls back to a difference
-        quotient.
-
-        Parameters
-        ----------
-        datum : array of float
-            Observed image.
-        model : array of float
-            Model image.
-        var : float or array of float
-            Sky variance.
-
-        Returns
-        -------
-        array of float
-            d(chi)/d(model) at each pixel.
-        """
-        alpha = getattr(self.loss_fn, 'alpha', None)
-        if alpha is None:
-            # Unknown loss: perturb it rather than assume a functional form.
-            h = 1e-6 * max(np.abs(model).max(), 1.0)
-            return (
-                self.loss_fn(datum, model + h, var)
-                - self.loss_fn(datum, model - h, var)
-            ) / (2*h)
-        denom = var + model + (alpha*model)**2
-        return (
-            -1.0/np.sqrt(denom)
-            - (datum - model)*(1.0 + 2*alpha**2*model)/(2*denom**1.5)
-        )
 
     def jac(
         self, params, data, vars, method='analytic'
