@@ -15,6 +15,10 @@ utilities for mapping between pupil and focal planes.
 
 ::: danish.factory.pupil_focal_jacobian
 
+::: danish.factory.pupil_focal_coef_jacobian
+
+::: danish.factory.pupil_to_focal_basis
+
 ## Pupil sampling
 
 ::: danish.factory.enclosed_fraction

@@ -265,6 +265,125 @@ def _pixel_pupil_jacobian(
     return dudx, dudy, dvdx, dvdy
 
 
+def pupil_focal_coef_jacobian(
+    u, v, *,
+    nterm,
+    R_outer=1.0, R_inner=0.0,
+    focal_length,
+    pixel_scale=1.0,
+):
+    """Derivative of projected focal position with respect to each Zernike.
+
+    `pupil_to_focal` evaluates the gradient of a Zernike series, and that
+    series is linear in its coefficients, so the projected position of a fixed
+    pupil point is linear in the aberrations.  Its derivative is therefore a
+    constant matrix: independent of the aberrations, fixed by the pupil points
+    alone.  Evaluating it once lets a fitter replace a Zernike evaluation per
+    model call with a single matrix product, and gives the exact
+    d(position)/d(coefficient) that an analytic Jacobian needs.
+
+    Parameters
+    ----------
+    u, v : array of float
+        Pupil coordinates in meters.
+    nterm : int
+        Number of leading Zernike coefficients to differentiate with respect
+        to.  Only these get a column; the derivative with respect to the rest
+        of the series is not returned because a fitter holds them fixed.  See
+        `pupil_to_focal_basis`, which pairs these columns with the position
+        those fixed coefficients project to.
+    R_outer, R_inner : float, optional
+        Annulus outer and inner radii in meters.
+    focal_length : float
+        Focal length in meters.
+    pixel_scale : float, optional
+        Pixel scale in meters.  Defaults to 1.0, i.e. focal coordinates in
+        meters rather than pixels.
+
+    Returns
+    -------
+    dxdz, dydz : array of float, shape (len(u), nterm)
+        Derivative of focal x and y with respect to each Zernike coefficient.
+        Column 0 is zero: Noll indexing starts at 1, so `aberrations[0]` is
+        unused.
+    """
+    # _pupil_to_focal maps (u, v) through the gradient of the scaled series,
+    # x = -focal_length * dW/du, so the derivative with respect to coefficient
+    # j is just that of the jth basis polynomial.
+    gradx, grady = galsim.zernike.zernikeGradBases(
+        nterm - 1, u, v, R_outer=R_outer, R_inner=R_inner
+    )
+    scale = -focal_length/pixel_scale
+    return gradx.T*scale, grady.T*scale
+
+
+def pupil_to_focal_basis(
+    u, v, *,
+    aberrations, nterm,
+    R_outer=1.0, R_inner=0.0,
+    focal_length,
+    pixel_scale=1.0,
+    x_offset=None, y_offset=None,
+):
+    """Split `pupil_to_focal` into a constant part and a linear map.
+
+    Returns the pieces needed to evaluate
+
+        x, y = x0 + dxdz @ ab[:nterm],  y0 + dydz @ ab[:nterm]
+
+    for any aberration vector sharing this one's tail.  A fitter varies only
+    the leading `nterm` coefficients, so `x0`/`y0` -- which carry the fixed
+    remainder of the reference wavefront plus any focal-plane offsets -- stay
+    valid for the whole fit and the per-call work collapses to one matrix
+    product.
+
+    Parameters
+    ----------
+    u, v : array of float
+        Pupil coordinates in meters.
+    aberrations : array of float
+        Reference aberrations in meters.  May be longer than `nterm`: entries
+        from `nterm` on are the fixed part and contribute to `x0`/`y0`, while
+        the leading ones are ignored here and supplied per call instead.  The
+        split is exact, not a truncation -- nothing is dropped.
+    nterm : int
+        Number of leading coefficients the caller intends to vary.
+    R_outer, R_inner : float, optional
+        Annulus outer and inner radii in meters.
+    focal_length : float
+        Focal length in meters.
+    pixel_scale : float, optional
+        Pixel scale in meters.  Defaults to 1.0.
+    x_offset, y_offset : galsim.zernike.Zernike, optional
+        Additional focal plane offsets (in meters) represented as Zernike
+        series.  Constant in the aberrations, so they land in `x0`/`y0`.
+
+    Returns
+    -------
+    x0, y0 : array of float
+        Focal coordinates from the fixed part of the wavefront.
+    dxdz, dydz : array of float, shape (len(u), nterm)
+        Derivative with respect to each varied coefficient, from
+        `pupil_focal_coef_jacobian`.
+    """
+    tail = np.array(aberrations, dtype=float)
+    tail[:nterm] = 0.0
+    x0, y0 = _pupil_to_focal(
+        u, v,
+        galsim.zernike.Zernike(tail, R_outer=R_outer, R_inner=R_inner),
+        focal_length=focal_length,
+        x_offset=x_offset, y_offset=y_offset,
+    )
+    dxdz, dydz = pupil_focal_coef_jacobian(
+        u, v,
+        nterm=nterm,
+        R_outer=R_outer, R_inner=R_inner,
+        focal_length=focal_length,
+        pixel_scale=pixel_scale,
+    )
+    return x0/pixel_scale, y0/pixel_scale, dxdz, dydz
+
+
 def focal_to_pupil(
     x, y, *,
     Z=None, aberrations=None, R_outer=1.0, R_inner=0.0,
@@ -1939,6 +2058,7 @@ class DonutTriangleFactory(DonutFactoryBase):
         npix=181,
         x_offset=None,
         y_offset=None,
+        verts_px=None,
     ):
         """Accumulate mesh triangles onto pixels via forward mapping.
 
@@ -1960,6 +2080,12 @@ class DonutTriangleFactory(DonutFactoryBase):
             Pixel scale in meters. Default 10e-6 (10 µm).
         npix : int
             Number of pixels on each side. Must be odd.
+        verts_px : array of float, shape (N, 2), optional
+            Mesh vertices already projected to centered pixel coordinates.  When
+            given, the Zernike projection is skipped and `Z`, `aberrations`,
+            `focal_length`, `pixel_scale`, `x_offset` and `y_offset` are
+            ignored -- the caller has already applied them.  See
+            `pupil_to_focal_basis` for producing these cheaply.
 
         Returns
         -------
@@ -1969,7 +2095,7 @@ class DonutTriangleFactory(DonutFactoryBase):
         if npix % 2 == 0:
             raise ValueError(f"Argument npix={npix} must be odd.")
 
-        if Z is None:
+        if Z is None and verts_px is None:
             Z = galsim.zernike.Zernike(
                 aberrations, R_outer=self.R_outer, R_inner=self.R_inner
             )
@@ -1991,23 +2117,25 @@ class DonutTriangleFactory(DonutFactoryBase):
             pupil_areas = pupil_areas * tput
 
         # Forward-map all vertices to centred pixel coordinates
-        u_all = verts_uv[:, 0]
-        v_all = verts_uv[:, 1]
+        if verts_px is None:
+            u_all = verts_uv[:, 0]
+            v_all = verts_uv[:, 1]
 
-        Z1 = Z * focal_length
-        zx = -Z1.gradX
-        zy = -Z1.gradY
-        if x_offset is not None:
-            zx += x_offset
-        if y_offset is not None:
-            zy += y_offset
-        xf = zx(u_all, v_all)
-        yf = zy(u_all, v_all)
+            Z1 = Z * focal_length
+            zx = -Z1.gradX
+            zy = -Z1.gradY
+            if x_offset is not None:
+                zx += x_offset
+            if y_offset is not None:
+                zy += y_offset
+            xf = zx(u_all, v_all)
+            yf = zy(u_all, v_all)
 
-        xp = xf / pixel_scale
-        yp = yf / pixel_scale
+            xp = xf / pixel_scale
+            yp = yf / pixel_scale
 
-        verts_px = np.column_stack([xp, yp])  # (N, 2)
+            verts_px = np.column_stack([xp, yp])  # (N, 2)
+
         tri_px   = verts_px[tris]             # (M, 3, 2)
 
         # Projected areas in pixel²

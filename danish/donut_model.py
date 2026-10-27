@@ -35,6 +35,7 @@ import galsim
 from scipy.sparse import csc_matrix, hstack
 
 
+from .factory import pupil_to_focal_basis
 from .loss import chi2_loss
 
 try:
@@ -104,6 +105,8 @@ class BaseDonutModel:
         # Triangle meshes for this model's field angles, keyed on (thx, thy).
         # Populated by _precompute_meshes once the subclass knows its angles.
         self._meshes = {}
+        # Projection bases parallel to _meshes; see _precompute_projections.
+        self._projections = {}
 
     @property
     def natm(self):
@@ -129,6 +132,98 @@ class BaseDonutModel:
         for thx, thy in zip(thxs, thys):
             if (thx, thy) not in self._meshes:
                 self._meshes[(thx, thy)] = self.factory._build_mesh(thx, thy)
+
+    def _zernike_param_basis(self):
+        """Construct a basis of per-donut Zernike coefficients, one slice per
+        wavefront parameter.
+
+        Each slice holds the Zernike coefficients this model's `_get_z_fits`
+        produces for a unit of one wavefront parameter, so that
+
+            z_fits = sum_i params[i] * basis[..., i]
+
+        reproduces `_get_z_fits(params)`.  Equivalently each slice is
+        d(Zernike coefficient)/d(parameter).
+
+        Requires that `_get_z_fits` is a linear function of the wavefront
+        parameters -- `test_zernike_param_basis_is_linear` pins the
+        requirement.
+
+        Returns
+        -------
+        array of float, shape (nstar, nzk, nwavefront)
+            Zernike coefficients per donut for each wavefront parameter.
+        """
+        cols = []
+        unit = np.zeros(self._nwavefront)
+        for i in range(self._nwavefront):
+            unit[i] = 1.0
+            cols.append(np.array(self._get_z_fits(unit)))
+            unit[i] = 0.0
+        return np.stack(cols, axis=-1)
+
+    def _precompute_projections(self, z_refs, x_offset=None, y_offset=None):
+        """Precompute each mesh's vertex projection over the fitted subspace.
+
+        Two bases meet here: `_zernike_param_basis` takes wavefront parameters
+        to Zernike coefficients, and `pupil_to_focal_basis` takes Zernike
+        coefficients to vertex pixel positions.  Only the coefficients the
+        first can reach are worth carrying -- any Noll index absent from the
+        parameterization is fixed for the whole fit, so its contribution is
+        folded into a constant position and its column dropped.
+
+        What is stored per field angle is that constant plus the projection
+        restricted to the reachable coefficients.  A model call projects with
+        one matrix product over that subspace, and contracting the same matrix
+        with `_zernike_param_basis` gives d(vertex)/d(wavefront parameter) for
+        an analytic Jacobian.
+
+        Requires `_precompute_meshes` to have run, and is a no-op without it.
+
+        Parameters
+        ----------
+        z_refs : array of float
+            Reference aberrations per field angle, in meters.  Must be ordered
+            to match the angles passed to `_precompute_meshes`.
+        x_offset, y_offset : galsim.zernike.Zernike, optional
+            Additional focal plane offsets, constant across the fit.
+        """
+        # A model with no wavefront parameters -- one simulating images rather
+        # than fitting them -- has no subspace to build a basis over.
+        if not self._meshes or not self._nwavefront:
+            return
+        factory = self.factory
+        dzkdp = self._zernike_param_basis()
+        nterm = dzkdp.shape[1]
+        # coef[j] labels the jth Noll index, so coef[0] is unused and a
+        # length-1 coefficient array carries no Zernike terms at all.
+        if nterm < 2:
+            return
+        # A coefficient is reachable if any parameter moves it, in any donut.
+        self._zk_reach = np.nonzero(np.any(dzkdp != 0, axis=(0, 2)))[0]
+        self._dzkdp = dzkdp[:, self._zk_reach, :]
+        reach = self._zk_reach
+        for i, ((thx, thy), z_ref) in enumerate(zip(self._meshes, z_refs)):
+            verts = self._meshes[(thx, thy)]["vertices"]
+            x0, y0, dxdz, dydz = pupil_to_focal_basis(
+                verts[:, 0], verts[:, 1],
+                aberrations=z_ref, nterm=nterm,
+                R_outer=factory.R_outer, R_inner=factory.R_inner,
+                focal_length=factory.focal_length,
+                pixel_scale=factory.pixel_scale,
+                x_offset=x_offset, y_offset=y_offset,
+            )
+            # Unreachable leading coefficients keep their reference value, so
+            # they join the fixed tail already in x0/y0.
+            fixed = np.zeros(nterm)
+            fixed[:] = np.asarray(z_ref, dtype=float)[:nterm]
+            fixed[reach] = 0.0
+            self._projections[(thx, thy)] = (
+                x0 + dxdz @ fixed,
+                y0 + dydz @ fixed,
+                np.ascontiguousarray(dxdz[:, reach]),
+                np.ascontiguousarray(dydz[:, reach]),
+            )
 
     @lru_cache(maxsize=1000)
     def _atm_kernel(self, dx, dy, Ixx, Ixy, Iyy):
@@ -182,6 +277,14 @@ class BaseDonutModel:
             mesh = self._meshes.get((thx, thy))
             if mesh is None:
                 mesh = self.factory._get_mesh(thx, thy)
+            basis = self._projections.get((thx, thy))
+            verts_px = None
+            if basis is not None:
+                x0, y0, dxdz, dydz = basis
+                head = np.asarray(zk)[self._zk_reach]
+                verts_px = np.column_stack(
+                    [x0 + dxdz @ head, y0 + dydz @ head]
+                )
             return self.factory._image_from_mesh(
                 mesh,
                 aberrations=zk,
@@ -189,6 +292,7 @@ class BaseDonutModel:
                 pixel_scale=self.factory.pixel_scale,
                 npix=self.npix,
                 x_offset=x_offset, y_offset=y_offset,
+                verts_px=verts_px,
             )
         result = self.factory.image(
             aberrations=zk,
@@ -564,6 +668,7 @@ class BaseMultiDonutModel(BaseDonutModel):
         self.nstar = len(thxs)
         self.wavefront_step = wavefront_step
         self._precompute_meshes(thxs, thys)
+        self._precompute_projections(self.z_refs)
 
     def model(
         self, fluxes, dxs, dys, fwhm=None, wavefront_params=None, *,
@@ -1097,6 +1202,7 @@ class DZMultiDonutModel(BaseMultiDonutModel):
         self.dz_terms = dz_terms
         self.k_max = max([term[0] for term in dz_terms], default=0)
         self.j_max = max([term[1] for term in dz_terms], default=0)
+        self._nwavefront = len(dz_terms)
         super().__init__(*args, **kwargs)
 
     def _get_z_fits(self, dz_fit):
@@ -1159,6 +1265,7 @@ class DZBasisMultiDonutModel(BaseMultiDonutModel):
         self.nmode = self.sensitivity.shape[0]
         self.k_max = self.sensitivity.shape[1]
         self.j_max = self.sensitivity.shape[2]
+        self._nwavefront = self.nmode
         super().__init__(*args, **kwargs)
 
     def _get_z_fits(self, mode_coefs):

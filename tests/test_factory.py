@@ -275,6 +275,138 @@ def test_pupil_R_inner():
 
 
 @timer
+def test_pupil_focal_coef_jacobian():
+    """The coefficient Jacobian must be exact and aberration-independent.
+
+    Projected position is linear in the Zernike coefficients, so each column
+    is a difference quotient that holds for any step, at any base wavefront.
+    """
+    rng = np.random.default_rng(141421)
+    R_outer, R_inner = 4.18, 2.5498
+    focal_length, pixel_scale = 10.31, 10e-6
+    nterm = 12
+
+    r = np.sqrt(rng.uniform(R_inner**2, R_outer**2, size=200))
+    ph = rng.uniform(0, 2*np.pi, size=200)
+    u, v = r*np.cos(ph), r*np.sin(ph)
+
+    dxdz, dydz = danish.pupil_focal_coef_jacobian(
+        u, v, nterm=nterm, R_outer=R_outer, R_inner=R_inner,
+        focal_length=focal_length, pixel_scale=pixel_scale,
+    )
+    assert dxdz.shape == (len(u), nterm)
+
+    def project(ab):
+        x, y = danish.pupil_to_focal(
+            u, v, aberrations=ab, R_outer=R_outer, R_inner=R_inner,
+            focal_length=focal_length,
+        )
+        return x/pixel_scale, y/pixel_scale
+
+    # Exact for any base wavefront and any step, both being consequences of
+    # linearity rather than of a small step.
+    for base_scale in (0.0, 1.0, 20.0):
+        base = rng.uniform(-1e-6, 1e-6, nterm) * base_scale
+        x0, y0 = project(base)
+        for j in (0, 4, nterm-1):
+            for step in (1e-9, 1e-5):
+                ab = base.copy()
+                ab[j] += step
+                x1, y1 = project(ab)
+                np.testing.assert_allclose(
+                    (x1 - x0)/step, dxdz[:, j], rtol=1e-9, atol=1e-9
+                )
+                np.testing.assert_allclose(
+                    (y1 - y0)/step, dydz[:, j], rtol=1e-9, atol=1e-9
+                )
+
+
+@timer
+def test_pupil_to_focal_basis():
+    """The split basis must reproduce _pupil_to_focal, offsets included."""
+    from galsim.zernike import Zernike
+
+    rng = np.random.default_rng(173205)
+    R_outer, R_inner = 4.18, 2.5498
+    focal_length, pixel_scale = 10.31, 10e-6
+    nterm = 15
+
+    r = np.sqrt(rng.uniform(R_inner**2, R_outer**2, size=300))
+    ph = rng.uniform(0, 2*np.pi, size=300)
+    u, v = r*np.cos(ph), r*np.sin(ph)
+
+    # A reference wavefront with structure past nterm, so the constant part
+    # is actually carrying something.
+    z_ref = rng.uniform(-2e-6, 2e-6, 30)
+
+    tip = np.zeros(4)
+    tip[2] = 50e-6 / focal_length
+    for x_offset, y_offset in [
+        (None, None),
+        (Zernike(tip, R_outer=R_outer, R_inner=R_inner),
+         Zernike(np.zeros(4), R_outer=R_outer, R_inner=R_inner)),
+    ]:
+        x0, y0, dxdz, dydz = danish.pupil_to_focal_basis(
+            u, v, aberrations=z_ref, nterm=nterm,
+            R_outer=R_outer, R_inner=R_inner,
+            focal_length=focal_length, pixel_scale=pixel_scale,
+            x_offset=x_offset, y_offset=y_offset,
+        )
+
+        for amp in (0.0, 1e-6, 1e-5):
+            ab = z_ref.copy()
+            ab[:nterm] += rng.uniform(-amp, amp, nterm)
+            xe, ye = danish.pupil_to_focal(
+                u, v, aberrations=ab, R_outer=R_outer, R_inner=R_inner,
+                focal_length=focal_length,
+                x_offset=x_offset, y_offset=y_offset,
+            )
+            np.testing.assert_allclose(
+                x0 + dxdz @ ab[:nterm], xe/pixel_scale, rtol=1e-11, atol=1e-11
+            )
+            np.testing.assert_allclose(
+                y0 + dydz @ ab[:nterm], ye/pixel_scale, rtol=1e-11, atol=1e-11
+            )
+
+
+@timer
+def test_triangle_factory_image_from_mesh_verts_px():
+    """Passing precomputed verts_px must match projecting from a Zernike."""
+    factory = danish.DonutTriangleFactory(
+        R_outer=4.18, R_inner=2.5498,
+        mask_params=Rubin_obsc,
+        focal_length=10.31, pixel_scale=10e-6,
+        nrad=12,
+    )
+    thx, thy = np.deg2rad(1.0), 0.0
+    mesh = factory._get_mesh(thx, thy)
+    rng = np.random.default_rng(223606)
+    aberrations = np.zeros(28)
+    aberrations[4] = 25e-6
+    aberrations[5:20] = rng.uniform(-1e-6, 1e-6, 15)
+
+    expected = factory._image_from_mesh(
+        mesh, aberrations=aberrations,
+        focal_length=10.31, pixel_scale=10e-6, npix=181,
+    )
+
+    verts = mesh["vertices"]
+    x0, y0, dxdz, dydz = danish.pupil_to_focal_basis(
+        verts[:, 0], verts[:, 1],
+        aberrations=aberrations, nterm=len(aberrations),
+        R_outer=4.18, R_inner=2.5498,
+        focal_length=10.31, pixel_scale=10e-6,
+    )
+    verts_px = np.column_stack([
+        x0 + dxdz @ aberrations, y0 + dydz @ aberrations
+    ])
+    got = factory._image_from_mesh(mesh, npix=181, verts_px=verts_px)
+
+    assert got.sum() > 0
+    np.testing.assert_allclose(got, expected, rtol=1e-9, atol=1e-13*expected.max())
+
+
+@timer
 def test_factory_offsets():
     rng = np.random.default_rng(192837465)
     for _ in range(10):
