@@ -1734,6 +1734,178 @@ def test_multi_donut_model_jac():
 
 
 @timer
+def test_zernike_param_basis_is_linear():
+    """_zernike_param_basis is only a basis if _get_z_fits is linear.
+
+    A basis expansion sum_i params[i]*basis[..., i] reproduces a function only
+    when that function is linear in params.  A parameterization that squared
+    or normalized its parameters would make the expansion wrong rather than
+    merely approximate, and nothing would complain, so pin it here for every
+    subclass.
+    """
+    factory = danish.DonutTriangleFactory(
+        R_outer=4.18, R_inner=2.5498,
+        mask_params=Rubin_obsc,
+        focal_length=10.31, pixel_scale=10e-6,
+        nrad=10,
+    )
+    rng = np.random.default_rng(26457)
+    nstar = 3
+    thr = np.sqrt(rng.uniform(0, 1.8**2, nstar))
+    ph = rng.uniform(0, 2*np.pi, nstar)
+    thxs, thys = np.deg2rad(thr*np.cos(ph)), np.deg2rad(thr*np.sin(ph))
+    z_refs = rng.uniform(-1e-6, 1e-6, (nstar, 30))
+    z_refs[:, 4] += 20e-6
+
+    dz_terms = ((1, 4), (2, 5), (3, 6), (1, 11), (1, 22))
+    sens = rng.normal(size=(4, 3, 23)) * 1e-7
+    fitters = [
+        danish.DZMultiDonutModel(
+            factory, z_refs=z_refs, dz_terms=dz_terms,
+            field_radius=np.deg2rad(1.8), thxs=thxs, thys=thys, bkg_order=0,
+        ),
+        danish.DZBasisMultiDonutModel(
+            factory, z_refs=z_refs, sensitivity=sens,
+            field_radius=np.deg2rad(1.8), thxs=thxs, thys=thys, bkg_order=0,
+        ),
+    ]
+
+    for fitter in fitters:
+        n = fitter._nwavefront
+        a = rng.uniform(-1e-6, 1e-6, n)
+        b = rng.uniform(-1e-6, 1e-6, n)
+        c = 3.7
+
+        def z(p):
+            return np.array(fitter._get_z_fits(p))
+
+        scale = np.abs(z(a + b)).max()
+        # Additive and homogeneous.  Also check z(0) == 0 explicitly: a stray
+        # constant term would leave every recovered basis slice offset by it,
+        # and the expansion below would then only agree where sum(params) == 1.
+        np.testing.assert_allclose(z(np.zeros(n)), 0.0, rtol=0, atol=0)
+        np.testing.assert_allclose(z(a + b), z(a) + z(b), rtol=0, atol=1e-12*scale)
+        np.testing.assert_allclose(z(c*a), c*z(a), rtol=0, atol=1e-12*scale)
+
+        # So the basis expansion reproduces _get_z_fits.
+        basis = fitter._zernike_param_basis()
+        assert basis.shape == (nstar, z(a).shape[1], n)
+        np.testing.assert_allclose(
+            sum(a[i]*basis[..., i] for i in range(n)), z(a),
+            rtol=0, atol=1e-12*scale
+        )
+
+
+@timer
+def test_multi_donut_model_projection_basis():
+    """The precomputed projection must reproduce a full Zernike projection.
+
+    It drops the Zernike coefficients the parameterization cannot reach and
+    folds them into a constant, so this checks nothing was lost: the stored
+    basis must agree with projecting the whole aberration vector, and its
+    product with _zernike_param_basis must be the derivative with respect to the
+    fitted parameters.
+    """
+    from galsim.zernike import Zernike
+
+    factory = danish.DonutTriangleFactory(
+        R_outer=4.18, R_inner=2.5498,
+        mask_params=Rubin_obsc,
+        focal_length=10.31, pixel_scale=10e-6,
+        nrad=10,
+    )
+    rng = np.random.default_rng(31622)
+    nstar = 2
+    thxs = np.deg2rad(np.array([0.5, -1.2]))
+    thys = np.deg2rad(np.array([-0.9, 0.3]))
+    # Structure past the fitted terms, so the constant part carries something.
+    z_refs = rng.uniform(-1e-6, 1e-6, (nstar, 40))
+    z_refs[:, 4] += 20e-6
+
+    dz_terms = tuple((1, j) for j in list(range(4, 12)) + [22, 23])
+    fitter = danish.DZMultiDonutModel(
+        factory, z_refs=z_refs, dz_terms=dz_terms,
+        field_radius=np.deg2rad(1.8), thxs=thxs, thys=thys, bkg_order=0,
+    )
+    nwf = len(dz_terms)
+
+    # Unreachable coefficients must have been excluded.
+    assert len(fitter._zk_reach) == nwf
+    assert set(fitter._zk_reach) == {j for _, j in dz_terms}
+
+    dz = rng.uniform(-2e-6, 2e-6, nwf)
+    for i, (thx, thy) in enumerate(zip(thxs, thys)):
+        x0, y0, dxdz, dydz = fitter._projections[(thx, thy)]
+        verts = fitter._meshes[(thx, thy)]["vertices"]
+        z_fit = fitter._get_z_fits(dz)[i]
+        ab = np.array(z_refs[i])
+        ab[:len(z_fit)] += z_fit
+
+        xe, ye = danish.pupil_to_focal(
+            verts[:, 0], verts[:, 1], aberrations=ab,
+            R_outer=4.18, R_inner=2.5498, focal_length=10.31,
+        )
+        head = ab[fitter._zk_reach]
+        np.testing.assert_allclose(
+            x0 + dxdz @ head, xe/10e-6, rtol=1e-10, atol=1e-10
+        )
+        np.testing.assert_allclose(
+            y0 + dydz @ head, ye/10e-6, rtol=1e-10, atol=1e-10
+        )
+
+        # d(vertex)/d(wavefront parameter), against a difference quotient.
+        dxdp = dxdz @ fitter._dzkdp[i]
+        assert dxdp.shape == (len(verts), nwf)
+        step = 1e-9
+        for j in (0, nwf - 1):
+            pert = np.zeros(nwf)
+            pert[j] = step
+            zf1 = fitter._get_z_fits(pert)[i]
+            ab1 = np.array(z_refs[i])
+            ab1[:len(zf1)] += zf1
+            x1, _ = danish.pupil_to_focal(
+                verts[:, 0], verts[:, 1], aberrations=ab1,
+                R_outer=4.18, R_inner=2.5498, focal_length=10.31,
+            )
+            x0_, _ = danish.pupil_to_focal(
+                verts[:, 0], verts[:, 1], aberrations=z_refs[i],
+                R_outer=4.18, R_inner=2.5498, focal_length=10.31,
+            )
+            np.testing.assert_allclose(
+                (x1 - x0_)/10e-6/step, dxdp[:, j], rtol=1e-6, atol=1e-6
+            )
+
+
+@timer
+def test_donut_model_without_wavefront_params():
+    """A model with no wavefront parameters must still build and run.
+
+    The projection basis spans the Zernike coefficients a fit varies, and a
+    model used only to simulate images varies none, so there is no basis to
+    build and it has to fall back to projecting from a Zernike series.
+    """
+    factory = danish.DonutTriangleFactory(
+        R_outer=4.18, R_inner=2.5498,
+        mask_params=Rubin_obsc,
+        focal_length=10.31, pixel_scale=10e-6,
+        nrad=10,
+    )
+    thxs = np.deg2rad(np.array([0.5, -1.2]))
+    thys = np.deg2rad(np.array([-0.9, 0.3]))
+    z_refs = np.zeros((2, 30))
+    z_refs[:, 4] = 20e-6
+
+    fitter = danish.DZMultiDonutModel(
+        factory, z_refs=z_refs, dz_terms=(),
+        field_radius=np.deg2rad(1.8), thxs=thxs, thys=thys, bkg_order=0,
+    )
+    assert fitter._projections == {}
+    imgs = fitter.model([1e6, 1e6], [0.0, 0.0], [0.0, 0.0], 0.7, ())
+    assert np.all(np.isfinite(imgs))
+    assert imgs.sum() > 0
+
+
+@timer
 def test_dz_multi_spot_model_fiducial():
     """Roundtrip using spot model to produce test images with fiducial LSST
     transverse Zernikes plus random double Zernike offsets, then fit to recover.

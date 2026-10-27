@@ -3,6 +3,7 @@ from ._version import __version__, __version_tuple__
 from .factory import (
     DonutFactoryBase, SpotFactory, DonutInverseFactory,
     DonutFactory, DonutTriangleFactory, pupil_to_focal, pupil_focal_jacobian,
+    pupil_focal_coef_jacobian, pupil_to_focal_basis,
     focal_to_pupil, enclosed_fraction, hexapolar
 )
 
