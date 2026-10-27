@@ -20,6 +20,7 @@ from danish.factory import (
     _enclosed_circle_1,
     _enclosed_strut_1,
     _clip_area,
+    _clip_area_grad,
     _pixel_frac,
     _enclosed_fraction,
     _strut_masked_fraction,
@@ -27,6 +28,7 @@ from danish.factory import (
 )
 from danish._danish import clip_triangles_to_circle as _clip_triangles_to_circle_cpp
 from danish._danish import clip_area as _clip_area_cpp
+from danish._danish import clip_area_grad as _clip_area_grad_cpp
 from danish_test_helpers import timer, runtests
 
 def _tri_area(tris):
@@ -207,6 +209,44 @@ def test_clip_area_sync():
         py_val  = _clip_area(tri, ix, iy)
         cpp_val = _clip_area_cpp(tri.ctypes.data, ix, iy)
         np.testing.assert_allclose(py_val, cpp_val, rtol=1e-12, atol=1e-14)
+
+
+@timer
+def test_clip_area_grad_sync():
+    """_clip_area_grad (Python) must match clip_area_grad (C++).
+
+    Both return the overlap area alongside its derivative in the triangle's
+    vertices, so this also re-checks the area against the forward kernel.
+    """
+    rng = np.random.default_rng(14142)
+    n = 500
+
+    # Spread the triangles across the regimes the clip distinguishes: wholly
+    # outside, straddling an edge or corner, and swallowing the pixel.
+    tris = rng.uniform(-2.0, 2.0, (n, 3, 2))
+    ixs = rng.integers(-1, 2, n)
+    iys = rng.integers(-1, 2, n)
+
+    py_areas, cpp_areas = [], []
+    py_grads, cpp_grads = [], []
+    for i in range(n):
+        tri = np.ascontiguousarray(tris[i], dtype=np.float64)
+        ix, iy = int(ixs[i]), int(iys[i])
+        a_py, g_py = _clip_area_grad(tri, ix, iy)
+        g_cpp = np.zeros((3, 2))
+        a_cpp = _clip_area_grad_cpp(
+            tri.ctypes.data, ix, iy, g_cpp.ctypes.data
+        )
+        # The area must also agree with the forward-only kernel.
+        np.testing.assert_allclose(
+            a_py, _clip_area(tri, ix, iy), rtol=1e-12, atol=1e-14
+        )
+        py_areas.append(a_py); cpp_areas.append(a_cpp)
+        py_grads.append(g_py); cpp_grads.append(g_cpp)
+
+    assert np.any(np.array(py_areas) > 0)
+    np.testing.assert_allclose(py_areas, cpp_areas, rtol=1e-12, atol=1e-14)
+    np.testing.assert_allclose(py_grads, cpp_grads, rtol=1e-12, atol=1e-14)
 
 
 @timer

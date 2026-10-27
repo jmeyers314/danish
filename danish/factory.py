@@ -40,6 +40,7 @@ from ._danish import (
     clip_triangles_to_circle as _clip_triangles_to_circle_cpp,
     clip_triangles_to_strut as _clip_triangles_to_strut_cpp,
     accumulate_triangles as _accumulate_triangles_cpp,
+    accumulate_triangle_derivs as _accumulate_triangle_derivs_cpp,
 )
 from .utils import hexapolar, gq_points
 
@@ -104,6 +105,105 @@ def _shoelace_area(verts):
     return 0.5 * np.abs(
         np.sum(x * np.roll(y, -1, axis=-1) - y * np.roll(x, -1, axis=-1), axis=-1)
     )
+
+
+def _shoelace_area_grad(verts):
+    """Gradient of `_shoelace_area` with respect to each vertex.
+
+    Parameters
+    ----------
+    verts : array of float, shape (N, 2)
+        Polygon vertices.
+
+    Returns
+    -------
+    array of float, shape (N, 2)
+        d(area)/d(vertex coordinate).
+    """
+    x, y = verts[:, 0], verts[:, 1]
+    signed = 0.5*np.sum(x*np.roll(y, -1) - y*np.roll(x, -1))
+    grad = np.empty_like(verts)
+    grad[:, 0] = 0.5*(np.roll(y, -1) - np.roll(y, 1))
+    grad[:, 1] = 0.5*(np.roll(x, 1) - np.roll(x, -1))
+    return grad if signed >= 0 else -grad
+
+
+def _clip_area_grad(tri_verts, ix, iy):
+    """Area of triangle-pixel overlap and its gradient in the triangle.
+
+    Companion to `_clip_area`, returning the same area alongside its exact
+    derivative.  Each clipped vertex is either an original triangle vertex or
+    a crossing that interpolates two of them against an axis-aligned pixel
+    edge, so carrying d(vertex)/d(triangle) through the clip and contracting
+    it with the shoelace gradient gives the derivative in closed form.  The
+    clip's combinatorics are locally constant, so one pass serves every
+    parameter a triangle's vertices depend on.
+
+    The area is only piecewise smooth: it is continuous everywhere, but a
+    vertex sitting exactly on a pixel edge is a one-sided-derivative point.
+    Such configurations are measure zero, and the area remains C0 across
+    them, so a Jacobian built from this is still a valid descent direction.
+
+    Parameters
+    ----------
+    tri_verts : array of float, shape (3, 2)
+        Triangle vertices in centered pixel coordinates.
+    ix, iy : int
+        Pixel to clip against, covering [ix±0.5, iy±0.5].
+
+    Returns
+    -------
+    area : float
+        Overlap area in pixel², matching `_clip_area`.
+    grad : array of float, shape (3, 2)
+        d(area)/d(triangle vertex coordinate), zero where the overlap is empty.
+    """
+    tri = np.asarray(tri_verts, dtype=float)
+    # Each vertex carries its position plus d(position)/d(triangle vertex),
+    # seeded as the identity: vertex i's coordinate m depends only on itself.
+    poly = [tri[i].copy() for i in range(3)]
+    jac = [np.zeros((2, 3, 2)) for _ in range(3)]
+    for i in range(3):
+        jac[i][0, i, 0] = 1.0
+        jac[i][1, i, 1] = 1.0
+
+    for axis, val, keep_upper in (
+        (0, ix - 0.5, True), (0, ix + 0.5, False),
+        (1, iy - 0.5, True), (1, iy + 0.5, False),
+    ):
+        if len(poly) < 3:
+            return 0.0, np.zeros((3, 2))
+        out, out_jac = [], []
+        for k, pt in enumerate(poly):
+            prev = poly[k-1]
+            prev_jac, pt_jac = jac[k-1], jac[k]
+            inside = pt[axis] >= val if keep_upper else pt[axis] <= val
+            prev_inside = prev[axis] >= val if keep_upper else prev[axis] <= val
+            if inside != prev_inside:
+                # Crossing: X = A + t*(B - A), with t depending on A and B too.
+                den = pt[axis] - prev[axis]
+                t = (val - prev[axis]) / den
+                out.append(prev + t*(pt - prev))
+                dt = ((t - 1.0)*prev_jac[axis] - t*pt_jac[axis]) / den
+                out_jac.append(
+                    prev_jac + t*(pt_jac - prev_jac)
+                    + (pt - prev)[:, None, None]*dt[None]
+                )
+            if inside:
+                out.append(pt)
+                out_jac.append(pt_jac)
+        poly, jac = out, out_jac
+
+    if len(poly) < 3:
+        return 0.0, np.zeros((3, 2))
+
+    verts = np.array(poly)
+    area = _shoelace_area(verts[None])[0]
+    dA = _shoelace_area_grad(verts)
+    grad = np.zeros((3, 2))
+    for k in range(len(poly)):
+        grad += np.einsum('m,min->in', dA[k], jac[k])
+    return area, grad
 
 
 def pupil_to_focal(
@@ -2162,6 +2262,73 @@ class DonutTriangleFactory(DonutFactoryBase):
         #   donut:    img   /= π*(R_outer² - R_inner²)/pix_sc² [÷ m²_pupil/m²_focal]
         image /= np.pi * (self.pupil_R_outer**2 - self.pupil_R_inner**2)
         return image
+
+    def _image_derivs_from_mesh(self, mesh, verts_px, dverts, npix=181):
+        """Differentiate `_image_from_mesh` with respect to a set of parameters.
+
+        Every quantity the forward render apportions into pixels is a smooth
+        function of the projected vertices -- the clipped overlap area and the
+        projected triangle area both -- so one clip pass yields the derivative
+        with respect to all parameters at once, rather than one re-render per
+        parameter.  Pupil-space areas are independent of the wavefront and so
+        differentiate as constants, as does the final normalization.
+
+        Parameters
+        ----------
+        mesh : dict
+            Same mesh passed to `_image_from_mesh`.
+        verts_px : array of float, shape (N, 2)
+            Mesh vertices projected to centered pixel coordinates.
+        dverts : array of float, shape (N, 2, nparam)
+            d(projected vertex)/d(parameter).  See `pupil_to_focal_basis` and
+            the models' projection bases for producing these.
+        npix : int
+            Number of pixels on each side.  Must be odd.
+
+        Returns
+        -------
+        array of float, shape (nparam, npix, npix)
+            d(image)/d(parameter), normalized as `_image_from_mesh` is.
+        """
+        if npix % 2 == 0:
+            raise ValueError(f"Argument npix={npix} must be odd.")
+
+        verts_uv = mesh["vertices"]
+        tris = mesh["triangles"]
+        tri_uv = verts_uv[tris]
+        pupil_areas = _shoelace_area(tri_uv)
+
+        if self.thruput_by_aoi is not None:
+            centroids_uv = np.mean(tri_uv, axis=1)
+            r_pupil = np.sqrt(centroids_uv[:, 0]**2 + centroids_uv[:, 1]**2)
+            aoi_deg = np.rad2deg(np.arctan(r_pupil / self.focal_length))
+            tput = np.interp(
+                aoi_deg, self.thruput_by_aoi['aoi'], self.thruput_by_aoi['value']
+            )
+            pupil_areas = pupil_areas * tput
+
+        tri_px = verts_px[tris]
+        proj_areas = _shoelace_area(tri_px)
+
+        nparam = dverts.shape[-1]
+        out = np.zeros((nparam, npix, npix), dtype=np.float64)
+        tri_px_c = np.ascontiguousarray(tri_px, dtype=np.float64)
+        dverts_c = np.ascontiguousarray(dverts, dtype=np.float64)
+        tris_c = np.ascontiguousarray(tris, dtype=np.int32)
+
+        _accumulate_triangle_derivs_cpp(
+            tri_px_c.ctypes.data,
+            pupil_areas.ctypes.data,
+            proj_areas.ctypes.data,
+            dverts_c.ctypes.data,
+            tris_c.ctypes.data,
+            out.ctypes.data,
+            len(proj_areas),
+            nparam,
+            npix,
+        )
+        out /= np.pi * (self.pupil_R_outer**2 - self.pupil_R_inner**2)
+        return out
 
 
 class SpotFactory(DonutFactoryBase):
