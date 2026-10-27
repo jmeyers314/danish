@@ -2058,6 +2058,162 @@ def test_analytic_jac_recovers_wavefront():
     np.testing.assert_allclose(fit["fwhm"], 0.7, rtol=0, atol=0.02)
 
 
+def _single_jac_fitter(factory, nrad=12, **kwargs):
+    """A SingleDonutModel plus a guess, image and variance.
+
+    Mirrors `_triangle_jac_fitter` for the one-donut parameterization, but
+    takes the factory so the same setup can exercise the analytic path and the
+    fallback.
+    """
+    rng = np.random.default_rng(14142)
+    thx, thy = np.deg2rad(0.9), np.deg2rad(-1.1)
+    z_ref = rng.uniform(-2e-7, 2e-7, 30)
+    z_ref[4] += 20e-6
+
+    z_terms = np.arange(4, 23)
+    fitter = danish.SingleDonutModel(
+        factory, z_ref=z_ref, z_terms=z_terms, thx=thx, thy=thy,
+        bkg_order=0, **kwargs
+    )
+    flux = rng.uniform(3e6, 1e7)
+    img = fitter.model(
+        flux, 0.0, 0.0, 0.7, rng.uniform(-1e-7, 1e-7, len(z_terms)),
+        bkg=(0.0,)*fitter.nbkg,
+    )
+    guess = np.array(
+        [flux, 0.0, 0.0, 0.7] + [0.0]*len(z_terms) + [0.0]*fitter.nbkg
+    )
+    return fitter, guess, img, 1000.0
+
+
+@timer
+def test_single_donut_analytic_jac():
+    """SingleDonutModel is the nstar=1 case, so it gets the same guarantees.
+
+    One donut reaches chi through the same kernel, convolution and loss as
+    many, so the analytic Zernike columns must converge to the same limit the
+    central differences do, and must leave every other column untouched.
+    """
+    factory = danish.DonutTriangleFactory(
+        R_outer=4.18, R_inner=2.5498,
+        mask_params=Rubin_obsc,
+        focal_length=10.31, pixel_scale=10e-6,
+        nrad=10,
+    )
+    fitter, guess, img, var = _single_jac_fitter(factory, nrad=10)
+    assert fitter._can_use_analytic()
+
+    nwf = len(fitter.z_terms)
+    # (flux, dx, dy, fwhm, *z_fit, *bkg) -- 3 offsets plus the atm parameter.
+    wf0 = 3 + fitter.natm
+    cols = slice(wf0, wf0 + nwf)
+
+    analytic = fitter.jac(guess, img, var)
+    assert np.all(np.isfinite(analytic))
+    assert np.any(analytic[:, cols] != 0)
+
+    # Central differences, so the error falls with the step until roundoff in
+    # the difference takes over.
+    steps = (1e-8, 1e-9, 1e-10, 1e-11, 1e-12)
+    errs = []
+    for step in steps:
+        fd = np.empty((fitter.npix**2, nwf))
+        for k in range(nwf):
+            lo = np.array(guess); lo[wf0 + k] -= step
+            hi = np.array(guess); hi[wf0 + k] += step
+            fd[:, k] = (
+                fitter.chi(hi, img, var) - fitter.chi(lo, img, var)
+            )/(2*step)
+        errs.append(
+            np.linalg.norm(fd - analytic[:, cols])
+            / np.linalg.norm(analytic[:, cols])
+        )
+
+    best = int(np.argmin(errs))
+    assert best > 0, errs
+    assert errs[:best+1] == sorted(errs[:best+1], reverse=True), errs
+    assert errs[best] < 1e-6, errs
+
+    # Switching methods must disturb nothing else, and 'fd' must stay exactly
+    # the scheme that shipped before the analytic path existed.
+    fd_default = fitter.jac(guess, img, var, method='fd')
+    np.testing.assert_array_equal(
+        np.delete(analytic, cols, axis=1), np.delete(fd_default, cols, axis=1)
+    )
+    # And the one-sided scheme is the inaccurate one, by percents.
+    rel = (
+        np.linalg.norm(fd_default[:, cols] - analytic[:, cols])
+        / np.linalg.norm(analytic[:, cols])
+    )
+    assert 1e-4 < rel < 0.5, rel
+
+    # An unrecognized method must not quietly fall back to differencing.
+    with pytest.raises(ValueError, match="method must be one of"):
+        fitter.jac(guess, img, var, method='exact')
+
+
+@timer
+def test_single_donut_analytic_jac_falls_back():
+    """Without a mesh there is no analytic path, so 'analytic' must difference.
+
+    The inverse factory renders focal-to-pupil and builds no projection basis,
+    so the default method has to degrade to exactly the 'fd' result rather
+    than fail.
+    """
+    factory = danish.DonutFactory(
+        R_outer=4.18, R_inner=2.5498,
+        mask_params=Rubin_obsc,
+        focal_length=10.31, pixel_scale=10e-6,
+    )
+    fitter, guess, img, var = _single_jac_fitter(factory)
+    assert not fitter._can_use_analytic()
+
+    np.testing.assert_array_equal(
+        fitter.jac(guess, img, var),
+        fitter.jac(guess, img, var, method='fd'),
+    )
+
+
+@timer
+def test_single_donut_analytic_jac_with_offsets():
+    """x_offset / y_offset are constant across a fit, so they join the basis.
+
+    `_precompute_projections` folds them into the constant part of the
+    projection, which is only correct if the analytic columns still match a
+    difference quotient taken through the offset model.
+    """
+    factory = danish.DonutTriangleFactory(
+        R_outer=4.18, R_inner=2.5498,
+        mask_params=Rubin_obsc,
+        focal_length=10.31, pixel_scale=10e-6,
+        nrad=10,
+    )
+    rng = np.random.default_rng(27182)
+    offset = Zernike(
+        np.concatenate([np.zeros(4), rng.uniform(-1e-7, 1e-7, 10)]),
+        R_outer=4.18, R_inner=4.18*0.61,
+    )
+    fitter, guess, img, var = _single_jac_fitter(
+        factory, x_offset=offset, y_offset=offset
+    )
+    assert fitter._can_use_analytic()
+
+    nwf = len(fitter.z_terms)
+    wf0 = 3 + fitter.natm
+    analytic = fitter.jac(guess, img, var)[:, wf0:wf0+nwf]
+
+    step = 1e-11
+    fd = np.empty_like(analytic)
+    for k in range(nwf):
+        lo = np.array(guess); lo[wf0 + k] -= step
+        hi = np.array(guess); hi[wf0 + k] += step
+        fd[:, k] = (
+            fitter.chi(hi, img, var) - fitter.chi(lo, img, var)
+        )/(2*step)
+    rel = np.linalg.norm(fd - analytic)/np.linalg.norm(analytic)
+    assert rel < 1e-6, rel
+
+
 @timer
 def test_donut_model_without_wavefront_params():
     """A model with no wavefront parameters must still build and run.
