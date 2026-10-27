@@ -53,6 +53,18 @@ else:
         return cv2.filter2D(A, -1, B[::-1,::-1], borderType=cv2.BORDER_CONSTANT)
 
 
+JAC_METHODS = ('analytic', 'fd')
+"""Differentiation methods accepted by `jac` and `jac_sparse`."""
+
+
+def _check_jac_method(method):
+    """Reject an unrecognized `method` rather than silently differencing."""
+    if method not in JAC_METHODS:
+        raise ValueError(
+            f"method must be one of {JAC_METHODS}, got {method!r}"
+        )
+
+
 class BaseDonutModel:
     """Base class for donut models.
 
@@ -881,8 +893,119 @@ class BaseMultiDonutModel(BaseDonutModel):
             chis[i] = self._chi(datum, mod, vars[i]).reshape(self.npix, self.npix)
         return chis.ravel()
 
+    def _can_use_analytic(self):
+        """Whether the analytic wavefront Jacobian is available.
+
+        It needs the mesh renderer's projection bases, which only the triangle
+        factory provides and only when the fit varies something.
+        """
+        return bool(self._projections)
+
+    def _wavefront_jac_analytic(self, params, data, vars):
+        """Analytic d(chi)/d(wavefront parameter), one column per parameter.
+
+        The wavefront reaches chi through the optical kernel alone, so
+
+            d(chi)/dp = d(chi)/d(model) * flux * convolve(d(opt)/dp, atm)
+
+        with d(opt)/dp coming from one clip pass over the mesh rather than a
+        re-render per parameter.  The convolution is linear, so it applies to
+        each derivative image just as it does to the kernel itself, and the
+        loss' own dependence on the model enters through d(chi)/d(model).
+
+        Parameters
+        ----------
+        params : sequence of float
+            Packed parameters, as for `jac`.
+        data : array of float.  Shape: (nstar, npix, npix)
+            Images against which chi is computed.
+        vars : sequence of array or sequence of float
+            Sky variances, as for `jac`.
+
+        Returns
+        -------
+        array of float, shape (nstar*npix**2, nwavefront)
+            Jacobian columns for the wavefront parameters.
+        """
+        npix = self.npix
+        pdict = self.unpack_params(params)
+        nwavefront = self._dzkdp.shape[2]
+        out = np.empty((self.nstar*npix**2, nwavefront))
+
+        if self.atm_mode == 'fwhm':
+            Ixx = Iyy = (pdict['fwhm'] * self.KOLM_CONST) ** 2
+            Ixy = 0.0
+        else:
+            Ixx, Ixy, Iyy = pdict['Ixx'], pdict['Ixy'], pdict['Iyy']
+        z_fits = self._get_z_fits(pdict['wavefront_params'])
+
+        for i in range(self.nstar):
+            thx, thy = self.thxs[i], self.thys[i]
+            x0, y0, dxdz, dydz = self._projections[(thx, thy)]
+            zk = np.array(self.z_refs[i])
+            zk[:len(z_fits[i])] += z_fits[i]
+            head = zk[self._zk_reach]
+            verts_px = np.column_stack([x0 + dxdz @ head, y0 + dydz @ head])
+            dverts = np.stack(
+                [dxdz @ self._dzkdp[i], dydz @ self._dzkdp[i]], axis=1
+            )
+            dopt = self.factory._image_derivs_from_mesh(
+                self._meshes[(thx, thy)], verts_px, dverts, npix=npix
+            )
+
+            atm = self._atm_kernel(pdict['dxs'][i], pdict['dys'][i], Ixx, Ixy, Iyy)
+            model = self._model(
+                pdict['fluxes'][i], pdict['dxs'][i], pdict['dys'][i],
+                Ixx, Ixy, Iyy, tuple(zk), tuple(pdict['bkgs'][i]),
+                thx=thx, thy=thy,
+            )
+            dchi_dmodel = self._dchi_dmodel(data[i], model, vars[i])
+
+            s = slice(i*npix**2, (i+1)*npix**2)
+            for p in range(nwavefront):
+                dmodel = pdict['fluxes'][i] * convolve(dopt[p], atm)
+                out[s, p] = (dchi_dmodel * dmodel).ravel()
+        return out
+
+    def _dchi_dmodel(self, datum, model, var):
+        """d(chi)/d(model), elementwise.
+
+        The loss divides by an error that is itself a function of the model, so
+        this is not simply -1/sqrt(var + model).  Derived by differentiating
+        `danish.loss.systematic_loss`; `alpha` is recovered from the loss
+        rather than stored, so a custom loss falls back to a difference
+        quotient.
+
+        Parameters
+        ----------
+        datum : array of float
+            Observed image.
+        model : array of float
+            Model image.
+        var : float or array of float
+            Sky variance.
+
+        Returns
+        -------
+        array of float
+            d(chi)/d(model) at each pixel.
+        """
+        alpha = getattr(self.loss_fn, 'alpha', None)
+        if alpha is None:
+            # Unknown loss: perturb it rather than assume a functional form.
+            h = 1e-6 * max(np.abs(model).max(), 1.0)
+            return (
+                self.loss_fn(datum, model + h, var)
+                - self.loss_fn(datum, model - h, var)
+            ) / (2*h)
+        denom = var + model + (alpha*model)**2
+        return (
+            -1.0/np.sqrt(denom)
+            - (datum - model)*(1.0 + 2*alpha**2*model)/(2*denom**1.5)
+        )
+
     def jac(
-        self, params, data, vars
+        self, params, data, vars, method='analytic'
     ):
         """Compute jacobian d(chi)/d(param).
 
@@ -895,13 +1018,26 @@ class BaseMultiDonutModel(BaseDonutModel):
         vars : sequence of array (npix, npix) or sequence of float
             Variances of the sky only.  Do not include Poisson contribution of
             the signal, as this will be added from the current model.
+        method : str, optional
+            'analytic' (default) differentiates the wavefront columns in
+            closed form, which is both faster and more accurate than the
+            alternative -- a one-sided difference at `wavefront_step` carries
+            a few percent error.  'fd' forces the difference quotient for
+            every column.  Falls back to 'fd' where no analytic path exists,
+            i.e. for any factory that does not render from a mesh.
 
         Returns
         -------
         jac : array of float
             Jacobian array d(chi)/d(param).  First dimension is pixels, second
             dimension is param.
+
+        Raises
+        ------
+        ValueError
+            If `method` is neither 'analytic' nor 'fd'.
         """
+        _check_jac_method(method)
         # We don't know the exact parameterization here (see .chi() above).
         # We will make _some_ assumptions though.  The general order is:
         # flux for each star
@@ -966,11 +1102,17 @@ class BaseMultiDonutModel(BaseDonutModel):
             out[:, 3*nstar + k] = (chi1 - chi0) / datm
 
         # Wavefront terms
-        for i in range(3*nstar + natm, 3*nstar + natm + nwavefront):
-            params1 = np.array(params)
-            params1[i] += self.wavefront_step
-            chi1 = self.chi(params1, data, vars)
-            out[:, i] = (chi1-chi0)/self.wavefront_step
+        wf0 = 3*nstar + natm
+        if method == 'analytic' and self._can_use_analytic():
+            out[:, wf0:wf0+nwavefront] = self._wavefront_jac_analytic(
+                params, data, vars
+            )
+        else:
+            for i in range(wf0, wf0 + nwavefront):
+                params1 = np.array(params)
+                params1[i] += self.wavefront_step
+                chi1 = self.chi(params1, data, vars)
+                out[:, i] = (chi1-chi0)/self.wavefront_step
 
         # Background terms.  These are sparse too
         dbkg = 0.01
@@ -989,14 +1131,14 @@ class BaseMultiDonutModel(BaseDonutModel):
         return out
 
     def jac_sparse(
-        self, params, data, vars, format='csr'
+        self, params, data, vars, format='csr', method='analytic'
     ):
         """Compute jacobian d(chi)/d(param) as a sparse matrix.
 
-        Same finite-difference scheme as `jac` -- same steps, same perturbed
+        Same scheme as `jac` -- same `method`, same steps, same perturbed
         `chi` evaluations in the same order -- so the two agree bit-for-bit.
         Only the storage differs; see `.jac` for the parameter ordering this
-        relies on.
+        relies on and for what `method` selects.
 
         Each star's `chi` residuals depend on that star's flux, dx, dy and
         background coefficients, on the shared atmospheric and wavefront
@@ -1020,6 +1162,13 @@ class BaseMultiDonutModel(BaseDonutModel):
             the signal, as this will be added from the current model.
         format : str, optional
             Sparse format to return, 'csr' (default) or 'csc'.
+        method : str, optional
+            Differentiation method, as for `jac`.
+
+        Raises
+        ------
+        ValueError
+            If `method` is neither 'analytic' nor 'fd'.
 
         Returns
         -------
@@ -1027,6 +1176,7 @@ class BaseMultiDonutModel(BaseDonutModel):
             Jacobian d(chi)/d(param), shape (nstar*npix**2, len(params)), in
             `format`.  Rows are pixels, columns are parameters, as for `jac`.
         """
+        _check_jac_method(method)
         nstar = self.nstar
         npix = self.npix
         nbkg = self.nbkg
@@ -1083,11 +1233,14 @@ class BaseMultiDonutModel(BaseDonutModel):
             chi1 = self.chi(params1, data, vars)
             dense[:, k] = (chi1 - chi0) / datm
 
-        for k in range(nwavefront):
-            params1 = np.array(params)
-            params1[3*nstar + natm + k] += self.wavefront_step
-            chi1 = self.chi(params1, data, vars)
-            dense[:, natm + k] = (chi1-chi0)/self.wavefront_step
+        if method == 'analytic' and self._can_use_analytic():
+            dense[:, natm:] = self._wavefront_jac_analytic(params, data, vars)
+        else:
+            for k in range(nwavefront):
+                params1 = np.array(params)
+                params1[3*nstar + natm + k] += self.wavefront_step
+                chi1 = self.chi(params1, data, vars)
+                dense[:, natm + k] = (chi1-chi0)/self.wavefront_step
 
         # Background terms.  These are sparse too
         bkg_cols = np.empty((nstar, nbkg, P))

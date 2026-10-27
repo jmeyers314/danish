@@ -1,6 +1,7 @@
 #include <pybind11/pybind11.h>
 #include <vector>
 #include <algorithm>
+#include <cstdint>
 
 namespace py = pybind11;
 
@@ -885,6 +886,114 @@ static double clip_area_cpp(const double tri[3][2], int ix, int iy) {
     return 0.5 * std::abs(area);
 }
 
+// ---------------------------------------------------------------------------
+// Triangle image derivatives
+// ---------------------------------------------------------------------------
+
+// One half-plane pass of Sutherland-Hodgman, carrying vertex derivatives.
+//
+// Mirrors sh_clip_edge_cpp, but each vertex also carries d(vertex)/d(triangle
+// vertex): 12 doubles laid out as [coord][tri vertex][tri coord], so
+// jac[12*i + 6*m + 2*a + b] is d(poly[i] coord m)/d(tri[a] coord b).  An
+// original vertex passes its derivative through; a crossing interpolates the
+// two it lies between, with the interpolation parameter itself depending on
+// them.  Returns the output vertex count.
+static int sh_clip_edge_grad_cpp(
+    const double* poly, const double* jac, int n,
+    double* out, double* out_jac,
+    int axis, double val, int inside_dir
+) {
+    int m = 0;
+    for (int i = 0; i < n; i++) {
+        int j = (i == 0) ? n - 1 : i - 1;       // previous vertex index
+        double px = poly[2*i],   py = poly[2*i+1];
+        double sx = poly[2*j],   sy = poly[2*j+1];
+        const double* pj = jac + 12*i;
+        const double* sj = jac + 12*j;
+        double pval = (axis == 0) ? px : py;
+        double sval = (axis == 0) ? sx : sy;
+        bool p_in = (inside_dir > 0) ? (pval >= val) : (pval <= val);
+        bool s_in = (inside_dir > 0) ? (sval >= val) : (sval <= val);
+        if (p_in != s_in) {
+            double den = pval - sval;
+            double t = (val - sval) / den;
+            out[2*m]   = sx + t*(px - sx);
+            out[2*m+1] = sy + t*(py - sy);
+            // dt/d(tri) from the two endpoints' derivatives along `axis`.
+            double dt[6];
+            for (int k = 0; k < 6; k++)
+                dt[k] = ((t - 1.0)*sj[6*axis + k] - t*pj[6*axis + k]) / den;
+            double* oj = out_jac + 12*m;
+            double d0 = px - sx, d1 = py - sy;
+            for (int k = 0; k < 6; k++) {
+                oj[k]     = sj[k]     + t*(pj[k]     - sj[k])     + d0*dt[k];
+                oj[6 + k] = sj[6 + k] + t*(pj[6 + k] - sj[6 + k]) + d1*dt[k];
+            }
+            ++m;
+        }
+        if (p_in) {
+            out[2*m]   = px;
+            out[2*m+1] = py;
+            for (int k = 0; k < 12; k++)
+                out_jac[12*m + k] = pj[k];
+            ++m;
+        }
+    }
+    return m;
+}
+
+// Area of the intersection of a triangle with pixel [ix±0.5, iy±0.5], and its
+// derivative with respect to the triangle's vertices.
+//
+// tri   : (3,2) triangle vertices in centered pixel coordinates.
+// grad  : (3,2) output, d(area)/d(tri); written only when the area is nonzero.
+//
+// Returns the area, matching clip_area_cpp.  A clipped triangle has at most 7
+// vertices, so the 8-vertex buffers below are safe.
+static double clip_area_grad_cpp(const double tri[3][2], int ix, int iy,
+                                 double grad[3][2]) {
+    double x0 = ix - 0.5, x1 = ix + 0.5;
+    double y0 = iy - 0.5, y1 = iy + 0.5;
+    double a[16], b[16];
+    double aj[96], bj[96];
+    for (int i = 0; i < 3; i++) {
+        a[2*i]   = tri[i][0];
+        a[2*i+1] = tri[i][1];
+    }
+    // Seed the derivatives as the identity: vertex i's coordinate m depends
+    // only on itself.
+    for (int k = 0; k < 36; k++) aj[k] = 0.0;
+    for (int i = 0; i < 3; i++) {
+        aj[12*i + 2*i]     = 1.0;   // d(x_i)/d(tri[i].x)
+        aj[12*i + 6 + 2*i + 1] = 1.0;   // d(y_i)/d(tri[i].y)
+    }
+    int n = 3;
+    n = sh_clip_edge_grad_cpp(a, aj, n, b, bj, 0, x0, +1);  if (n < 3) return 0.0;
+    n = sh_clip_edge_grad_cpp(b, bj, n, a, aj, 0, x1, -1);  if (n < 3) return 0.0;
+    n = sh_clip_edge_grad_cpp(a, aj, n, b, bj, 1, y0, +1);  if (n < 3) return 0.0;
+    n = sh_clip_edge_grad_cpp(b, bj, n, a, aj, 1, y1, -1);  if (n < 3) return 0.0;
+
+    // Shoelace on the final polygon in `a`, plus its gradient.  The signed
+    // area's sign carries into the gradient of its absolute value.
+    double area = 0.0;
+    for (int i = 0, j = n-1; i < n; j = i++)
+        area += a[2*j]*a[2*i+1] - a[2*i]*a[2*j+1];
+    double sign = (area >= 0.0) ? 0.5 : -0.5;
+
+    for (int i = 0; i < 3; i++) { grad[i][0] = 0.0; grad[i][1] = 0.0; }
+    for (int i = 0; i < n; i++) {
+        int nxt = (i + 1 == n) ? 0 : i + 1;
+        int prv = (i == 0) ? n - 1 : i - 1;
+        // d|A|/d(poly[i]), then chain through d(poly[i])/d(tri).
+        double dx = sign*(a[2*nxt+1] - a[2*prv+1]);
+        double dy = sign*(a[2*prv]   - a[2*nxt]);
+        const double* ji = aj + 12*i;
+        for (int k = 0; k < 6; k++)
+            grad[k/2][k%2] += dx*ji[k] + dy*ji[6 + k];
+    }
+    return 0.5 * std::abs(area);
+}
+
 // Accumulate triangle flux onto a pixel image.
 //
 // tri_px_ptr   : (ntri, 3, 2) float64, C-contiguous — triangle vertices in
@@ -948,6 +1057,127 @@ void accumulate_triangles(
 }
 
 
+// Accumulate d(image)/d(parameter) for every parameter in one clip pass.
+//
+// The forward kernel above apportions pupil_area/proj_area into pixels by
+// clipped overlap area.  Both the overlap and the projected area depend on the
+// triangle's projected vertices, so differentiating is a quotient rule:
+//
+//   d/dv [pa * clip/proj] = pa * [ (d clip/dv)/proj - clip*(d proj/dv)/proj² ]
+//
+// and the chain to a parameter contracts that with d(vertex)/d(parameter).
+// Because the clip's combinatorics are locally constant, a single pass yields
+// every parameter's column, in place of one full re-render per parameter.
+//
+// tri_px_ptr  : (ntri, 3, 2) float64 — triangle vertices in centred pixel
+//               coordinates, as passed to accumulate_triangles.
+// pupil_areas : (ntri,) float64 — pupil-space area per triangle.  Independent
+//               of the wavefront, so it differentiates as a constant.
+// proj_areas  : (ntri,) float64 — projected area in pixel² per triangle.
+// dverts_ptr  : (nvert, 2, nparam) float64 — d(vertex pixel position)/d(param).
+// tris_ptr    : (ntri, 3) int32 — vertex indices, giving each triangle its rows
+//               of dverts without materialising a per-triangle copy.
+// out_ptr     : (nparam, npix, npix) float64, C-contiguous row-major, caller
+//               zeroed — written in place, accumulating.
+// ntri, nparam, npix : array sizes.
+//
+void accumulate_triangle_derivs(
+    size_t tri_px_ptr,
+    size_t pupil_areas_ptr,
+    size_t proj_areas_ptr,
+    size_t dverts_ptr,
+    size_t tris_ptr,
+    size_t out_ptr,
+    int ntri,
+    int nparam,
+    int npix
+) {
+    const double*  tri_px = reinterpret_cast<const double*>(tri_px_ptr);
+    const double*  pa     = reinterpret_cast<const double*>(pupil_areas_ptr);
+    const double*  pj     = reinterpret_cast<const double*>(proj_areas_ptr);
+    const double*  dv     = reinterpret_cast<const double*>(dverts_ptr);
+    const int32_t* tris   = reinterpret_cast<const int32_t*>(tris_ptr);
+    double*        out    = reinterpret_cast<double*>(out_ptr);
+
+    int no2 = (npix - 1) / 2;
+    int plane = npix * npix;
+
+    for (int k = 0; k < ntri; k++) {
+        double proj = pj[k];
+        if (proj <= 0.0) continue;
+
+        const double* tv = tri_px + k*6;
+        double tri[3][2] = { {tv[0],tv[1]}, {tv[2],tv[3]}, {tv[4],tv[5]} };
+
+        // d(proj_area)/d(vertex), by the same shoelace gradient the clipped
+        // polygon uses.  proj is already the absolute area, so recover the
+        // sign from the signed sum.
+        double signed_proj = 0.0;
+        for (int i = 0, j = 2; i < 3; j = i++)
+            signed_proj += tri[j][0]*tri[i][1] - tri[i][0]*tri[j][1];
+        double psign = (signed_proj >= 0.0) ? 0.5 : -0.5;
+        double dproj[3][2];
+        for (int i = 0; i < 3; i++) {
+            int nxt = (i + 1 == 3) ? 0 : i + 1;
+            int prv = (i == 0) ? 2 : i - 1;
+            dproj[i][0] = psign*(tri[nxt][1] - tri[prv][1]);
+            dproj[i][1] = psign*(tri[prv][0] - tri[nxt][0]);
+        }
+
+        int ixmin = (int)std::floor(std::min({tv[0], tv[2], tv[4]}) + 0.5);
+        int ixmax = (int)std::floor(std::max({tv[0], tv[2], tv[4]}) + 0.5);
+        int iymin = (int)std::floor(std::min({tv[1], tv[3], tv[5]}) + 0.5);
+        int iymax = (int)std::floor(std::max({tv[1], tv[3], tv[5]}) + 0.5);
+
+        ixmin = std::max(ixmin, -no2);
+        ixmax = std::min(ixmax,  no2);
+        iymin = std::max(iymin, -no2);
+        iymax = std::min(iymax,  no2);
+
+        double inv = pa[k] / proj;
+        double inv2 = pa[k] / (proj * proj);
+
+        for (int iy = iymin; iy <= iymax; iy++) {
+            for (int ix = ixmin; ix <= ixmax; ix++) {
+                double dclip[3][2];
+                double area = clip_area_grad_cpp(tri, ix, iy, dclip);
+                if (area <= 0.0) continue;
+
+                // d(contribution)/d(vertex), quotient rule.
+                double dc[3][2];
+                for (int i = 0; i < 3; i++) {
+                    dc[i][0] = inv*dclip[i][0] - inv2*area*dproj[i][0];
+                    dc[i][1] = inv*dclip[i][1] - inv2*area*dproj[i][1];
+                }
+
+                int pix = (iy + no2)*npix + (ix + no2);
+                for (int i = 0; i < 3; i++) {
+                    const double* dvx = dv + (size_t)tris[3*k + i]*2*nparam;
+                    const double* dvy = dvx + nparam;
+                    double cx = dc[i][0], cy = dc[i][1];
+                    for (int p = 0; p < nparam; p++)
+                        out[(size_t)p*plane + pix] += cx*dvx[p] + cy*dvy[p];
+                }
+            }
+        }
+    }
+}
+
+
+// Thin wrapper so clip_area_grad_cpp is callable from Python.
+// tri_ptr: ctypes pointer to a C-contiguous (3,2) float64 array.
+// grad_ptr: ctypes pointer to a C-contiguous (3,2) float64 output array.
+double clip_area_grad(size_t tri_ptr, int ix, int iy, size_t grad_ptr) {
+    const double* p = reinterpret_cast<const double*>(tri_ptr);
+    double tri[3][2] = {{p[0],p[1]},{p[2],p[3]},{p[4],p[5]}};
+    double g[3][2] = {{0.0,0.0},{0.0,0.0},{0.0,0.0}};
+    double area = clip_area_grad_cpp(tri, ix, iy, g);
+    double* out = reinterpret_cast<double*>(grad_ptr);
+    for (int i = 0; i < 3; i++) { out[2*i] = g[i][0]; out[2*i+1] = g[i][1]; }
+    return area;
+}
+
+
 // Thin wrapper so clip_area_cpp is callable from Python.
 // tri_ptr: ctypes pointer to a C-contiguous (3,2) float64 array.
 double clip_area(size_t tri_ptr, int ix, int iy) {
@@ -981,5 +1211,7 @@ PYBIND11_MODULE(_danish, m) {
     m.def("clip_triangles_to_circle", &clip_triangles_to_circle);
     m.def("clip_triangles_to_strut", &clip_triangles_to_strut);
     m.def("accumulate_triangles", &accumulate_triangles);
+    m.def("accumulate_triangle_derivs", &accumulate_triangle_derivs);
     m.def("clip_area", &clip_area);
+    m.def("clip_area_grad", &clip_area_grad);
 }

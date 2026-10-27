@@ -48,10 +48,13 @@ def systematic_loss(alpha):
     Returns
     -------
     callable
-        Loss function with signature ``(data, model, var) -> array``.
+        Loss function with signature ``(data, model, var) -> array``.  Carries
+        its ``alpha`` as an attribute, which lets a caller differentiate it in
+        closed form rather than by a difference quotient.
     """
     def _loss(data, model, var):
         return (data - model) / np.sqrt(var + model + (alpha * model)**2)
+    _loss.alpha = alpha
     return _loss
 
 

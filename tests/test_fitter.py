@@ -2,6 +2,7 @@ import os
 import pickle
 import time
 import yaml
+import pytest
 
 from scipy.optimize import least_squares
 from scipy.sparse import issparse
@@ -1564,17 +1565,18 @@ def test_basis_dz_fitter_rigid():
         # plt.show()
 
 
-def check_jac_sparse(fitter, guess, imgs, vars, formats=('csr',)):
+def check_jac_sparse(fitter, guess, imgs, vars, formats=('csr',), **kwargs):
     """Assert `jac_sparse` reproduces `jac` exactly, and is really sparse.
 
-    Both methods run the same finite differences with the same steps in the
-    same order, so they should agree bit-for-bit rather than to a tolerance.
+    Both differentiate the same way in the same order, so they should agree
+    bit-for-bit rather than to a tolerance.  Any extra kwargs -- `method` --
+    go to both.
 
-    `formats` defaults to CSR alone since each extra format costs another 27
-    internal chi calls; pass both at one site to cover the CSC path, which is
-    selectable from ts_wep config.
+    `formats` defaults to CSR alone since each extra format repeats the whole
+    jacobian; pass both at one site to cover the CSC path, which is selectable
+    from ts_wep config.
     """
-    dense = fitter.jac(guess, imgs, vars)
+    dense = fitter.jac(guess, imgs, vars, **kwargs)
 
     # assert_array_equal treats nan as equal to nan, so an all-nan jacobian
     # would sail through the comparisons below while testing nothing at all.
@@ -1586,7 +1588,7 @@ def check_jac_sparse(fitter, guess, imgs, vars, formats=('csr',)):
     band = 3 + natm + nwavefront + nbkg
 
     for fmt in formats:
-        sparse = fitter.jac_sparse(guess, imgs, vars, format=fmt)
+        sparse = fitter.jac_sparse(guess, imgs, vars, format=fmt, **kwargs)
         assert issparse(sparse)
         assert sparse.format == fmt
         assert sparse.shape == dense.shape
@@ -1874,6 +1876,186 @@ def test_multi_donut_model_projection_basis():
             np.testing.assert_allclose(
                 (x1 - x0_)/10e-6/step, dxdp[:, j], rtol=1e-6, atol=1e-6
             )
+
+
+def _triangle_jac_fitter(nstar=3, nrad=12, bkg_order=0, **kwargs):
+    """A triangle-mode multi-donut fitter plus a guess, images and variances."""
+    rng = np.random.default_rng(14142)
+    thr = np.sqrt(rng.uniform(0, 1.8**2, nstar))
+    ph = rng.uniform(0, 2*np.pi, nstar)
+    thxs, thys = np.deg2rad(thr*np.cos(ph)), np.deg2rad(thr*np.sin(ph))
+    z_refs = rng.uniform(-2e-7, 2e-7, (nstar, 30))
+    z_refs[:, 4] += 20e-6
+
+    factory = danish.DonutTriangleFactory(
+        R_outer=4.18, R_inner=2.5498,
+        mask_params=Rubin_obsc,
+        focal_length=10.31, pixel_scale=10e-6,
+        nrad=nrad,
+    )
+    dz_terms = tuple((1, j) for j in range(4, 12))
+    fitter = danish.DZMultiDonutModel(
+        factory, z_refs=z_refs, dz_terms=dz_terms,
+        field_radius=np.deg2rad(1.8), thxs=thxs, thys=thys,
+        bkg_order=bkg_order, **kwargs
+    )
+    fluxes = rng.uniform(3e6, 1e7, nstar)
+    imgs = fitter.model(
+        fluxes, [0.0]*nstar, [0.0]*nstar, 0.7,
+        rng.uniform(-1e-7, 1e-7, len(dz_terms)),
+        bkgs=[(0.0,)*fitter.nbkg]*nstar,
+    )
+    guess = np.array(
+        list(fluxes) + [0.0]*nstar + [0.0]*nstar + [0.7]
+        + [0.0]*len(dz_terms) + [0.0]*(fitter.nbkg*nstar)
+    )
+    return fitter, guess, imgs, [1000.0]*nstar
+
+
+@timer
+def test_analytic_jac_matches_finite_difference():
+    """The analytic wavefront columns must be the limit the FD ones approach.
+
+    Nothing else in this suite pins a Jacobian against an independent
+    reference -- `_jac2` repeats `jac`'s own one-sided differences -- so a
+    wrong derivative would otherwise pass.  Shrinking the difference step has
+    to walk the FD columns toward the analytic ones until roundoff takes over,
+    which both validates the analytic path and shows it is the more accurate
+    of the two.
+    """
+    nstar = 2
+    fitter, guess, imgs, vars_ = _triangle_jac_fitter(nstar=nstar, nrad=10)
+    assert fitter._can_use_analytic()
+
+    nwf = fitter._nwavefront
+    wf0 = 3*nstar + fitter.natm
+    cols = slice(wf0, wf0 + nwf)
+
+    analytic = fitter.jac(guess, imgs, vars_)[:, cols]
+    assert np.all(np.isfinite(analytic))
+    assert np.any(analytic != 0)
+
+    # Central differences, so the error falls with the step until roundoff in
+    # the difference takes over and it climbs again.
+    steps = (1e-7, 1e-8, 1e-9, 1e-10, 1e-11, 1e-12)
+    errs = []
+    for step in steps:
+        fd = np.empty_like(analytic)
+        for k in range(nwf):
+            lo = np.array(guess); lo[wf0 + k] -= step
+            hi = np.array(guess); hi[wf0 + k] += step
+            fd[:, k] = (
+                fitter.chi(hi, imgs, vars_) - fitter.chi(lo, imgs, vars_)
+            )/(2*step)
+        errs.append(
+            np.linalg.norm(fd - analytic)/np.linalg.norm(analytic)
+        )
+
+    # Monotone while truncation dominates, i.e. up to the turn.
+    best = int(np.argmin(errs))
+    assert best > 0, errs
+    assert errs[:best+1] == sorted(errs[:best+1], reverse=True), errs
+    # And it gets close enough that no wrong derivative could be mistaken for
+    # it -- a column off by any fixed factor would plateau at that factor.
+    assert errs[best] < 1e-6, errs
+
+    # And the shipped one-sided scheme is the inaccurate one, by percents.
+    fd_default = fitter.jac(guess, imgs, vars_, method='fd')[:, cols]
+    rel = np.linalg.norm(fd_default - analytic)/np.linalg.norm(analytic)
+    assert 1e-4 < rel < 0.5, rel
+
+
+@timer
+def test_analytic_jac_contracts():
+    """Switching methods must not disturb the rest of the Jacobian.
+
+    Only the wavefront columns differ between methods, `jac` and `jac_sparse`
+    have to agree bit-for-bit under either, and 'fd' has to stay exactly what
+    shipped before the analytic path existed -- it is the reference the
+    convergence test above leans on.
+    """
+    for nstar, bkg_order in ((1, 0), (3, 1)):
+        fitter, guess, imgs, vars_ = _triangle_jac_fitter(
+            nstar=nstar, nrad=10, bkg_order=bkg_order
+        )
+        nwf = fitter._nwavefront
+        wf0 = 3*nstar + fitter.natm
+        cols = slice(wf0, wf0 + nwf)
+
+        analytic = fitter.jac(guess, imgs, vars_)
+        fd = fitter.jac(guess, imgs, vars_, method='fd')
+
+        # Every non-wavefront column is produced the same way either way.
+        np.testing.assert_array_equal(
+            np.delete(analytic, cols, axis=1), np.delete(fd, cols, axis=1)
+        )
+        # 'fd' is still the pre-existing scheme, bit for bit.
+        np.testing.assert_array_equal(fd, fitter._jac2(guess, imgs, vars_))
+
+        for method in ('analytic', 'fd'):
+            check_jac_sparse(
+                fitter, guess, imgs, vars_, formats=('csr', 'csc'),
+                method=method,
+            )
+
+        # An unrecognized method must not quietly fall back to differencing.
+        for call in (fitter.jac, fitter.jac_sparse):
+            with pytest.raises(ValueError, match="method must be one of"):
+                call(guess, imgs, vars_, method='exact')
+
+
+@timer
+def test_analytic_jac_with_systematic_loss():
+    """The loss' own dependence on the model must be differentiated too.
+
+    `systematic_loss` divides by an error built from the model, so d(chi)/dp
+    picks up a term beyond -1/sqrt(var + model).  Dropping it would still look
+    plausible, so check a nonzero alpha against finite differences.
+    """
+    nstar = 1
+    fitter, guess, imgs, vars_ = _triangle_jac_fitter(
+        nstar=nstar, nrad=10, loss_fn=danish.systematic_loss(0.02)
+    )
+    nwf = fitter._nwavefront
+    wf0 = 3*nstar + fitter.natm
+
+    analytic = fitter.jac(guess, imgs, vars_)[:, wf0:wf0+nwf]
+    step = 1e-10
+    fd = np.empty_like(analytic)
+    for k in range(nwf):
+        lo = np.array(guess); lo[wf0 + k] -= step
+        hi = np.array(guess); hi[wf0 + k] += step
+        fd[:, k] = (
+            fitter.chi(hi, imgs, vars_) - fitter.chi(lo, imgs, vars_)
+        )/(2*step)
+    rel = np.linalg.norm(fd - analytic)/np.linalg.norm(analytic)
+    assert rel < 1e-5, rel
+
+
+@timer
+def test_analytic_jac_recovers_wavefront():
+    """A fit driven by the analytic Jacobian must still converge."""
+    nstar = 3
+    fitter, guess, imgs, vars_ = _triangle_jac_fitter(nstar=nstar, nrad=12)
+    rng = np.random.default_rng(16180)
+    nwf = fitter._nwavefront
+    truth = rng.uniform(-2e-7, 2e-7, nwf)
+
+    fluxes = guess[:nstar]
+    data = fitter.model(
+        fluxes, [0.0]*nstar, [0.0]*nstar, 0.7, truth,
+        bkgs=[(0.0,)*fitter.nbkg]*nstar,
+    )
+    result = least_squares(
+        fitter.chi, guess, jac=fitter.jac, x_scale='jac',
+        ftol=1e-4, xtol=1e-4, gtol=1e-4, max_nfev=30,
+        args=(data, vars_),
+    )
+    fit = fitter.unpack_params(result.x)
+    np.testing.assert_allclose(
+        np.array(fit["wavefront_params"]), truth, rtol=0, atol=2e-8
+    )
+    np.testing.assert_allclose(fit["fwhm"], 0.7, rtol=0, atol=0.02)
 
 
 @timer
