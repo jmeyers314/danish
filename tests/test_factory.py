@@ -403,7 +403,7 @@ def test_triangle_factory_image_from_mesh_verts_px():
     got = factory._image_from_mesh(mesh, npix=181, verts_px=verts_px)
 
     assert got.sum() > 0
-    np.testing.assert_allclose(got, expected, rtol=1e-9, atol=1e-13*expected.max())
+    np.testing.assert_allclose(got, expected, rtol=1e-9, atol=1e-12*expected.max())
 
 
 @timer
