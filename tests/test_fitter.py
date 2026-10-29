@@ -2844,6 +2844,218 @@ def test_spot_image_regression():
     np.testing.assert_allclose(model_norm, factory_norm, atol=1e-10)
 
 
+def _triangle_joint_fitter(kind='dz', nd=2, ns=2, nrad=10, spot_weight=2.0):
+    """A joint fitter whose donut half renders from a triangle mesh.
+
+    Mirrors `_triangle_jac_fitter` for the joint parameterization.  Only the
+    donut sub-model needs the triangle factory -- the spot renderer has no
+    analytic path either way -- so the spots keep the inverse factory the
+    other joint tests use.  `kind` selects the DZ or sensitivity-matrix
+    parameterization.
+    """
+    rng = np.random.default_rng(27182)
+    n = nd + ns
+    thr = np.sqrt(rng.uniform(0, 1.8**2, n))
+    ph = rng.uniform(0, 2*np.pi, n)
+    thxs, thys = np.deg2rad(thr*np.cos(ph)), np.deg2rad(thr*np.sin(ph))
+    z_refs = rng.uniform(-2e-7, 2e-7, (n, 30))
+    # Defocus the donuts only.  The same 20 um on a spot would smear it far
+    # outside its 21-pixel stamp and leave the spot images identically zero,
+    # which would make every spot-side assertion below vacuous.
+    z_refs[:nd, 4] += 20e-6
+
+    common = dict(
+        R_outer=4.18, R_inner=2.5498, mask_params=Rubin_obsc,
+        focal_length=10.31, pixel_scale=10e-6,
+    )
+    tri_factory = danish.DonutTriangleFactory(nrad=nrad, **common)
+    spot_factory = danish.DonutFactory(**common)
+
+    field_radius = np.deg2rad(1.8)
+    if kind == 'dz':
+        dz_terms = tuple((1, j) for j in range(4, 12))
+        nwf = len(dz_terms)
+        shared = dict(dz_terms=dz_terms)
+        donut_cls = danish.DZMultiDonutModel
+        spot_cls = danish.DZMultiSpotModel
+        joint_cls = danish.DZJointModel
+        wf_kwargs = {}
+    else:
+        # A synthetic sensitivity matrix: batoid's doubleZernike is far slower
+        # than anything being tested here, and the analytic path only cares
+        # that _get_z_fits is linear in the parameters.
+        nwf = 4
+        sens = np.zeros((nwf, 4, 12))
+        for m in range(nwf):
+            sens[m, 1 + m % 3, 4 + m] = 1e-7
+        shared = dict(sensitivity=sens)
+        donut_cls = danish.DZBasisMultiDonutModel
+        spot_cls = danish.DZBasisMultiSpotModel
+        joint_cls = danish.DZBasisJointModel
+        wf_kwargs = dict(wavefront_step=0.1)
+
+    donut_model = donut_cls(
+        tri_factory, z_refs=z_refs[:nd], field_radius=field_radius,
+        thxs=thxs[:nd], thys=thys[:nd], bkg_order=0, **shared, **wf_kwargs
+    )
+    spot_model = spot_cls(
+        spot_factory, z_refs=z_refs[nd:], field_radius=field_radius,
+        thxs=thxs[nd:], thys=thys[nd:], bkg_order=0,
+        spot_nrad=40, gq_kwargs=dict(rmax=3.5), **shared, **wf_kwargs
+    )
+    joint = joint_cls(donut_model, spot_model, spot_weight=spot_weight)
+
+    d_fluxes = rng.uniform(3e6, 1e7, nd)
+    s_fluxes = rng.uniform(3e6, 1e7, ns)
+    d_imgs = donut_model.model(
+        d_fluxes, [0.0]*nd, [0.0]*nd, 0.7, [0.0]*nwf,
+        bkgs=[(0.0,)]*nd,
+    )
+    s_imgs = spot_model.model(
+        s_fluxes, [0.0]*ns, [0.0]*ns, 0.7, [0.0]*nwf,
+        bkgs=[(0.0,)]*ns,
+    )
+    guess = joint.pack_params(
+        d_fluxes=d_fluxes, d_dxs=[0.0]*nd, d_dys=[0.0]*nd,
+        s_fluxes=s_fluxes, s_dxs=[0.0]*ns, s_dys=[0.0]*ns,
+        fwhm=0.7, wavefront_params=[0.0]*nwf,
+        d_bkgs=[(0.0,)]*nd, s_bkgs=[(0.0,)]*ns,
+    )
+    return joint, guess, d_imgs, [1000.0]*nd, s_imgs, [1000.0]*ns
+
+
+@timer
+def test_joint_analytic_jac_contracts():
+    """The analytic path must touch only the donut half's wavefront columns.
+
+    The donut sub-model renders from a mesh here, so 'analytic' is really
+    engaged; the spot sub-model never has an analytic path.  Everything
+    outside the donut wavefront block therefore has to come out of either
+    method the same way, and 'fd' has to stay exactly the finite-difference
+    reference `_jac2` provides.
+    """
+    for kind in ('dz', 'basis'):
+        joint, guess, d_imgs, d_vars, s_imgs, s_vars = (
+            _triangle_joint_fitter(kind=kind)
+        )
+        assert joint.donut_model._can_use_analytic()
+
+        nd, ns = joint.nd, joint.ns
+        nwf = joint.donut_model._nwavefront
+        wf0 = 3*nd + 3*ns + joint.natm
+        cols = slice(wf0, wf0 + nwf)
+
+        args = (d_imgs, d_vars, s_imgs, s_vars)
+        analytic = joint.jac(guess, *args)
+        fd = joint.jac(guess, *args, method='fd')
+        assert np.all(np.isfinite(analytic))
+        assert np.any(analytic != 0)
+
+        # Only the wavefront columns are allowed to differ by method.
+        np.testing.assert_array_equal(
+            np.delete(analytic, cols, axis=1),
+            np.delete(fd, cols, axis=1),
+        )
+
+        # And within those, only the donut rows.  The spot rows go through a
+        # divide-then-multiply by sqrt_spot_weight that the joint-chi path
+        # does not, so they agree to roundoff rather than bit-for-bit.
+        np.testing.assert_allclose(
+            analytic[joint.nchi_d:, cols], fd[joint.nchi_d:, cols],
+            rtol=1e-12, atol=0,
+        )
+
+        # The spot rows have to be the spot sub-model's own wavefront columns,
+        # scaled by sqrt_spot_weight.  Comparing against the sub-model is what
+        # pins *which* spot parameter each joint column perturbed -- the check
+        # above only says the two joint methods agree, which a uniformly wrong
+        # index would satisfy too.
+        s_jac = joint.spot_model.jac(
+            np.array(joint._spot_packed(joint.unpack_params(guess))),
+            s_imgs, s_vars,
+        )
+        s_wf0 = 3*ns + joint.natm
+        s_wf = s_jac[:, s_wf0:s_wf0 + nwf]
+        # Guard against the comparison being vacuous: a spot image is a
+        # flux-normalized histogram of ray positions, so too small a step
+        # moves no ray across a bin edge and every column comes out zero.
+        assert np.any(s_wf != 0)
+        np.testing.assert_allclose(
+            analytic[joint.nchi_d:, cols],
+            joint.sqrt_spot_weight * s_wf,
+            rtol=1e-12, atol=0,
+        )
+
+        # The donut rows are where the two methods genuinely disagree: a
+        # one-sided difference is wrong by percents, which is the whole point.
+        # Were the analytic block silently returning the FD values, or were it
+        # off by some fixed factor, this would fall outside the band.
+        d_an = analytic[:joint.nchi_d, cols]
+        rel = (
+            np.linalg.norm(fd[:joint.nchi_d, cols] - d_an)
+            / np.linalg.norm(d_an)
+        )
+        assert 1e-4 < rel < 0.5, rel
+
+        # 'fd' is still the pre-existing scheme.
+        np.testing.assert_allclose(
+            fd, joint._jac2(guess, *args), atol=1e-10
+        )
+
+        # An unrecognized method must not quietly fall back to differencing.
+        with pytest.raises(ValueError, match="method must be one of"):
+            joint.jac(guess, *args, method='exact')
+
+
+@timer
+def test_joint_analytic_jac_rejects_wavefront_mismatch():
+    """A params vector that disagrees with the donut sub-model must not pass.
+
+    The joint wavefront count is inferred from `len(params)` while the donut
+    sub-model knows its own, so a mismatch would otherwise mispack the donut
+    params and misalign the analytic columns.
+    """
+    joint, guess, d_imgs, d_vars, s_imgs, s_vars = _triangle_joint_fitter()
+    # Drop a wavefront parameter: every other count is unchanged, so the
+    # inferred nwf comes out one short of the donut sub-model's.
+    short = np.delete(np.asarray(guess, dtype=float), -1 - joint.ns)
+    with pytest.raises(ValueError, match="wavefront parameter count mismatch"):
+        joint.jac(short, d_imgs, d_vars, s_imgs, s_vars)
+
+
+@timer
+def test_joint_analytic_jac_recovers_wavefront():
+    """A joint fit driven by the analytic Jacobian must still converge."""
+    joint, guess, d_imgs, d_vars, s_imgs, s_vars = _triangle_joint_fitter()
+    nwf = joint.donut_model._nwavefront
+    rng = np.random.default_rng(31415)
+    truth = rng.uniform(-2e-7, 2e-7, nwf)
+
+    jd = joint.unpack_params(guess)
+    d_data = joint.donut_model.model(
+        jd['d_fluxes'], [0.0]*joint.nd, [0.0]*joint.nd, 0.7, truth,
+        bkgs=[(0.0,)]*joint.nd,
+    )
+    s_data = joint.spot_model.model(
+        jd['s_fluxes'], [0.0]*joint.ns, [0.0]*joint.ns, 0.7, truth,
+        bkgs=[(0.0,)]*joint.ns,
+    )
+    result = least_squares(
+        joint.chi, guess, jac=joint.jac, x_scale='jac',
+        ftol=1e-4, xtol=1e-4, gtol=1e-4, max_nfev=30,
+        args=(d_data, d_vars, s_data, s_vars),
+    )
+    fit = joint.unpack_params(result.x)
+    # The residual floor here is the fixture's, not the Jacobian's: tightening
+    # the fit tolerances by four orders of magnitude leaves it at 2.5e-8, and
+    # the same fit driven by 'fd' is no better.  What this pins is that the
+    # analytic Jacobian still points least_squares at the right answer.
+    np.testing.assert_allclose(
+        np.array(fit["wavefront_params"]), truth, rtol=0, atol=4e-8
+    )
+    np.testing.assert_allclose(fit["fwhm"], 0.7, rtol=0, atol=0.02)
+
+
 @timer
 def test_joint_model_jac():
     """Verify JointModel.jac == JointModel._jac2."""
@@ -2936,7 +3148,10 @@ def test_joint_model_jac():
     d_vars = [1000.0]*nd
     s_vars = [1000.0]*ns
 
-    j1 = joint.jac(guess, d_imgs, d_vars, s_imgs, s_vars)
+    # 'fd' explicitly: _jac2 is the finite-difference reference, and this
+    # factory has no mesh, so the default would only reach the same place by
+    # falling back.  test_joint_analytic_jac_contracts covers the analytic one.
+    j1 = joint.jac(guess, d_imgs, d_vars, s_imgs, s_vars, method='fd')
     j2 = joint._jac2(guess, d_imgs, d_vars, s_imgs, s_vars)
     np.testing.assert_allclose(j1, j2, atol=1e-10)
 
@@ -2989,7 +3204,9 @@ def test_joint_model_jac():
         s_bkgs=[(0.0,)]*ns,
     )
 
-    j1b = joint_basis.jac(guess_basis, d_imgs, d_vars, s_imgs, s_vars)
+    j1b = joint_basis.jac(
+        guess_basis, d_imgs, d_vars, s_imgs, s_vars, method='fd'
+    )
     j2b = joint_basis._jac2(guess_basis, d_imgs, d_vars, s_imgs, s_vars)
     np.testing.assert_allclose(j1b, j2b, atol=1e-10)
 
