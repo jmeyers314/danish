@@ -30,7 +30,9 @@
 
 import numpy as np
 
-from .donut_model import DZMultiDonutModel, DZBasisMultiDonutModel
+from .donut_model import (
+    DZMultiDonutModel, DZBasisMultiDonutModel, _check_jac_method
+)
 from .spot_model import DZMultiSpotModel, DZBasisMultiSpotModel
 
 
@@ -248,7 +250,10 @@ class JointModel:
         s_chi = self.spot_model.chi(s_packed, spot_data, spot_vars)
         return np.concatenate([d_chi, self.sqrt_spot_weight * s_chi])
 
-    def jac(self, params, donut_data, donut_vars, spot_data, spot_vars):
+    def jac(
+        self, params, donut_data, donut_vars, spot_data, spot_vars,
+        method='analytic'
+    ):
         """Compute joint jacobian d(chi)/d(param).
 
         Uses block-sparse structure: donut per-star params only affect donut
@@ -259,11 +264,34 @@ class JointModel:
         ----------
         params : sequence of float
         donut_data, donut_vars, spot_data, spot_vars : arrays
+        method : str, optional
+            'analytic' (default) differentiates the donut half's wavefront
+            columns in closed form, which is both faster and more accurate
+            than the alternative -- a one-sided difference at `wavefront_step`
+            carries a few percent error -- and spares the donut re-render that
+            each such difference costs.  'fd' forces the difference quotient
+            for every column.  Falls back to 'fd' where no analytic path
+            exists, i.e. for any donut factory that does not render from a
+            mesh.
+
+            The spot half's wavefront columns are differenced either way.  The
+            spot renderer accumulates into a histogram, which is piecewise
+            constant in the positions being accumulated and so carries no
+            useful derivative; only the donut mesh renderer admits the
+            analytic path.
 
         Returns
         -------
         jac : array of float, shape (nchi_d + nchi_s, nparams)
+
+        Raises
+        ------
+        ValueError
+            If `method` is neither 'analytic' nor 'fd'.  Also, under either
+            method, if the donut sub-model's wavefront parameter count
+            disagrees with the one `params` implies.
         """
+        _check_jac_method(method)
         nd = self.nd
         ns = self.ns
         natm = self.natm
@@ -277,6 +305,19 @@ class JointModel:
         nperstar = 3*nd + 3*ns
         nbkg_total = nbkg_d*nd + nbkg_s*ns
         nwf = nparams - nperstar - natm - nbkg_total
+
+        # The joint parameterization and the donut sub-model have to agree on
+        # how many wavefront parameters there are.  They are derived
+        # independently -- one from len(params), one from the sub-model's own
+        # terms -- so a mismatch is possible, and it would mispack
+        # _donut_packed under either method and misalign the analytic columns
+        # below under 'analytic'.
+        d_nwf = self.donut_model._nwavefront
+        if d_nwf != nwf:
+            raise ValueError(
+                f"wavefront parameter count mismatch: donut sub-model has "
+                f"{d_nwf}, joint params imply {nwf}"
+            )
 
         out = np.zeros((nchi_d + nchi_s, nparams))
         chi0 = self.chi(params, donut_data, donut_vars, spot_data, spot_vars)
@@ -372,14 +413,37 @@ class JointModel:
             )
             out[:, shared_start + k] = (chi1 - chi0) / 0.01
 
-        for k in range(nwf):
-            col = shared_start + natm + k
-            params1 = np.array(params, dtype=float)
-            params1[col] += self.wavefront_step
-            chi1 = self.chi(
-                params1, donut_data, donut_vars, spot_data, spot_vars
+        if method == 'analytic' and self.donut_model._can_use_analytic():
+            # One pass over the donut meshes fills every donut row for every
+            # wavefront column at once, so the loop below is left re-rendering
+            # the spots alone -- and the spots are the cheaper half by far.
+            wf0 = shared_start + natm
+            out[:nchi_d, wf0:wf0+nwf] = (
+                self.donut_model._wavefront_jac_analytic(
+                    d_packed, donut_data, donut_vars
+                )
             )
-            out[:, col] = (chi1 - chi0) / self.wavefront_step
+            for k in range(nwf):
+                s_params1 = np.array(s_packed, dtype=float)
+                # Joint wavefront param k sits after the spot sub-model's own
+                # per-star and atmospheric params; see spot pack_params.
+                s_params1[3*ns + natm + k] += self.wavefront_step
+                chi_s = self.spot_model.chi(
+                    s_params1, spot_data, spot_vars
+                )
+                out[nchi_d:, wf0 + k] = (
+                    self.sqrt_spot_weight
+                    * (chi_s - chi0_s / self.sqrt_spot_weight)
+                ) / self.wavefront_step
+        else:
+            for k in range(nwf):
+                col = shared_start + natm + k
+                params1 = np.array(params, dtype=float)
+                params1[col] += self.wavefront_step
+                chi1 = self.chi(
+                    params1, donut_data, donut_vars, spot_data, spot_vars
+                )
+                out[:, col] = (chi1 - chi0) / self.wavefront_step
 
         # --- Donut bkg params (sparse: only donut rows) ---
         dbkg = 0.01
