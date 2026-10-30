@@ -23,11 +23,12 @@ concurrency:
 jobs:
   build:
     runs-on: ${{ matrix.os }}
+    continue-on-error: ${{ matrix.experimental == true }}
 
     strategy:
       matrix:
         os: [ ubuntu-latest ]
-        py: ['3.10', '3.11', '3.12', '3.13']
+        py: ['3.10', '3.11', '3.12', '3.13', '3.14']
         CC: [ gcc ]
         CXX: [ g++ ]
         include:
@@ -39,6 +40,26 @@ jobs:
             py: '3.10'
             CC: clang
             CXX: clang++
+          # The remaining interpreters cibuildwheel builds release wheels
+          # for.  Each is here so that what we ship is also tested, and each
+          # is experimental: free-threaded builds load GalSim's extension with
+          # the GIL re-enabled, and 3.15 has no GalSim or batoid wheels yet so
+          # it builds them from source.
+          - os: ubuntu-latest
+            py: '3.14t'
+            CC: gcc
+            CXX: g++
+            experimental: true
+          - os: ubuntu-latest
+            py: '3.15'
+            CC: gcc
+            CXX: g++
+            experimental: true
+          - os: ubuntu-latest
+            py: '3.15t'
+            CC: gcc
+            CXX: g++
+            experimental: true
 
     steps:
       - uses: actions/checkout@v7
@@ -61,6 +82,7 @@ jobs:
           python-version: ${{ matrix.py }}
           cache: 'pip'
           cache-dependency-path: pyproject.toml
+          allow-prereleases: ${{ matrix.experimental == true }}
 
       - name: Update pip
         run: python -m pip install -U pip
