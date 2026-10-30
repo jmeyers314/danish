@@ -80,6 +80,13 @@ class BaseDonutModel:
     atm_mode : str, optional
         Atmospheric PSF parameterization.  'fwhm' for scalar FWHM (default),
         'ixx' for second moment tensor (Ixx, Ixy, Iyy) in arcsec^2.
+    loss_fn : callable, optional
+        Residual function with signature ``(data, model, var) -> array``.
+        Defaults to `danish.loss.chi2_loss`.  Must be elementwise: pixel i's
+        residual may depend on the model at pixel i only.  An analytic
+        jacobian additionally needs a loss whose derivative it knows, which at
+        present means one from `danish.loss.systematic_loss`; see
+        `_dchi_dmodel`.
     """
     # I think Ixx might formally diverge for a Kolmogorov profile, but we need
     # something to convert between FWHM and Ixx/Iyy for the atmospheric kernel,
@@ -443,6 +450,11 @@ class BaseDonutModel:
 
         It needs the mesh renderer's projection bases, which only the triangle
         factory provides and only when the fit varies something.
+
+        Covers the renderer alone.  The loss has to be differentiable too, but
+        a loss that is not is a caller's mistake rather than a configuration
+        to route around, so `_dchi_dmodel` raises on it instead of reporting
+        it here and falling back to differencing.
         """
         return bool(self._projections)
 
@@ -472,9 +484,15 @@ class BaseDonutModel:
 
         The loss divides by an error that is itself a function of the model, so
         this is not simply -1/sqrt(var + model).  Derived by differentiating
-        `danish.loss.systematic_loss`; `alpha` is recovered from the loss
-        rather than stored, so a custom loss falls back to a difference
-        quotient.
+        `danish.loss.systematic_loss`, whose `alpha` is recovered from the loss
+        rather than stored.
+
+        One value per pixel presumes pixel i's residual depends on the model at
+        pixel i alone, which is what makes d(chi)/d(model) a diagonal the
+        caller can multiply elementwise.  A loss coupling pixels -- whitening
+        by a non-diagonal covariance, say, or normalizing by a model-dependent
+        scalar -- has a dense d(chi_i)/d(model_j) that no array of this shape
+        can carry, so such a loss is refused here rather than approximated.
 
         Parameters
         ----------
@@ -489,15 +507,20 @@ class BaseDonutModel:
         -------
         array of float
             d(chi)/d(model) at each pixel.
+
+        Raises
+        ------
+        ValueError
+            If the loss carries no `alpha`, and so no derivative this knows how
+            to take.  `method='fd'` differences the loss as a whole and works
+            for any of them.
         """
         alpha = getattr(self.loss_fn, 'alpha', None)
         if alpha is None:
-            # Unknown loss: perturb it rather than assume a functional form.
-            h = 1e-6 * max(np.abs(model).max(), 1.0)
-            return (
-                self.loss_fn(datum, model + h, var)
-                - self.loss_fn(datum, model - h, var)
-            ) / (2*h)
+            raise ValueError(
+                "analytic jacobian needs a loss whose derivative is known;"
+                f" {self.loss_fn!r} carries no 'alpha'. Use method='fd'."
+            )
         denom = var + model + (alpha*model)**2
         return (
             -1.0/np.sqrt(denom)
