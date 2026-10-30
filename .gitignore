@@ -134,3 +134,6 @@ dmypy.json
 .DS_Store
 tests/coverage_html_report/
 CLAUDE.md
+
+# Local setup
+setup.sh
