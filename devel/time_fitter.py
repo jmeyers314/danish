@@ -106,7 +106,9 @@ def main():
 
         if args.binned:
             # 181 -> 90 pairs -> 89, matching the fitter's odd-npix rule.
-            img = img[:-1, :-1].reshape(90, 2, 90, 2).mean(-1).mean(1)[:-1, :-1]
+            # Sum rather than average: the loss reads model values as counts,
+            # and the sky variance below is scaled by the same factor.
+            img = img[:-1, :-1].reshape(90, 2, 90, 2).sum(-1).sum(1)[:-1, :-1]
 
         z_terms = np.arange(4, 23)
         fitter = danish.SingleDonutModel(

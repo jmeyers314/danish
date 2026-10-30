@@ -1837,7 +1837,7 @@ def test_multi_donut_model_projection_basis():
 
     dz = rng.uniform(-2e-6, 2e-6, nwf)
     for i, (thx, thy) in enumerate(zip(thxs, thys)):
-        x0, y0, dxdz, dydz = fitter._projections[(thx, thy)]
+        x0, y0, dxdz, dydz = fitter._projections[i]
         verts = fitter._meshes[(thx, thy)]["vertices"]
         z_fit = fitter._get_z_fits(dz)[i]
         ab = np.array(z_refs[i])
@@ -1963,6 +1963,83 @@ def test_analytic_jac_matches_finite_difference():
     fd_default = fitter.jac(guess, imgs, vars_, method='fd')[:, cols]
     rel = np.linalg.norm(fd_default - analytic)/np.linalg.norm(analytic)
     assert 1e-4 < rel < 0.5, rel
+
+
+@timer
+def test_repeated_field_angle_keeps_per_donut_references():
+    """Two donuts at one field angle must keep their own reference wavefronts.
+
+    The same sky position imaged twice -- two exposures of one star -- is a
+    real fit, and the two donuts share a mesh but not a reference: each
+    exposure has its own fixed aberrations.  Only the triangulation depends on
+    the angle alone, so only it may be shared.
+
+    Checked where the split is observable from outside: a donut's image must
+    not depend on whether some *other* donut happens to sit at the same angle.
+    The references below differ in Noll 20, outside the fitted dz_terms, so the
+    difference lives entirely in the fixed part the projection constants fold
+    in.
+    """
+    factory = danish.DonutTriangleFactory(
+        R_outer=4.18, R_inner=2.5498,
+        mask_params=Rubin_obsc,
+        focal_length=10.31, pixel_scale=10e-6,
+        nrad=8,
+    )
+    dz_terms = tuple((1, j) for j in range(4, 12))
+    field_radius = np.deg2rad(1.8)
+    thxs = np.deg2rad([1.0, 1.0, 0.5])
+    thys = np.zeros(3)
+
+    z_refs = np.zeros((3, 30))
+    z_refs[:, 4] = 20e-6
+    # Distinct *unreachable* aberrations: Noll 20 is absent from dz_terms, so
+    # it is fixed for the whole fit and folded into each donut's projection
+    # constant rather than carried as a column.
+    z_refs[:, 20] = [1e-6, 5e-6, 9e-6]
+
+    fluxes = [1e6]*3
+    joint = danish.DZMultiDonutModel(
+        factory, z_refs=z_refs, dz_terms=dz_terms,
+        field_radius=field_radius, thxs=thxs, thys=thys, bkg_order=0,
+    )
+    imgs = joint.model(
+        fluxes, [0.0]*3, [0.0]*3, 0.7, [0.0]*len(dz_terms), bkgs=[(0.0,)]*3
+    )
+
+    # The mesh really is shared -- otherwise this test proves nothing about
+    # the sharing -- while every donut keeps its own projection.
+    assert len(joint._meshes) == 2
+    assert len(joint._projections) == 3
+
+    # Each donut alone, where no dedup is possible, is the reference.
+    for i in range(3):
+        solo = danish.DZMultiDonutModel(
+            factory, z_refs=z_refs[i:i+1], dz_terms=dz_terms,
+            field_radius=field_radius, thxs=thxs[i:i+1], thys=thys[i:i+1],
+            bkg_order=0,
+        )
+        expected = solo.model(
+            fluxes[:1], [0.0], [0.0], 0.7, [0.0]*len(dz_terms), bkgs=[(0.0,)]
+        )[0]
+        np.testing.assert_allclose(imgs[i], expected, rtol=0, atol=0)
+
+    # The analytic Jacobian reads the same projections, so it has to survive
+    # the repeated angle too.
+    guess = joint.pack_params(
+        fluxes=fluxes, dxs=[0.0]*3, dys=[0.0]*3, fwhm=0.7,
+        wavefront_params=[0.0]*len(dz_terms), bkgs=[(0.0,)]*3,
+    )
+    vars_ = [1000.0]*3
+    analytic = joint.jac(guess, imgs, vars_)
+    fd = joint.jac(guess, imgs, vars_, method='fd')
+    wf0 = 3*3 + joint.natm
+    cols = slice(wf0, wf0 + len(dz_terms))
+    rel = (
+        np.linalg.norm(fd[:, cols] - analytic[:, cols])
+        / np.linalg.norm(analytic[:, cols])
+    )
+    assert rel < 0.5, rel
 
 
 @timer
