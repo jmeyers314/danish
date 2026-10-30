@@ -12,7 +12,10 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, ubuntu-24.04-arm, macos-15-intel, macos-15]
+        # No Linux ARM: GalSim and batoid publish no aarch64 wheels, so a
+        # danish aarch64 wheel cannot have its dependencies satisfied.  macOS
+        # arm64 is unaffected -- both publish that.
+        os: [ubuntu-latest, macos-15-intel, macos-15]
     steps:
       - uses: actions/checkout@v7
         with:
