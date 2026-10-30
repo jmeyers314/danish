@@ -2180,6 +2180,43 @@ def test_analytic_jac_with_systematic_loss():
 
 
 @timer
+def test_analytic_jac_rejects_undifferentiable_loss():
+    """A loss with no known derivative must be refused, not approximated.
+
+    d(chi)/d(model) is returned as one value per pixel, which presumes the
+    loss is elementwise; for a loss coupling pixels the true derivative is
+    dense and no array of that shape can carry it.  Rather than guess, the
+    analytic path raises and points at 'fd', which differences the loss as a
+    whole and so holds for any of them.
+    """
+    loss = lambda data, model, var: (data - model)/np.sqrt(var + model)
+    assert not hasattr(loss, 'alpha')
+
+    nstar = 1
+    fitter, guess, imgs, vars_ = _triangle_jac_fitter(
+        nstar=nstar, nrad=10, loss_fn=loss
+    )
+    # The renderer is capable; it is the loss that is not.
+    assert fitter._can_use_analytic()
+
+    for call in (fitter.jac, fitter.jac_sparse):
+        with pytest.raises(ValueError, match="carries no 'alpha'"):
+            call(guess, imgs, vars_)
+
+    # 'fd' is the documented way through, and has to actually work.
+    fd = fitter.jac(guess, imgs, vars_, method='fd')
+    assert np.all(np.isfinite(fd))
+    assert np.any(fd != 0)
+
+    # The shipped loss keeps working, so the guard is not just rejecting
+    # everything.
+    ok, guess_ok, imgs_ok, vars_ok = _triangle_jac_fitter(
+        nstar=nstar, nrad=10, loss_fn=danish.systematic_loss(0.02)
+    )
+    assert np.all(np.isfinite(ok.jac(guess_ok, imgs_ok, vars_ok)))
+
+
+@timer
 def test_analytic_jac_recovers_wavefront():
     """A fit driven by the analytic Jacobian must still converge."""
     nstar = 3
