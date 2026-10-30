@@ -23,7 +23,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.0">
     
     
       
@@ -31,10 +31,10 @@
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../assets/stylesheets/main.57a0d79d.min.css">
       
         
-        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+        <link rel="stylesheet" href="../assets/stylesheets/palette.fb2fffe2.min.css">
       
       
 
@@ -892,73 +892,6 @@
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Wavefront parameterization">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#zernike-truncation-order-for-lsst" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Zernike truncation order for LSST
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#wavefront-composition" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Wavefront composition
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Wavefront composition">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#danish-model" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Danish model
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#rubin-active-optics-pipeline-model" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Rubin active-optics pipeline model
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#sensitivity-matrix-assumption" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Sensitivity matrix assumption
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
 </li>
       
     </ul>
@@ -1123,73 +1056,6 @@
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Wavefront parameterization">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#zernike-truncation-order-for-lsst" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Zernike truncation order for LSST
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#wavefront-composition" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Wavefront composition
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Wavefront composition">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#danish-model" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Danish model
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#rubin-active-optics-pipeline-model" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Rubin active-optics pipeline model
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#sensitivity-matrix-assumption" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Sensitivity matrix assumption
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
 </li>
       
     </ul>
@@ -1248,7 +1114,7 @@ aberrations.  From here on, whenever we say pupil plane we specifically
 mean the entrance pupil plane.</p>
 <p>We use Cartesian coordinates <span class="arithmatex">\((u, v)\)</span> in the pupil plane, with the
 origin at the optical axis.  The annular aperture of the telescope
-spans <span class="arithmatex">\(R_\text{inner} \le \sqrt{u^2+v^2} \le R_\text{outer}\)</span>.</p>
+spans <span class="arithmatex">\(R_\mathrm{inner} \le \sqrt{u^2+v^2} \le R_\mathrm{outer}\)</span>.</p>
 <h3 id="mapping-to-the-focal-plane">Mapping to the focal plane<a class="headerlink" href="#mapping-to-the-focal-plane" title="Permanent link">&para;</a></h3>
 <p>The fundamental conceit of danish is that we can form an efficient map
 between the pupil plane and the focal plane by defining a scalar
@@ -1280,7 +1146,7 @@ the ray through pupil point <span class="arithmatex">\((u, v)\)</span> and a ref
 the reference ray traverses a reference sphere.  The sphere is centered
 on <span class="arithmatex">\(P_0\)</span> — the point where the reference ray intersects the focal
 plane — with radius equal to the exit-pupil-to-focal-plane distance.
-We use the chief ray (the ray through the center of the pupil) as the
+We use the chief ray (the ray through the centre of the pupil) as the
 reference ray.  In practice the computed wavefront is insensitive to
 the exact value of the reference sphere radius.</p>
 <figure>
@@ -1289,13 +1155,13 @@ the exact value of the reference sphere radius.</p>
   <img src="../figures/opd_wavefront_dark.png" class="dark-only"
        style="width: 90%" alt="OPD wavefront diagram">
   <figcaption>Schematic of the OPD wavefront geometry for an off-axis
-  source.  The reference sphere (blue arc) is centered on the reference
-  point \(P_0\) where the chief ray intersects the focal plane.  The OPD
-  \(\Phi(u,v)\) is the signed path-length gap between \(W\) and the sphere
-  along the ray that goes through the pupil at \((u, v)\).  Background
-  rays show how aberrations displace each ray from \(P_0\) in the focal
+  source.  The reference sphere (blue arc) is centred on the reference
+  point $P_0$ where the chief ray intersects the focal plane.  The OPD
+  $\Phi(u,v)$ is the signed path-length gap between $W$ and the sphere
+  along the ray that goes through the pupil at $(u, v)$.  Background
+  rays show how aberrations displace each ray from $P_0$ in the focal
   plane; the green arrow illustrates the transverse aberrations of the
-  rays, which are proportional to the local gradients of \(W\).
+  rays, which are proportional to the local gradients of $W$.
   </figcaption>
 </figure>
 
@@ -1341,7 +1207,7 @@ is only well-defined when the mapping is injective — that is, when each
 focal-plane point is reached by exactly one pupil ray.  Near focus the
 mapping folds over itself and the inverse becomes multi-valued; the
 boundary of this breakdown is a <em>caustic</em>.  The
-<a class="autorefs autorefs-internal" title="is_caustic" href="../api/factory/#danish.factory.DonutFactory.is_caustic"><code>danish.DonutFactory.is_caustic</code></a>
+[<code>danish.DonutFactory.is_caustic</code>][danish.factory.DonutFactory.is_caustic]
 method checks for caustics for a given wavefront.</p>
 <p>The surface-brightness model of the following section is likewise only
 meaningful in the caustic-free regime: the Hessian determinant changes
@@ -1359,31 +1225,6 @@ I(x, y) \propto \left| \frac{\partial(u,v)}{\partial(x,y)} \right| =
 \]</div>
 <p>where <span class="arithmatex">\(\mathbf{H}\)</span> is the Hessian determinant of the wavefront, and
 subscripts on <span class="arithmatex">\(W\)</span> denote second partial derivatives.</p>
-<p>The figure below illustrates this geometrically.  Each square pixel in
-the focal plane (left) maps back through the inverse wavefront gradient
-to an irregular quadrilateral in the pupil plane (right).  Bright pixels
-correspond to large quadrilaterals — they subtend a large area of the
-pupil and collect more light — while dim pixels map to small ones.  The
-color scale is shared between the two panels.  Large astigmatism and coma terms have been added to the wavefront to
-make the variation in quadrilateral size and shape clearly visible.</p>
-<figure>
-  <img src="../figures/pixel_mapping_light.png" class="light-only"
-       style="width: 100%" alt="Pixel-to-pupil mapping">
-  <img src="../figures/pixel_mapping_dark.png" class="dark-only"
-       style="width: 100%" alt="Pixel-to-pupil mapping">
-  <figcaption>Left: focal-plane pixels colored by surface brightness for
-  a simulated LSST donut at field center, with artificially large
-  astigmatism (2.5 µm) and coma (1.5 µm) added to
-  make the effect clearly visible.  At field center the only aperture is
-  the M1 annulus itself; at off-axis field angles additional vignetting
-  from downstream optics can also be modeled.
-  Right: the same pixels projected back into the pupil plane — each square
-  becomes a quadrilateral whose area is proportional to the pixel
-  brightness, directly illustrating the inverse-Jacobian relationship.
-  Dashed circles mark the inner and outer M1 aperture in both planes.
-  </figcaption>
-</figure>
-
 <p>Pixel values are computed by multiplying this surface brightness by
 the fraction of each pixel's area that falls within the field-angle
 dependent vignetting mask.  This sub-pixel calculation assumes uniform
@@ -1398,9 +1239,9 @@ across the pupil annulus and each ray is projected to the focal plane
 using only the forward transformation <span class="arithmatex">\(\eqref{eq:pupil-to-focal}\)</span>.
 No inverse is required.</p>
 <p>The resulting cloud of focal-plane points approximates the geometric
-PSF.  <a class="autorefs autorefs-internal" title="spots" href="../api/factory/#danish.factory.DonutFactory.spots"><code>danish.DonutFactory.spots</code></a>
+PSF.  [<code>danish.DonutFactory.spots</code>][danish.factory.DonutFactory.spots]
 returns the focal-plane coordinates and weights of these rays;
-<a class="autorefs autorefs-internal" title="spot_image" href="../api/factory/#danish.factory.DonutFactory.spot_image"><code>danish.DonutFactory.spot_image</code></a>
+[<code>danish.DonutFactory.spot_image</code>][danish.factory.DonutFactory.spot_image]
 renders them onto a pixel grid by convolving with a Gaussian quadrature
 kernel that accounts for the atmospheric PSF.</p>
 <h2 id="wavefront-parameterization">Wavefront parameterization<a class="headerlink" href="#wavefront-parameterization" title="Permanent link">&para;</a></h2>
@@ -1408,187 +1249,9 @@ kernel that accounts for the atmospheric PSF.</p>
 <div class="arithmatex">\[
 W(u,v) = \sum_j a_j Z_j(u/R, v/R),
 \]</div>
-<p>where <span class="arithmatex">\(R = R_\text{outer}\)</span> is the normalization radius.  The fitting
+<p>where <span class="arithmatex">\(R = R_\mathrm{outer}\)</span> is the normalization radius.  The fitting
 parameterization — including multi-sensor double Zernike expansions and
 sensitivity matrices — is described in <a href="fitting/">Fitting details</a>.</p>
-<h3 id="zernike-truncation-order-for-lsst">Zernike truncation order for LSST<a class="headerlink" href="#zernike-truncation-order-for-lsst" title="Permanent link">&para;</a></h3>
-<p>The number of terms retained in the expansion controls how accurately
-the TA wavefront reproduces full raytracing.  The figure below shows the
-RMS residual between the TA prediction and batoid ground truth as a
-function of <span class="arithmatex">\(j_\text{max}\)</span>, evaluated at a number of truncation orders
-from <span class="arithmatex">\(j=28\)</span> to <span class="arithmatex">\(j=78\)</span> for a representative LSST field angle of 1.75°.
-The residual falls sharply at <span class="arithmatex">\(j_\text{max}=66\)</span> before improving only
-negligibly at <span class="arithmatex">\(j_\text{max}=78\)</span>.  For modeling LSST donuts, a good
-choice for the maximum Noll index is 66.</p>
-<figure>
-  <img src="../figures/ta_convergence_light.png" class="light-only"
-       style="width: 80%" alt="TA convergence vs jmax">
-  <img src="../figures/ta_convergence_dark.png" class="dark-only"
-       style="width: 80%" alt="TA convergence vs jmax">
-  <figcaption>RMS residual between the TA wavefront prediction and batoid
-  raytracing as a function of Zernike truncation order \(j_\text{max}\),
-  for an LSST intra-focal donut at a 1.75° off-axis field angle.
-  Triangular-number orders are shown (each includes a complete radial
-  order).  The residual drops by an order of magnitude between
-  \(j_\text{max}=55\) and \(j_\text{max}=66\), then plateaus — motivating
-  the choice of \(j_\text{max}=66\) as a good default for LSST.
-  </figcaption>
-</figure>
-
-<h2 id="wavefront-composition">Wavefront composition<a class="headerlink" href="#wavefront-composition" title="Permanent link">&para;</a></h2>
-<p>The total wavefront <span class="arithmatex">\(W_\text{total}\)</span> entering danish is the sum of
-several physically distinct contributions.</p>
-<h3 id="danish-model">Danish model<a class="headerlink" href="#danish-model" title="Permanent link">&para;</a></h3>
-<div class="arithmatex">\[
-W_\text{total} = W_\text{TA,foc} + W_\text{defocus} + W_\text{dev}
-\]</div>
-<ul>
-<li>
-<p><strong><span class="arithmatex">\(W_\text{TA,foc}\)</span></strong> — the TA wavefront of the focused, aligned
-  telescope at the given field angle, computed via <code>batoid.zernikeTA()</code>
-  for the nominal telescope model.  This encodes the intrinsic
-  optical design, including field-angle-dependent aberrations.</p>
-</li>
-<li>
-<p><strong><span class="arithmatex">\(W_\text{defocus}\)</span></strong> — the additional wavefront introduced by
-  intentionally shifting the detector (or camera) out of focus to
-  produce donut-shaped images.  It is primarily <span class="arithmatex">\(Z_4\)</span> (defocus), but a
-  rigid piston also perturbs higher-order terms.</p>
-</li>
-<li>
-<p><strong><span class="arithmatex">\(W_\text{dev}\)</span></strong> — the deviation from nominal caused by
-  misalignments (decenter, despace, or tilt of optical elements) or
-  figure errors (mirror surface deformations).  This is the quantity
-  wavefront sensing aims to measure.</p>
-</li>
-</ul>
-<h3 id="rubin-active-optics-pipeline-model">Rubin active-optics pipeline model<a class="headerlink" href="#rubin-active-optics-pipeline-model" title="Permanent link">&para;</a></h3>
-<p>The Rubin active-optics pipeline uses OPD Zernikes for its intrinsic
-telescope model, so it decomposes <span class="arithmatex">\(W_\text{TA,foc}\)</span> one step further:</p>
-<div class="arithmatex">\[
-W_\text{total}
-  = W_\text{OPD,foc} + W_\text{off-axis} + W_\text{defocus} + W_\text{dev}
-\]</div>
-<p>where <span class="arithmatex">\(W_\text{OPD,foc} + W_\text{off-axis} \equiv W_\text{TA,foc}\)</span>.
-<span class="arithmatex">\(W_\text{OPD,foc}\)</span> is the OPD wavefront of the nominal telescope
-(<code>batoid.zernike()</code>), and <span class="arithmatex">\(W_\text{off-axis}\)</span> is the field-angle-dependent
-difference between the TA and OPD representations — the same term whose
-size motivates using the TA wavefront in the first place (see the spot
-diagram comparison above).</p>
-<h3 id="sensitivity-matrix-assumption">Sensitivity matrix assumption<a class="headerlink" href="#sensitivity-matrix-assumption" title="Permanent link">&para;</a></h3>
-<p>Both models estimate <span class="arithmatex">\(W_\text{dev}\)</span> by projecting measured Zernike
-residuals onto a sensitivity matrix whose columns are
-<span class="arithmatex">\(\partial W / \partial \mathrm{dof}\)</span> for each mechanical degree of
-freedom (dof).  Rubin's sensitivity matrix is computed with the OPD
-definition of the wavefront.  This is valid only if</p>
-<div class="arithmatex">\[
-\frac{\partial W_\text{TA}}{\partial \mathrm{dof}}
-\approx
-\frac{\partial W_\text{OPD}}{\partial \mathrm{dof}},
-\]</div>
-<p>i.e., the <em>response</em> of the wavefront to mechanical perturbations is
-the same regardless of which wavefront definition is used.  The table
-below tests this at a field angle of 1.675 deg for all ten rigid-body
-degrees of freedom of the Rubin telescope (five for M2, five for the
-camera).  Each cell shows OPD (TA) sensitivities; only Zernike terms
-with <span class="arithmatex">\(|s| &gt; 0.5\)</span> nm/unit appear.  Despace/decenter rows are in
-nm/µm; tilt rows are in nm/arcsec.  The close agreement confirms that
-the OPD-based sensitivity matrix is a valid substitute for a TA-based
-one.</p>
-<table>
-<thead>
-<tr>
-<th>DOF</th>
-<th style="text-align: right;">Z4</th>
-<th style="text-align: right;">Z5</th>
-<th style="text-align: right;">Z6</th>
-<th style="text-align: right;">Z7</th>
-<th style="text-align: right;">Z8</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>M2 despace</td>
-<td style="text-align: right;">15.30 (15.33)</td>
-<td style="text-align: right;">-0.00 (-0.00)</td>
-<td style="text-align: right;">-0.04 (-0.09)</td>
-<td style="text-align: right;">0.14 (0.14)</td>
-<td style="text-align: right;">0.00 (0.00)</td>
-</tr>
-<tr>
-<td>M2 decenter x</td>
-<td style="text-align: right;">-0.00 (-0.00)</td>
-<td style="text-align: right;">1.05 (1.05)</td>
-<td style="text-align: right;">-0.00 (-0.00)</td>
-<td style="text-align: right;">-0.00 (-0.00)</td>
-<td style="text-align: right;">-0.64 (-0.64)</td>
-</tr>
-<tr>
-<td>M2 decenter y</td>
-<td style="text-align: right;">0.45 (0.45)</td>
-<td style="text-align: right;">-0.00 (0.00)</td>
-<td style="text-align: right;">-1.05 (-1.06)</td>
-<td style="text-align: right;">-0.62 (-0.62)</td>
-<td style="text-align: right;">-0.00 (-0.00)</td>
-</tr>
-<tr>
-<td>M2 tilt x</td>
-<td style="text-align: right;">-13.30 (-13.34)</td>
-<td style="text-align: right;">-0.00 (0.00)</td>
-<td style="text-align: right;">34.45 (34.57)</td>
-<td style="text-align: right;">20.53 (20.58)</td>
-<td style="text-align: right;">-0.00 (0.00)</td>
-</tr>
-<tr>
-<td>M2 tilt y</td>
-<td style="text-align: right;">-0.00 (-0.00)</td>
-<td style="text-align: right;">34.29 (34.37)</td>
-<td style="text-align: right;">-0.00 (-0.00)</td>
-<td style="text-align: right;">-0.00 (-0.00)</td>
-<td style="text-align: right;">-20.43 (-20.48)</td>
-</tr>
-<tr>
-<td>Camera despace</td>
-<td style="text-align: right;">15.87 (15.90)</td>
-<td style="text-align: right;">-0.00 (-0.00)</td>
-<td style="text-align: right;">-0.04 (-0.09)</td>
-<td style="text-align: right;">0.35 (0.35)</td>
-<td style="text-align: right;">-0.00 (0.00)</td>
-</tr>
-<tr>
-<td>Camera decenter x</td>
-<td style="text-align: right;">0.00 (0.00)</td>
-<td style="text-align: right;">0.09 (0.09)</td>
-<td style="text-align: right;">0.00 (0.00)</td>
-<td style="text-align: right;">-0.00 (0.00)</td>
-<td style="text-align: right;">0.18 (0.18)</td>
-</tr>
-<tr>
-<td>Camera decenter y</td>
-<td style="text-align: right;">-0.17 (-0.17)</td>
-<td style="text-align: right;">-0.00 (-0.00)</td>
-<td style="text-align: right;">-0.10 (-0.10)</td>
-<td style="text-align: right;">0.18 (0.18)</td>
-<td style="text-align: right;">-0.00 (-0.00)</td>
-</tr>
-<tr>
-<td>Camera tilt x</td>
-<td style="text-align: right;">26.28 (26.34)</td>
-<td style="text-align: right;">-0.00 (0.00)</td>
-<td style="text-align: right;">-2.60 (-2.69)</td>
-<td style="text-align: right;">-0.27 (-0.27)</td>
-<td style="text-align: right;">-0.00 (0.00)</td>
-</tr>
-<tr>
-<td>Camera tilt y</td>
-<td style="text-align: right;">0.00 (0.00)</td>
-<td style="text-align: right;">-2.53 (-2.53)</td>
-<td style="text-align: right;">0.00 (0.00)</td>
-<td style="text-align: right;">-0.00 (-0.00)</td>
-<td style="text-align: right;">0.85 (0.85)</td>
-</tr>
-</tbody>
-</table>
 
 
 
@@ -1644,14 +1307,14 @@ one.</p>
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tabs", "navigation.sections", "navigation.expand", "navigation.top", "search.highlight", "content.code.copy"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"default": "latest", "provider": "mike"}}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tabs", "navigation.sections", "navigation.expand", "navigation.top", "search.highlight", "content.code.copy"], "search": "../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"default": "latest", "provider": "mike"}}</script>
     
     
-      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../assets/javascripts/bundle.c21346df.min.js"></script>
       
         <script src="../javascripts/mathjax.js"></script>
       
-        <script src="https://unpkg.com/mathjax@3/es5/tex-svg.js"></script>
+        <script src="https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js"></script>
       
     
   </body>
