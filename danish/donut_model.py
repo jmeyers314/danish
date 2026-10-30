@@ -117,7 +117,9 @@ class BaseDonutModel:
         # Triangle meshes for this model's field angles, keyed on (thx, thy).
         # Populated by _precompute_meshes once the subclass knows its angles.
         self._meshes = {}
-        # Projection bases parallel to _meshes; see _precompute_projections.
+        # Projection bases, keyed on donut index: each donut folds its own
+        # reference wavefront into its projection constant, so donuts sharing
+        # a field angle still get one each.  See _precompute_projections.
         self._projections = {}
         # Focal-plane offsets, constant across a fit.  Only the single-donut
         # model exposes them; the shared render paths read them from here so
@@ -189,19 +191,21 @@ class BaseDonutModel:
         parameterization is fixed for the whole fit, so its contribution is
         folded into a constant position and its column dropped.
 
-        What is stored per field angle is that constant plus the projection
+        What is stored per donut is that constant plus the projection
         restricted to the reachable coefficients.  A model call projects with
         one matrix product over that subspace, and contracting the same matrix
         with `_zernike_param_basis` gives d(vertex)/d(wavefront parameter) for
-        an analytic Jacobian.
+        an analytic Jacobian.  The constant carries the donut's own fixed
+        aberrations, so donuts sharing a field angle share only the mesh
+        geometry, which depends on the angle alone.
 
         Requires `_precompute_meshes` to have run, and is a no-op without it.
 
         Parameters
         ----------
         z_refs : array of float
-            Reference aberrations per field angle, in meters.  Must be ordered
-            to match the angles passed to `_precompute_meshes`.
+            Reference aberrations per donut, in meters.  Must be ordered to
+            match `self.thxs`/`self.thys`.
         x_offset, y_offset : galsim.zernike.Zernike, optional
             Additional focal plane offsets, constant across the fit.
         """
@@ -220,7 +224,10 @@ class BaseDonutModel:
         self._zk_reach = np.nonzero(np.any(dzkdp != 0, axis=(0, 2)))[0]
         self._dzkdp = dzkdp[:, self._zk_reach, :]
         reach = self._zk_reach
-        for i, ((thx, thy), z_ref) in enumerate(zip(self._meshes, z_refs)):
+        # Per donut rather than per mesh: _meshes is keyed by angle and so is
+        # shorter than z_refs whenever two donuts share one.
+        for i, z_ref in enumerate(z_refs):
+            thx, thy = self.thxs[i], self.thys[i]
             verts = self._meshes[(thx, thy)]["vertices"]
             x0, y0, dxdz, dydz = pupil_to_focal_basis(
                 verts[:, 0], verts[:, 1],
@@ -235,7 +242,7 @@ class BaseDonutModel:
             fixed = np.zeros(nterm)
             fixed[:] = np.asarray(z_ref, dtype=float)[:nterm]
             fixed[reach] = 0.0
-            self._projections[(thx, thy)] = (
+            self._projections[i] = (
                 x0 + dxdz @ fixed,
                 y0 + dydz @ fixed,
                 np.ascontiguousarray(dxdz[:, reach]),
@@ -271,6 +278,7 @@ class BaseDonutModel:
         zk,
         thx, thy,
         x_offset=None, y_offset=None,
+        idx=None,
     ):
         """Compute optical kernel.
 
@@ -282,6 +290,10 @@ class BaseDonutModel:
             Field angle in radians.
         x_offset, y_offset : galsim.zernike.Zernike, optional
             Additional pupil distortion coefficients.
+        idx : int, optional
+            Which donut this is, selecting its precomputed projection.
+            Omitted, the projection is skipped and the full Zernike series
+            evaluated instead -- slower, same image.
 
         Returns
         -------
@@ -294,7 +306,7 @@ class BaseDonutModel:
             mesh = self._meshes.get((thx, thy))
             if mesh is None:
                 mesh = self.factory._get_mesh(thx, thy)
-            basis = self._projections.get((thx, thy))
+            basis = None if idx is None else self._projections.get(idx)
             verts_px = None
             if basis is not None:
                 x0, y0, dxdz, dydz = basis
@@ -347,7 +359,8 @@ class BaseDonutModel:
         flux, dx, dy, Ixx, Ixy, Iyy, zk, bkg,
         thx, thy,
         x_offset=None, y_offset=None,
-        sky_level=None
+        sky_level=None,
+        idx=None
     ):
         """Compute model image.
 
@@ -369,6 +382,9 @@ class BaseDonutModel:
             Additional pupil distortion coefficients.
         sky_level : float, optional
             Sky level to use when adding Poisson noise to image.
+        idx : int, optional
+            Which donut this is; selects the precomputed projection.  See
+            `_opt_kernel`.
 
         Returns
         -------
@@ -376,7 +392,9 @@ class BaseDonutModel:
             Model image array.
         """
         atm = self._atm_kernel(dx, dy, Ixx, Ixy, Iyy)
-        opt = self._opt_kernel(zk, thx, thy, x_offset=x_offset, y_offset=y_offset)
+        opt = self._opt_kernel(
+            zk, thx, thy, x_offset=x_offset, y_offset=y_offset, idx=idx
+        )
         arr = convolve(opt, atm)
         arr *= flux
 
@@ -528,7 +546,7 @@ class BaseDonutModel:
 
         for i in range(self.nstar):
             thx, thy = self.thxs[i], self.thys[i]
-            x0, y0, dxdz, dydz = self._projections[(thx, thy)]
+            x0, y0, dxdz, dydz = self._projections[i]
             zk = np.array(self.z_refs[i])
             zk[:len(z_fits[i])] += z_fits[i]
             head = zk[self._zk_reach]
@@ -546,6 +564,7 @@ class BaseDonutModel:
                 Ixx, Ixy, Iyy, tuple(zk), tuple(pdict['bkgs'][i]),
                 thx=thx, thy=thy,
                 x_offset=self._x_offset, y_offset=self._y_offset,
+                idx=i,
             )
             dchi_dmodel = self._dchi_dmodel(data[i], model, vars[i])
 
@@ -696,7 +715,8 @@ class SingleDonutModel(BaseDonutModel):
             tuple(zk), tuple(bkg),
             self.thx, self.thy,
             x_offset=self.x_offset, y_offset=self.y_offset,
-            sky_level=sky_level
+            sky_level=sky_level,
+            idx=0,  # the one donut
         )
 
     def pack_params(self, *, flux, dx, dy, fwhm, z_fit, bkg=()):
@@ -993,6 +1013,7 @@ class BaseMultiDonutModel(BaseDonutModel):
                 bkgs[i],
                 thx=self.thxs[i], thy=self.thys[i],
                 sky_level=sky_levels[i],
+                idx=i,
             )
         return out
 
