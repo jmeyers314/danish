@@ -28,6 +28,21 @@ jobs:
           # Free-threaded builds get their own identifier, so both patterns
           # are needed to cover cp315 and cp315t.
           CIBW_SKIP: cp315-* cp315t-*
+          # Smoke test each wheel before it ships.  The import alone loads
+          # _danish, and the render then calls into it, so a wheel whose
+          # extension is missing, mislinked or built for the wrong ABI fails
+          # here rather than on a user's machine.  Deliberately not the test
+          # suite: that needs GalSim and batoid, which have no wheels for
+          # every interpreter we build for.
+          CIBW_TEST_COMMAND: >-
+            python -c "import numpy as np, danish;
+            f = danish.DonutTriangleFactory(nrad=6, R_outer=4.18,
+            R_inner=2.5498, focal_length=10.31, pixel_scale=10e-6);
+            ab = np.zeros(22); ab[4] = 20e-6;
+            img = f.image(aberrations=ab, thx=0.0, thy=0.0, npix=181);
+            assert img.sum() > 0, img.sum();
+            print('danish', danish.__version__, 'render ok', img.shape)"
+          CIBW_TEST_REQUIRES: numpy
 
       - uses: actions/upload-artifact@v7
         with:
