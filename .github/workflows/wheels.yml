@@ -22,6 +22,12 @@ jobs:
         uses: pypa/cibuildwheel@v4.3.5
         env:
           CIBW_BUILD_VERBOSITY: 3
+          # No cp315 until GalSim has a cp315 wheel.  A danish wheel is only
+          # installable if its dependencies are, and building GalSim from
+          # source needs fftw, which most users will not have.
+          # Free-threaded builds get their own identifier, so both patterns
+          # are needed to cover cp315 and cp315t.
+          CIBW_SKIP: cp315-* cp315t-*
 
       - uses: actions/upload-artifact@v7
         with:
