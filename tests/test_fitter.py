@@ -1966,6 +1966,76 @@ def test_analytic_jac_matches_finite_difference():
 
 
 @timer
+def test_model_many_honors_unreachable_zernikes():
+    """A perturbation the parameterization cannot reach must still render.
+
+    `model_many` takes arbitrary per-donut Zernike coefficients, while the
+    precomputed projection spans only the fitted subspace and holds everything
+    else at the reference.  Moving an unreachable coefficient therefore has to
+    take the full-projection path, which this pins by comparing against a
+    model whose reference already carries the perturbation -- an independent
+    route to the same wavefront.
+    """
+    factory = danish.DonutTriangleFactory(
+        R_outer=4.18, R_inner=2.5498,
+        mask_params=Rubin_obsc,
+        focal_length=10.31, pixel_scale=10e-6,
+        nrad=8,
+    )
+    # Noll 5 alone is fitted, so defocus (Noll 4) is outside the subspace.
+    dz_terms = ((1, 5),)
+    field_radius = np.deg2rad(1.8)
+    thxs, thys = np.deg2rad([1.0]), np.zeros(1)
+    z_refs = np.zeros((1, 30))
+    z_refs[:, 4] = 20e-6
+
+    fitter = danish.DZMultiDonutModel(
+        factory, z_refs=z_refs, dz_terms=dz_terms,
+        field_radius=field_radius, thxs=thxs, thys=thys, bkg_order=0,
+    )
+    assert fitter._zk_reach.tolist() == [5]
+
+    base = fitter.model_many(
+        [1e6], [0.0], [0.0], 1.0, 0.0, 1.0, np.zeros((1, 30)), bkgs=[(0.0,)]
+    )
+
+    # 20 um of defocus -> 30 um, through the unreachable coefficient.
+    z_fits = np.zeros((1, 30))
+    z_fits[0, 4] = 10e-6
+    got = fitter.model_many(
+        [1e6], [0.0], [0.0], 1.0, 0.0, 1.0, z_fits, bkgs=[(0.0,)]
+    )
+    # A silently dropped coefficient would leave this identical to `base`.
+    assert not np.allclose(got, base)
+
+    # The same wavefront reached by moving the reference instead, where the
+    # projection covers it and no fallback is involved.
+    shifted = np.array(z_refs)
+    shifted[0, 4] = 30e-6
+    ref_model = danish.DZMultiDonutModel(
+        factory, z_refs=shifted, dz_terms=dz_terms,
+        field_radius=field_radius, thxs=thxs, thys=thys, bkg_order=0,
+    )
+    expected = ref_model.model_many(
+        [1e6], [0.0], [0.0], 1.0, 0.0, 1.0, np.zeros((1, 30)), bkgs=[(0.0,)]
+    )
+    np.testing.assert_allclose(got, expected, rtol=0, atol=1e-10*expected.max())
+
+    # A perturbation inside the subspace keeps the fast path, bit for bit.
+    inside = np.zeros((1, 30))
+    inside[0, 5] = 1e-7
+    fast = fitter.model_many(
+        [1e6], [0.0], [0.0], 1.0, 0.0, 1.0, inside, bkgs=[(0.0,)]
+    )
+    direct = fitter._model(
+        1e6, 0.0, 0.0, 1.0, 0.0, 1.0,
+        tuple(np.array(z_refs[0]) + inside[0]), (0.0,),
+        thx=thxs[0], thy=thys[0], idx=0,
+    )
+    np.testing.assert_array_equal(fast[0], direct)
+
+
+@timer
 def test_repeated_field_angle_keeps_per_donut_references():
     """Two donuts at one field angle must keep their own reference wavefronts.
 

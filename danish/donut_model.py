@@ -224,6 +224,10 @@ class BaseDonutModel:
         self._zk_reach = np.nonzero(np.any(dzkdp != 0, axis=(0, 2)))[0]
         self._dzkdp = dzkdp[:, self._zk_reach, :]
         reach = self._zk_reach
+        # Complement of the above, for callers that have to check whether a
+        # perturbation reaches outside the subspace the projection covers.
+        self._zk_fixed = np.ones(nterm, dtype=bool)
+        self._zk_fixed[reach] = False
         # Per donut rather than per mesh: _meshes is keyed by angle and so is
         # shorter than z_refs whenever two donuts share one.
         for i, z_ref in enumerate(z_refs):
@@ -982,7 +986,10 @@ class BaseMultiDonutModel(BaseDonutModel):
         Ixx, Ixy, Iyy : float
             Second moment tensor in arcsec^2.
         z_fits : sequence of tuple of float
-            Single Zernike perturbations for each donut.
+            Single Zernike perturbations for each donut.  Coefficients the
+            model's own parameterization cannot reach are honored too, at the
+            cost of projecting the full Zernike series for that donut rather
+            than the precomputed subspace.
         bkgs : tuple of tuple of float
             Background polynomial coefficients for each donut.
         sky_levels : sequence of float, optional
@@ -1001,10 +1008,24 @@ class BaseMultiDonutModel(BaseDonutModel):
             sky_levels = [None]*nstar
 
         out = np.empty((nstar, npix, npix))
+        fixed = getattr(self, '_zk_fixed', None)
 
         for i in range(nstar):
             aberrations = np.array(self.z_refs[i])
             aberrations[:len(z_fits[i])] += z_fits[i]
+            # The precomputed projection spans only the coefficients the
+            # parameterization reaches, holding the rest at their reference.  A
+            # perturbation that moves one of those has to go the long way, by
+            # projecting the whole vector.
+            idx = i
+            if fixed is not None:
+                # Zero the reachable slots and see whether anything is left.
+                # Entries past the projection's own length survive the slice
+                # untouched, which is right: they are unreachable too.
+                residual = np.array(z_fits[i], dtype=float)
+                residual[:len(fixed)][~fixed[:len(residual)]] = 0.0
+                if residual.any():
+                    idx = None
             out[i] = self._model(
                 fluxes[i],
                 dxs[i], dys[i],
@@ -1013,7 +1034,7 @@ class BaseMultiDonutModel(BaseDonutModel):
                 bkgs[i],
                 thx=self.thxs[i], thy=self.thys[i],
                 sky_level=sky_levels[i],
-                idx=i,
+                idx=idx,
             )
         return out
 
