@@ -1,0 +1,3263 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Geometric donut engine for wavefront sensing">
+      
+      
+      
+        <link rel="canonical" href="https://jmeyers314.github.io/danish/1.4.0/api/factory/">
+      
+      
+        <link rel="prev" href="../">
+      
+      
+        <link rel="next" href="../donut_model/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.0">
+    
+    
+      
+        <title>Factory - danish</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.57a0d79d.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.fb2fffe2.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/_mkdocstrings.css">
+    
+      <link rel="stylesheet" href="../../stylesheets/extra.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#factory" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="danish" class="md-header__button md-logo" aria-label="danish" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            danish
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Factory
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/jmeyers314/danish" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    jmeyers314/danish
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../" class="md-tabs__link">
+          
+  
+  
+  API Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../model/" class="md-tabs__link">
+          
+  
+  
+  Model Description
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="danish" class="md-nav__button md-logo" aria-label="danish" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    danish
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/jmeyers314/danish" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    jmeyers314/danish
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    API Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Factory
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Factory
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#donutfactory" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        DonutFactory
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#danish.factory.DonutFactory" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        DonutFactory
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#coordinate-transforms" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Coordinate transforms
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#danish.factory.pupil_to_focal" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pupil_to_focal
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#danish.factory.focal_to_pupil" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        focal_to_pupil
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#danish.factory.pupil_focal_jacobian" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pupil_focal_jacobian
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#danish.factory.pupil_focal_coef_jacobian" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pupil_focal_coef_jacobian
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#danish.factory.pupil_to_focal_basis" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pupil_to_focal_basis
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pupil-sampling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pupil sampling
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#danish.factory.enclosed_fraction" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        enclosed_fraction
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_3" id="__nav_2_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Models
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Models
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../donut_model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Donut Models
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../spot_model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Spot Models
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../joint_model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Joint Models
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../loss/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Loss Functions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../utils/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Utilities
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Model Description
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Model Description
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Optical Model
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../model/fitting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Fitting Details
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#donutfactory" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        DonutFactory
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#danish.factory.DonutFactory" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        DonutFactory
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#coordinate-transforms" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Coordinate transforms
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#danish.factory.pupil_to_focal" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pupil_to_focal
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#danish.factory.focal_to_pupil" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        focal_to_pupil
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#danish.factory.pupil_focal_jacobian" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pupil_focal_jacobian
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#danish.factory.pupil_focal_coef_jacobian" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pupil_focal_coef_jacobian
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#danish.factory.pupil_to_focal_basis" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pupil_to_focal_basis
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pupil-sampling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pupil sampling
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#danish.factory.enclosed_fraction" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        enclosed_fraction
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="factory">Factory<a class="headerlink" href="#factory" title="Permanent link">&para;</a></h1>
+<p>The factory module provides <code>DonutFactory</code> and a set of coordinate-transform
+utilities for mapping between pupil and focal planes.</p>
+<h2 id="donutfactory">DonutFactory<a class="headerlink" href="#donutfactory" title="Permanent link">&para;</a></h2>
+
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h2 id="danish.factory.DonutFactory" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">danish.factory.DonutFactory</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-module-attribute"><code>module-attribute</code></small>
+  </span>
+
+<a href="#danish.factory.DonutFactory" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="doc-signature highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">DonutFactory</span> <span class="o">=</span> <span class="n">DonutInverseFactory</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+    </div>
+
+</div><h2 id="coordinate-transforms">Coordinate transforms<a class="headerlink" href="#coordinate-transforms" title="Permanent link">&para;</a></h2>
+
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="danish.factory.pupil_to_focal" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">danish.factory.pupil_to_focal</span>
+
+
+<a href="#danish.factory.pupil_to_focal" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="doc-signature highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">pupil_to_focal</span><span class="p">(</span><span class="n">u</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">Z</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">aberrations</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">R_outer</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">R_inner</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">focal_length</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">x_offset</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">y_offset</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Transform pupil coordinates to focal coordinates.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>u</code>
+            </td>
+            <td>
+                  <code>array of float</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Pupil coordinates in meters.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>v</code>
+            </td>
+            <td>
+                  <code>array of float</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Pupil coordinates in meters.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>Z</code>
+            </td>
+            <td>
+                  <code><span title="galsim.zernike.Zernike">Zernike</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Aberrations in meters.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>aberrations</code>
+            </td>
+            <td>
+                  <code>array of float</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Aberrations in meters.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>R_outer</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Annulus outer and inner radii in meters.</p>
+              </div>
+            </td>
+            <td>
+                  <code>1.0</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>R_inner</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Annulus outer and inner radii in meters.</p>
+              </div>
+            </td>
+            <td>
+                  <code>1.0</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>focal_length</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Focal length in meters.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>x_offset</code>
+            </td>
+            <td>
+                  <code><span title="galsim.zernike.Zernike">Zernike</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Additional focal plane offsets (in meters) represented as Zernike
+series.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>y_offset</code>
+            </td>
+            <td>
+                  <code><span title="galsim.zernike.Zernike">Zernike</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Additional focal plane offsets (in meters) represented as Zernike
+series.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code>x, y : array of float</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Focal coordinates in meters.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+            <details class="mkdocstrings-source">
+              <summary>Source code in <code>danish/factory.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#danish.factory.pupil_to_focal--source--__codelineno-0-209">209</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal--source--__codelineno-0-210">210</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal--source--__codelineno-0-211">211</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal--source--__codelineno-0-212">212</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal--source--__codelineno-0-213">213</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal--source--__codelineno-0-214">214</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal--source--__codelineno-0-215">215</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal--source--__codelineno-0-216">216</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal--source--__codelineno-0-217">217</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal--source--__codelineno-0-218">218</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal--source--__codelineno-0-219">219</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal--source--__codelineno-0-220">220</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal--source--__codelineno-0-221">221</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal--source--__codelineno-0-222">222</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal--source--__codelineno-0-223">223</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal--source--__codelineno-0-224">224</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal--source--__codelineno-0-225">225</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal--source--__codelineno-0-226">226</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal--source--__codelineno-0-227">227</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal--source--__codelineno-0-228">228</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal--source--__codelineno-0-229">229</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal--source--__codelineno-0-230">230</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal--source--__codelineno-0-231">231</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal--source--__codelineno-0-232">232</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal--source--__codelineno-0-233">233</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal--source--__codelineno-0-234">234</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal--source--__codelineno-0-235">235</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal--source--__codelineno-0-236">236</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal--source--__codelineno-0-237">237</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal--source--__codelineno-0-238">238</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal--source--__codelineno-0-239">239</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal--source--__codelineno-0-240">240</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal--source--__codelineno-0-241">241</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal--source--__codelineno-0-242">242</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal--source--__codelineno-0-243">243</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal--source--__codelineno-0-244">244</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal--source--__codelineno-0-245">245</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal--source--__codelineno-0-246">246</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal--source--__codelineno-0-247">247</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal--source--__codelineno-0-248">248</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal--source--__codelineno-0-249">249</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="danish.factory.pupil_to_focal--source--__codelineno-0-209" name="danish.factory.pupil_to_focal--source--__codelineno-0-209"></a><span class="k">def</span><span class="w"> </span><span class="nf">pupil_to_focal</span><span class="p">(</span>
+<a id="danish.factory.pupil_to_focal--source--__codelineno-0-210" name="danish.factory.pupil_to_focal--source--__codelineno-0-210"></a>    <span class="n">u</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span>
+<a id="danish.factory.pupil_to_focal--source--__codelineno-0-211" name="danish.factory.pupil_to_focal--source--__codelineno-0-211"></a>    <span class="n">Z</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">aberrations</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">R_outer</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">R_inner</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span>
+<a id="danish.factory.pupil_to_focal--source--__codelineno-0-212" name="danish.factory.pupil_to_focal--source--__codelineno-0-212"></a>    <span class="n">focal_length</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+<a id="danish.factory.pupil_to_focal--source--__codelineno-0-213" name="danish.factory.pupil_to_focal--source--__codelineno-0-213"></a>    <span class="n">x_offset</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">y_offset</span><span class="o">=</span><span class="kc">None</span>
+<a id="danish.factory.pupil_to_focal--source--__codelineno-0-214" name="danish.factory.pupil_to_focal--source--__codelineno-0-214"></a><span class="p">):</span>
+<a id="danish.factory.pupil_to_focal--source--__codelineno-0-215" name="danish.factory.pupil_to_focal--source--__codelineno-0-215"></a><span class="w">    </span><span class="sd">"""Transform pupil coordinates to focal coordinates.</span>
+<a id="danish.factory.pupil_to_focal--source--__codelineno-0-216" name="danish.factory.pupil_to_focal--source--__codelineno-0-216"></a>
+<a id="danish.factory.pupil_to_focal--source--__codelineno-0-217" name="danish.factory.pupil_to_focal--source--__codelineno-0-217"></a><span class="sd">    Parameters</span>
+<a id="danish.factory.pupil_to_focal--source--__codelineno-0-218" name="danish.factory.pupil_to_focal--source--__codelineno-0-218"></a><span class="sd">    ----------</span>
+<a id="danish.factory.pupil_to_focal--source--__codelineno-0-219" name="danish.factory.pupil_to_focal--source--__codelineno-0-219"></a><span class="sd">    u, v : array of float</span>
+<a id="danish.factory.pupil_to_focal--source--__codelineno-0-220" name="danish.factory.pupil_to_focal--source--__codelineno-0-220"></a><span class="sd">        Pupil coordinates in meters.</span>
+<a id="danish.factory.pupil_to_focal--source--__codelineno-0-221" name="danish.factory.pupil_to_focal--source--__codelineno-0-221"></a><span class="sd">    Z : galsim.zernike.Zernike, optional</span>
+<a id="danish.factory.pupil_to_focal--source--__codelineno-0-222" name="danish.factory.pupil_to_focal--source--__codelineno-0-222"></a><span class="sd">        Aberrations in meters.</span>
+<a id="danish.factory.pupil_to_focal--source--__codelineno-0-223" name="danish.factory.pupil_to_focal--source--__codelineno-0-223"></a><span class="sd">    aberrations : array of float, optional</span>
+<a id="danish.factory.pupil_to_focal--source--__codelineno-0-224" name="danish.factory.pupil_to_focal--source--__codelineno-0-224"></a><span class="sd">        Aberrations in meters.</span>
+<a id="danish.factory.pupil_to_focal--source--__codelineno-0-225" name="danish.factory.pupil_to_focal--source--__codelineno-0-225"></a><span class="sd">    R_outer, R_inner : float, optional</span>
+<a id="danish.factory.pupil_to_focal--source--__codelineno-0-226" name="danish.factory.pupil_to_focal--source--__codelineno-0-226"></a><span class="sd">        Annulus outer and inner radii in meters.</span>
+<a id="danish.factory.pupil_to_focal--source--__codelineno-0-227" name="danish.factory.pupil_to_focal--source--__codelineno-0-227"></a><span class="sd">    focal_length : float</span>
+<a id="danish.factory.pupil_to_focal--source--__codelineno-0-228" name="danish.factory.pupil_to_focal--source--__codelineno-0-228"></a><span class="sd">        Focal length in meters.</span>
+<a id="danish.factory.pupil_to_focal--source--__codelineno-0-229" name="danish.factory.pupil_to_focal--source--__codelineno-0-229"></a><span class="sd">    x_offset, y_offset : galsim.zernike.Zernike, optional</span>
+<a id="danish.factory.pupil_to_focal--source--__codelineno-0-230" name="danish.factory.pupil_to_focal--source--__codelineno-0-230"></a><span class="sd">        Additional focal plane offsets (in meters) represented as Zernike</span>
+<a id="danish.factory.pupil_to_focal--source--__codelineno-0-231" name="danish.factory.pupil_to_focal--source--__codelineno-0-231"></a><span class="sd">        series.</span>
+<a id="danish.factory.pupil_to_focal--source--__codelineno-0-232" name="danish.factory.pupil_to_focal--source--__codelineno-0-232"></a>
+<a id="danish.factory.pupil_to_focal--source--__codelineno-0-233" name="danish.factory.pupil_to_focal--source--__codelineno-0-233"></a><span class="sd">    Returns</span>
+<a id="danish.factory.pupil_to_focal--source--__codelineno-0-234" name="danish.factory.pupil_to_focal--source--__codelineno-0-234"></a><span class="sd">    -------</span>
+<a id="danish.factory.pupil_to_focal--source--__codelineno-0-235" name="danish.factory.pupil_to_focal--source--__codelineno-0-235"></a><span class="sd">    x, y : array of float</span>
+<a id="danish.factory.pupil_to_focal--source--__codelineno-0-236" name="danish.factory.pupil_to_focal--source--__codelineno-0-236"></a><span class="sd">        Focal coordinates in meters.</span>
+<a id="danish.factory.pupil_to_focal--source--__codelineno-0-237" name="danish.factory.pupil_to_focal--source--__codelineno-0-237"></a><span class="sd">    """</span>
+<a id="danish.factory.pupil_to_focal--source--__codelineno-0-238" name="danish.factory.pupil_to_focal--source--__codelineno-0-238"></a>    <span class="k">if</span> <span class="n">Z</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+<a id="danish.factory.pupil_to_focal--source--__codelineno-0-239" name="danish.factory.pupil_to_focal--source--__codelineno-0-239"></a>        <span class="n">Z</span> <span class="o">=</span> <span class="n">galsim</span><span class="o">.</span><span class="n">zernike</span><span class="o">.</span><span class="n">Zernike</span><span class="p">(</span>
+<a id="danish.factory.pupil_to_focal--source--__codelineno-0-240" name="danish.factory.pupil_to_focal--source--__codelineno-0-240"></a>            <span class="n">aberrations</span><span class="p">,</span> <span class="n">R_outer</span><span class="o">=</span><span class="n">R_outer</span><span class="p">,</span> <span class="n">R_inner</span><span class="o">=</span><span class="n">R_inner</span>
+<a id="danish.factory.pupil_to_focal--source--__codelineno-0-241" name="danish.factory.pupil_to_focal--source--__codelineno-0-241"></a>        <span class="p">)</span>
+<a id="danish.factory.pupil_to_focal--source--__codelineno-0-242" name="danish.factory.pupil_to_focal--source--__codelineno-0-242"></a>    <span class="k">if</span> <span class="n">focal_length</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+<a id="danish.factory.pupil_to_focal--source--__codelineno-0-243" name="danish.factory.pupil_to_focal--source--__codelineno-0-243"></a>        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"Missing focal length"</span><span class="p">)</span>
+<a id="danish.factory.pupil_to_focal--source--__codelineno-0-244" name="danish.factory.pupil_to_focal--source--__codelineno-0-244"></a>
+<a id="danish.factory.pupil_to_focal--source--__codelineno-0-245" name="danish.factory.pupil_to_focal--source--__codelineno-0-245"></a>    <span class="k">return</span> <span class="n">_pupil_to_focal</span><span class="p">(</span>
+<a id="danish.factory.pupil_to_focal--source--__codelineno-0-246" name="danish.factory.pupil_to_focal--source--__codelineno-0-246"></a>        <span class="n">u</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">Z</span><span class="p">,</span>
+<a id="danish.factory.pupil_to_focal--source--__codelineno-0-247" name="danish.factory.pupil_to_focal--source--__codelineno-0-247"></a>        <span class="n">focal_length</span><span class="o">=</span><span class="n">focal_length</span><span class="p">,</span>
+<a id="danish.factory.pupil_to_focal--source--__codelineno-0-248" name="danish.factory.pupil_to_focal--source--__codelineno-0-248"></a>        <span class="n">x_offset</span><span class="o">=</span><span class="n">x_offset</span><span class="p">,</span> <span class="n">y_offset</span><span class="o">=</span><span class="n">y_offset</span>
+<a id="danish.factory.pupil_to_focal--source--__codelineno-0-249" name="danish.factory.pupil_to_focal--source--__codelineno-0-249"></a>    <span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="danish.factory.focal_to_pupil" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">danish.factory.focal_to_pupil</span>
+
+
+<a href="#danish.factory.focal_to_pupil" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="doc-signature highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">focal_to_pupil</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">Z</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">aberrations</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">R_outer</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">R_inner</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">focal_length</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">x_offset</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">y_offset</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">prefit_order</span><span class="o">=</span><span class="n">F2P_PREFIT_ORDER</span><span class="p">,</span> <span class="n">maxiter</span><span class="o">=</span><span class="n">F2P_MAXITER</span><span class="p">,</span> <span class="n">tol</span><span class="o">=</span><span class="n">F2P_TOL</span><span class="p">,</span> <span class="n">strict</span><span class="o">=</span><span class="n">F2P_STRICT</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Transform focal coordinates to pupil coordinates.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>x</code>
+            </td>
+            <td>
+                  <code>array of float</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Focal coordinates in meters.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>y</code>
+            </td>
+            <td>
+                  <code>array of float</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Focal coordinates in meters.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>Z</code>
+            </td>
+            <td>
+                  <code><span title="galsim.zernike.Zernike">Zernike</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Aberrations in meters.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>aberrations</code>
+            </td>
+            <td>
+                  <code>array of float</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Aberrations in meters.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>R_outer</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Annulus outer and inner radii in meters.</p>
+              </div>
+            </td>
+            <td>
+                  <code>1.0</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>R_inner</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Annulus outer and inner radii in meters.</p>
+              </div>
+            </td>
+            <td>
+                  <code>1.0</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>focal_length</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Focal length in meters.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>x_offset</code>
+            </td>
+            <td>
+                  <code><span title="galsim.zernike.Zernike">Zernike</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Additional focal plane offsets (in meters) represented as Zernike
+series.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>y_offset</code>
+            </td>
+            <td>
+                  <code><span title="galsim.zernike.Zernike">Zernike</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Additional focal plane offsets (in meters) represented as Zernike
+series.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>prefit_order</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Order of prefit used to get good initial guesses for coordinate
+transformation.</p>
+              </div>
+            </td>
+            <td>
+                  <code><span title="danish.factory.F2P_PREFIT_ORDER">F2P_PREFIT_ORDER</span></code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>maxiter</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Number of Newton iterations to attempt before failing.</p>
+              </div>
+            </td>
+            <td>
+                  <code><span title="danish.factory.F2P_MAXITER">F2P_MAXITER</span></code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>tol</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Tolerance for successful coordinate transformation.</p>
+              </div>
+            </td>
+            <td>
+                  <code><span title="danish.factory.F2P_TOL">F2P_TOL</span></code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>strict</code>
+            </td>
+            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If True, then raise a RuntimeError if any coordinates could not be
+mapped.
+If False, then return NaN for unmappable coordinates.</p>
+              </div>
+            </td>
+            <td>
+                  <code><span title="danish.factory.F2P_STRICT">F2P_STRICT</span></code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code>u, v : array of float</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Pupil coordinates in meters.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+            <details class="mkdocstrings-source">
+              <summary>Source code in <code>danish/factory.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#danish.factory.focal_to_pupil--source--__codelineno-0-487">487</a></span>
+<span class="normal"><a href="#danish.factory.focal_to_pupil--source--__codelineno-0-488">488</a></span>
+<span class="normal"><a href="#danish.factory.focal_to_pupil--source--__codelineno-0-489">489</a></span>
+<span class="normal"><a href="#danish.factory.focal_to_pupil--source--__codelineno-0-490">490</a></span>
+<span class="normal"><a href="#danish.factory.focal_to_pupil--source--__codelineno-0-491">491</a></span>
+<span class="normal"><a href="#danish.factory.focal_to_pupil--source--__codelineno-0-492">492</a></span>
+<span class="normal"><a href="#danish.factory.focal_to_pupil--source--__codelineno-0-493">493</a></span>
+<span class="normal"><a href="#danish.factory.focal_to_pupil--source--__codelineno-0-494">494</a></span>
+<span class="normal"><a href="#danish.factory.focal_to_pupil--source--__codelineno-0-495">495</a></span>
+<span class="normal"><a href="#danish.factory.focal_to_pupil--source--__codelineno-0-496">496</a></span>
+<span class="normal"><a href="#danish.factory.focal_to_pupil--source--__codelineno-0-497">497</a></span>
+<span class="normal"><a href="#danish.factory.focal_to_pupil--source--__codelineno-0-498">498</a></span>
+<span class="normal"><a href="#danish.factory.focal_to_pupil--source--__codelineno-0-499">499</a></span>
+<span class="normal"><a href="#danish.factory.focal_to_pupil--source--__codelineno-0-500">500</a></span>
+<span class="normal"><a href="#danish.factory.focal_to_pupil--source--__codelineno-0-501">501</a></span>
+<span class="normal"><a href="#danish.factory.focal_to_pupil--source--__codelineno-0-502">502</a></span>
+<span class="normal"><a href="#danish.factory.focal_to_pupil--source--__codelineno-0-503">503</a></span>
+<span class="normal"><a href="#danish.factory.focal_to_pupil--source--__codelineno-0-504">504</a></span>
+<span class="normal"><a href="#danish.factory.focal_to_pupil--source--__codelineno-0-505">505</a></span>
+<span class="normal"><a href="#danish.factory.focal_to_pupil--source--__codelineno-0-506">506</a></span>
+<span class="normal"><a href="#danish.factory.focal_to_pupil--source--__codelineno-0-507">507</a></span>
+<span class="normal"><a href="#danish.factory.focal_to_pupil--source--__codelineno-0-508">508</a></span>
+<span class="normal"><a href="#danish.factory.focal_to_pupil--source--__codelineno-0-509">509</a></span>
+<span class="normal"><a href="#danish.factory.focal_to_pupil--source--__codelineno-0-510">510</a></span>
+<span class="normal"><a href="#danish.factory.focal_to_pupil--source--__codelineno-0-511">511</a></span>
+<span class="normal"><a href="#danish.factory.focal_to_pupil--source--__codelineno-0-512">512</a></span>
+<span class="normal"><a href="#danish.factory.focal_to_pupil--source--__codelineno-0-513">513</a></span>
+<span class="normal"><a href="#danish.factory.focal_to_pupil--source--__codelineno-0-514">514</a></span>
+<span class="normal"><a href="#danish.factory.focal_to_pupil--source--__codelineno-0-515">515</a></span>
+<span class="normal"><a href="#danish.factory.focal_to_pupil--source--__codelineno-0-516">516</a></span>
+<span class="normal"><a href="#danish.factory.focal_to_pupil--source--__codelineno-0-517">517</a></span>
+<span class="normal"><a href="#danish.factory.focal_to_pupil--source--__codelineno-0-518">518</a></span>
+<span class="normal"><a href="#danish.factory.focal_to_pupil--source--__codelineno-0-519">519</a></span>
+<span class="normal"><a href="#danish.factory.focal_to_pupil--source--__codelineno-0-520">520</a></span>
+<span class="normal"><a href="#danish.factory.focal_to_pupil--source--__codelineno-0-521">521</a></span>
+<span class="normal"><a href="#danish.factory.focal_to_pupil--source--__codelineno-0-522">522</a></span>
+<span class="normal"><a href="#danish.factory.focal_to_pupil--source--__codelineno-0-523">523</a></span>
+<span class="normal"><a href="#danish.factory.focal_to_pupil--source--__codelineno-0-524">524</a></span>
+<span class="normal"><a href="#danish.factory.focal_to_pupil--source--__codelineno-0-525">525</a></span>
+<span class="normal"><a href="#danish.factory.focal_to_pupil--source--__codelineno-0-526">526</a></span>
+<span class="normal"><a href="#danish.factory.focal_to_pupil--source--__codelineno-0-527">527</a></span>
+<span class="normal"><a href="#danish.factory.focal_to_pupil--source--__codelineno-0-528">528</a></span>
+<span class="normal"><a href="#danish.factory.focal_to_pupil--source--__codelineno-0-529">529</a></span>
+<span class="normal"><a href="#danish.factory.focal_to_pupil--source--__codelineno-0-530">530</a></span>
+<span class="normal"><a href="#danish.factory.focal_to_pupil--source--__codelineno-0-531">531</a></span>
+<span class="normal"><a href="#danish.factory.focal_to_pupil--source--__codelineno-0-532">532</a></span>
+<span class="normal"><a href="#danish.factory.focal_to_pupil--source--__codelineno-0-533">533</a></span>
+<span class="normal"><a href="#danish.factory.focal_to_pupil--source--__codelineno-0-534">534</a></span>
+<span class="normal"><a href="#danish.factory.focal_to_pupil--source--__codelineno-0-535">535</a></span>
+<span class="normal"><a href="#danish.factory.focal_to_pupil--source--__codelineno-0-536">536</a></span>
+<span class="normal"><a href="#danish.factory.focal_to_pupil--source--__codelineno-0-537">537</a></span>
+<span class="normal"><a href="#danish.factory.focal_to_pupil--source--__codelineno-0-538">538</a></span>
+<span class="normal"><a href="#danish.factory.focal_to_pupil--source--__codelineno-0-539">539</a></span>
+<span class="normal"><a href="#danish.factory.focal_to_pupil--source--__codelineno-0-540">540</a></span>
+<span class="normal"><a href="#danish.factory.focal_to_pupil--source--__codelineno-0-541">541</a></span>
+<span class="normal"><a href="#danish.factory.focal_to_pupil--source--__codelineno-0-542">542</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="danish.factory.focal_to_pupil--source--__codelineno-0-487" name="danish.factory.focal_to_pupil--source--__codelineno-0-487"></a><span class="k">def</span><span class="w"> </span><span class="nf">focal_to_pupil</span><span class="p">(</span>
+<a id="danish.factory.focal_to_pupil--source--__codelineno-0-488" name="danish.factory.focal_to_pupil--source--__codelineno-0-488"></a>    <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span>
+<a id="danish.factory.focal_to_pupil--source--__codelineno-0-489" name="danish.factory.focal_to_pupil--source--__codelineno-0-489"></a>    <span class="n">Z</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">aberrations</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">R_outer</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">R_inner</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span>
+<a id="danish.factory.focal_to_pupil--source--__codelineno-0-490" name="danish.factory.focal_to_pupil--source--__codelineno-0-490"></a>    <span class="n">focal_length</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+<a id="danish.factory.focal_to_pupil--source--__codelineno-0-491" name="danish.factory.focal_to_pupil--source--__codelineno-0-491"></a>    <span class="n">x_offset</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">y_offset</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+<a id="danish.factory.focal_to_pupil--source--__codelineno-0-492" name="danish.factory.focal_to_pupil--source--__codelineno-0-492"></a>    <span class="n">prefit_order</span><span class="o">=</span><span class="n">F2P_PREFIT_ORDER</span><span class="p">,</span> <span class="n">maxiter</span><span class="o">=</span><span class="n">F2P_MAXITER</span><span class="p">,</span> <span class="n">tol</span><span class="o">=</span><span class="n">F2P_TOL</span><span class="p">,</span> <span class="n">strict</span><span class="o">=</span><span class="n">F2P_STRICT</span>
+<a id="danish.factory.focal_to_pupil--source--__codelineno-0-493" name="danish.factory.focal_to_pupil--source--__codelineno-0-493"></a><span class="p">):</span>
+<a id="danish.factory.focal_to_pupil--source--__codelineno-0-494" name="danish.factory.focal_to_pupil--source--__codelineno-0-494"></a><span class="w">    </span><span class="sd">"""Transform focal coordinates to pupil coordinates.</span>
+<a id="danish.factory.focal_to_pupil--source--__codelineno-0-495" name="danish.factory.focal_to_pupil--source--__codelineno-0-495"></a>
+<a id="danish.factory.focal_to_pupil--source--__codelineno-0-496" name="danish.factory.focal_to_pupil--source--__codelineno-0-496"></a><span class="sd">    Parameters</span>
+<a id="danish.factory.focal_to_pupil--source--__codelineno-0-497" name="danish.factory.focal_to_pupil--source--__codelineno-0-497"></a><span class="sd">    ----------</span>
+<a id="danish.factory.focal_to_pupil--source--__codelineno-0-498" name="danish.factory.focal_to_pupil--source--__codelineno-0-498"></a><span class="sd">    x, y : array of float</span>
+<a id="danish.factory.focal_to_pupil--source--__codelineno-0-499" name="danish.factory.focal_to_pupil--source--__codelineno-0-499"></a><span class="sd">        Focal coordinates in meters.</span>
+<a id="danish.factory.focal_to_pupil--source--__codelineno-0-500" name="danish.factory.focal_to_pupil--source--__codelineno-0-500"></a><span class="sd">    Z : galsim.zernike.Zernike, optional</span>
+<a id="danish.factory.focal_to_pupil--source--__codelineno-0-501" name="danish.factory.focal_to_pupil--source--__codelineno-0-501"></a><span class="sd">        Aberrations in meters.</span>
+<a id="danish.factory.focal_to_pupil--source--__codelineno-0-502" name="danish.factory.focal_to_pupil--source--__codelineno-0-502"></a><span class="sd">    aberrations : array of float, optional</span>
+<a id="danish.factory.focal_to_pupil--source--__codelineno-0-503" name="danish.factory.focal_to_pupil--source--__codelineno-0-503"></a><span class="sd">        Aberrations in meters.</span>
+<a id="danish.factory.focal_to_pupil--source--__codelineno-0-504" name="danish.factory.focal_to_pupil--source--__codelineno-0-504"></a><span class="sd">    R_outer, R_inner : float, optional</span>
+<a id="danish.factory.focal_to_pupil--source--__codelineno-0-505" name="danish.factory.focal_to_pupil--source--__codelineno-0-505"></a><span class="sd">        Annulus outer and inner radii in meters.</span>
+<a id="danish.factory.focal_to_pupil--source--__codelineno-0-506" name="danish.factory.focal_to_pupil--source--__codelineno-0-506"></a><span class="sd">    focal_length : float</span>
+<a id="danish.factory.focal_to_pupil--source--__codelineno-0-507" name="danish.factory.focal_to_pupil--source--__codelineno-0-507"></a><span class="sd">        Focal length in meters.</span>
+<a id="danish.factory.focal_to_pupil--source--__codelineno-0-508" name="danish.factory.focal_to_pupil--source--__codelineno-0-508"></a><span class="sd">    x_offset, y_offset : galsim.zernike.Zernike, optional</span>
+<a id="danish.factory.focal_to_pupil--source--__codelineno-0-509" name="danish.factory.focal_to_pupil--source--__codelineno-0-509"></a><span class="sd">        Additional focal plane offsets (in meters) represented as Zernike</span>
+<a id="danish.factory.focal_to_pupil--source--__codelineno-0-510" name="danish.factory.focal_to_pupil--source--__codelineno-0-510"></a><span class="sd">        series.</span>
+<a id="danish.factory.focal_to_pupil--source--__codelineno-0-511" name="danish.factory.focal_to_pupil--source--__codelineno-0-511"></a><span class="sd">    prefit_order : int</span>
+<a id="danish.factory.focal_to_pupil--source--__codelineno-0-512" name="danish.factory.focal_to_pupil--source--__codelineno-0-512"></a><span class="sd">        Order of prefit used to get good initial guesses for coordinate</span>
+<a id="danish.factory.focal_to_pupil--source--__codelineno-0-513" name="danish.factory.focal_to_pupil--source--__codelineno-0-513"></a><span class="sd">        transformation.</span>
+<a id="danish.factory.focal_to_pupil--source--__codelineno-0-514" name="danish.factory.focal_to_pupil--source--__codelineno-0-514"></a><span class="sd">    maxiter : int</span>
+<a id="danish.factory.focal_to_pupil--source--__codelineno-0-515" name="danish.factory.focal_to_pupil--source--__codelineno-0-515"></a><span class="sd">        Number of Newton iterations to attempt before failing.</span>
+<a id="danish.factory.focal_to_pupil--source--__codelineno-0-516" name="danish.factory.focal_to_pupil--source--__codelineno-0-516"></a><span class="sd">    tol : float</span>
+<a id="danish.factory.focal_to_pupil--source--__codelineno-0-517" name="danish.factory.focal_to_pupil--source--__codelineno-0-517"></a><span class="sd">        Tolerance for successful coordinate transformation.</span>
+<a id="danish.factory.focal_to_pupil--source--__codelineno-0-518" name="danish.factory.focal_to_pupil--source--__codelineno-0-518"></a><span class="sd">    strict: bool</span>
+<a id="danish.factory.focal_to_pupil--source--__codelineno-0-519" name="danish.factory.focal_to_pupil--source--__codelineno-0-519"></a><span class="sd">        If True, then raise a RuntimeError if any coordinates could not be</span>
+<a id="danish.factory.focal_to_pupil--source--__codelineno-0-520" name="danish.factory.focal_to_pupil--source--__codelineno-0-520"></a><span class="sd">        mapped.</span>
+<a id="danish.factory.focal_to_pupil--source--__codelineno-0-521" name="danish.factory.focal_to_pupil--source--__codelineno-0-521"></a><span class="sd">        If False, then return NaN for unmappable coordinates.</span>
+<a id="danish.factory.focal_to_pupil--source--__codelineno-0-522" name="danish.factory.focal_to_pupil--source--__codelineno-0-522"></a>
+<a id="danish.factory.focal_to_pupil--source--__codelineno-0-523" name="danish.factory.focal_to_pupil--source--__codelineno-0-523"></a><span class="sd">    Returns</span>
+<a id="danish.factory.focal_to_pupil--source--__codelineno-0-524" name="danish.factory.focal_to_pupil--source--__codelineno-0-524"></a><span class="sd">    -------</span>
+<a id="danish.factory.focal_to_pupil--source--__codelineno-0-525" name="danish.factory.focal_to_pupil--source--__codelineno-0-525"></a><span class="sd">    u, v : array of float</span>
+<a id="danish.factory.focal_to_pupil--source--__codelineno-0-526" name="danish.factory.focal_to_pupil--source--__codelineno-0-526"></a><span class="sd">        Pupil coordinates in meters.</span>
+<a id="danish.factory.focal_to_pupil--source--__codelineno-0-527" name="danish.factory.focal_to_pupil--source--__codelineno-0-527"></a><span class="sd">    """</span>
+<a id="danish.factory.focal_to_pupil--source--__codelineno-0-528" name="danish.factory.focal_to_pupil--source--__codelineno-0-528"></a>    <span class="k">if</span> <span class="n">Z</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+<a id="danish.factory.focal_to_pupil--source--__codelineno-0-529" name="danish.factory.focal_to_pupil--source--__codelineno-0-529"></a>        <span class="n">Z</span> <span class="o">=</span> <span class="n">galsim</span><span class="o">.</span><span class="n">zernike</span><span class="o">.</span><span class="n">Zernike</span><span class="p">(</span>
+<a id="danish.factory.focal_to_pupil--source--__codelineno-0-530" name="danish.factory.focal_to_pupil--source--__codelineno-0-530"></a>            <span class="n">aberrations</span><span class="p">,</span> <span class="n">R_outer</span><span class="o">=</span><span class="n">R_outer</span><span class="p">,</span> <span class="n">R_inner</span><span class="o">=</span><span class="n">R_inner</span>
+<a id="danish.factory.focal_to_pupil--source--__codelineno-0-531" name="danish.factory.focal_to_pupil--source--__codelineno-0-531"></a>        <span class="p">)</span>
+<a id="danish.factory.focal_to_pupil--source--__codelineno-0-532" name="danish.factory.focal_to_pupil--source--__codelineno-0-532"></a>    <span class="k">if</span> <span class="n">focal_length</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+<a id="danish.factory.focal_to_pupil--source--__codelineno-0-533" name="danish.factory.focal_to_pupil--source--__codelineno-0-533"></a>        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"Missing focal length"</span><span class="p">)</span>
+<a id="danish.factory.focal_to_pupil--source--__codelineno-0-534" name="danish.factory.focal_to_pupil--source--__codelineno-0-534"></a>
+<a id="danish.factory.focal_to_pupil--source--__codelineno-0-535" name="danish.factory.focal_to_pupil--source--__codelineno-0-535"></a>    <span class="k">return</span> <span class="n">_focal_to_pupil</span><span class="p">(</span>
+<a id="danish.factory.focal_to_pupil--source--__codelineno-0-536" name="danish.factory.focal_to_pupil--source--__codelineno-0-536"></a>        <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">Z</span><span class="p">,</span>
+<a id="danish.factory.focal_to_pupil--source--__codelineno-0-537" name="danish.factory.focal_to_pupil--source--__codelineno-0-537"></a>        <span class="n">focal_length</span><span class="o">=</span><span class="n">focal_length</span><span class="p">,</span>
+<a id="danish.factory.focal_to_pupil--source--__codelineno-0-538" name="danish.factory.focal_to_pupil--source--__codelineno-0-538"></a>        <span class="n">x_offset</span><span class="o">=</span><span class="n">x_offset</span><span class="p">,</span> <span class="n">y_offset</span><span class="o">=</span><span class="n">y_offset</span><span class="p">,</span>
+<a id="danish.factory.focal_to_pupil--source--__codelineno-0-539" name="danish.factory.focal_to_pupil--source--__codelineno-0-539"></a>        <span class="n">prefit_order</span><span class="o">=</span><span class="n">prefit_order</span><span class="p">,</span>
+<a id="danish.factory.focal_to_pupil--source--__codelineno-0-540" name="danish.factory.focal_to_pupil--source--__codelineno-0-540"></a>        <span class="n">maxiter</span><span class="o">=</span><span class="n">maxiter</span><span class="p">,</span>
+<a id="danish.factory.focal_to_pupil--source--__codelineno-0-541" name="danish.factory.focal_to_pupil--source--__codelineno-0-541"></a>        <span class="n">tol</span><span class="o">=</span><span class="n">tol</span><span class="p">,</span> <span class="n">strict</span><span class="o">=</span><span class="n">strict</span>
+<a id="danish.factory.focal_to_pupil--source--__codelineno-0-542" name="danish.factory.focal_to_pupil--source--__codelineno-0-542"></a>    <span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="danish.factory.pupil_focal_jacobian" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">danish.factory.pupil_focal_jacobian</span>
+
+
+<a href="#danish.factory.pupil_focal_jacobian" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="doc-signature highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">pupil_focal_jacobian</span><span class="p">(</span><span class="n">u</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">Z</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">aberrations</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">R_outer</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">R_inner</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">focal_length</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">x_offset</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">y_offset</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Compute Jacobian of the pupil-to-focal coordinate transform.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>u</code>
+            </td>
+            <td>
+                  <code>array of float</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Pupil coordinates in meters.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>v</code>
+            </td>
+            <td>
+                  <code>array of float</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Pupil coordinates in meters.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>Z</code>
+            </td>
+            <td>
+                  <code><span title="galsim.zernike.Zernike">Zernike</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Aberrations in meters.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>aberrations</code>
+            </td>
+            <td>
+                  <code>array of float</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Aberrations in meters.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>R_outer</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Annulus outer and inner radii in meters.</p>
+              </div>
+            </td>
+            <td>
+                  <code>1.0</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>R_inner</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Annulus outer and inner radii in meters.</p>
+              </div>
+            </td>
+            <td>
+                  <code>1.0</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>focal_length</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Focal length in meters.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>x_offset</code>
+            </td>
+            <td>
+                  <code><span title="galsim.zernike.Zernike">Zernike</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Additional focal plane offsets (in meters) represented as Zernike
+series.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>y_offset</code>
+            </td>
+            <td>
+                  <code><span title="galsim.zernike.Zernike">Zernike</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Additional focal plane offsets (in meters) represented as Zernike
+series.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code>dxdu, dxdv, dydu, dydv : array of float</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Jacobian of focal coordinates with respect to pupil coordinates.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+            <details class="mkdocstrings-source">
+              <summary>Source code in <code>danish/factory.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#danish.factory.pupil_focal_jacobian--source--__codelineno-0-267">267</a></span>
+<span class="normal"><a href="#danish.factory.pupil_focal_jacobian--source--__codelineno-0-268">268</a></span>
+<span class="normal"><a href="#danish.factory.pupil_focal_jacobian--source--__codelineno-0-269">269</a></span>
+<span class="normal"><a href="#danish.factory.pupil_focal_jacobian--source--__codelineno-0-270">270</a></span>
+<span class="normal"><a href="#danish.factory.pupil_focal_jacobian--source--__codelineno-0-271">271</a></span>
+<span class="normal"><a href="#danish.factory.pupil_focal_jacobian--source--__codelineno-0-272">272</a></span>
+<span class="normal"><a href="#danish.factory.pupil_focal_jacobian--source--__codelineno-0-273">273</a></span>
+<span class="normal"><a href="#danish.factory.pupil_focal_jacobian--source--__codelineno-0-274">274</a></span>
+<span class="normal"><a href="#danish.factory.pupil_focal_jacobian--source--__codelineno-0-275">275</a></span>
+<span class="normal"><a href="#danish.factory.pupil_focal_jacobian--source--__codelineno-0-276">276</a></span>
+<span class="normal"><a href="#danish.factory.pupil_focal_jacobian--source--__codelineno-0-277">277</a></span>
+<span class="normal"><a href="#danish.factory.pupil_focal_jacobian--source--__codelineno-0-278">278</a></span>
+<span class="normal"><a href="#danish.factory.pupil_focal_jacobian--source--__codelineno-0-279">279</a></span>
+<span class="normal"><a href="#danish.factory.pupil_focal_jacobian--source--__codelineno-0-280">280</a></span>
+<span class="normal"><a href="#danish.factory.pupil_focal_jacobian--source--__codelineno-0-281">281</a></span>
+<span class="normal"><a href="#danish.factory.pupil_focal_jacobian--source--__codelineno-0-282">282</a></span>
+<span class="normal"><a href="#danish.factory.pupil_focal_jacobian--source--__codelineno-0-283">283</a></span>
+<span class="normal"><a href="#danish.factory.pupil_focal_jacobian--source--__codelineno-0-284">284</a></span>
+<span class="normal"><a href="#danish.factory.pupil_focal_jacobian--source--__codelineno-0-285">285</a></span>
+<span class="normal"><a href="#danish.factory.pupil_focal_jacobian--source--__codelineno-0-286">286</a></span>
+<span class="normal"><a href="#danish.factory.pupil_focal_jacobian--source--__codelineno-0-287">287</a></span>
+<span class="normal"><a href="#danish.factory.pupil_focal_jacobian--source--__codelineno-0-288">288</a></span>
+<span class="normal"><a href="#danish.factory.pupil_focal_jacobian--source--__codelineno-0-289">289</a></span>
+<span class="normal"><a href="#danish.factory.pupil_focal_jacobian--source--__codelineno-0-290">290</a></span>
+<span class="normal"><a href="#danish.factory.pupil_focal_jacobian--source--__codelineno-0-291">291</a></span>
+<span class="normal"><a href="#danish.factory.pupil_focal_jacobian--source--__codelineno-0-292">292</a></span>
+<span class="normal"><a href="#danish.factory.pupil_focal_jacobian--source--__codelineno-0-293">293</a></span>
+<span class="normal"><a href="#danish.factory.pupil_focal_jacobian--source--__codelineno-0-294">294</a></span>
+<span class="normal"><a href="#danish.factory.pupil_focal_jacobian--source--__codelineno-0-295">295</a></span>
+<span class="normal"><a href="#danish.factory.pupil_focal_jacobian--source--__codelineno-0-296">296</a></span>
+<span class="normal"><a href="#danish.factory.pupil_focal_jacobian--source--__codelineno-0-297">297</a></span>
+<span class="normal"><a href="#danish.factory.pupil_focal_jacobian--source--__codelineno-0-298">298</a></span>
+<span class="normal"><a href="#danish.factory.pupil_focal_jacobian--source--__codelineno-0-299">299</a></span>
+<span class="normal"><a href="#danish.factory.pupil_focal_jacobian--source--__codelineno-0-300">300</a></span>
+<span class="normal"><a href="#danish.factory.pupil_focal_jacobian--source--__codelineno-0-301">301</a></span>
+<span class="normal"><a href="#danish.factory.pupil_focal_jacobian--source--__codelineno-0-302">302</a></span>
+<span class="normal"><a href="#danish.factory.pupil_focal_jacobian--source--__codelineno-0-303">303</a></span>
+<span class="normal"><a href="#danish.factory.pupil_focal_jacobian--source--__codelineno-0-304">304</a></span>
+<span class="normal"><a href="#danish.factory.pupil_focal_jacobian--source--__codelineno-0-305">305</a></span>
+<span class="normal"><a href="#danish.factory.pupil_focal_jacobian--source--__codelineno-0-306">306</a></span>
+<span class="normal"><a href="#danish.factory.pupil_focal_jacobian--source--__codelineno-0-307">307</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="danish.factory.pupil_focal_jacobian--source--__codelineno-0-267" name="danish.factory.pupil_focal_jacobian--source--__codelineno-0-267"></a><span class="k">def</span><span class="w"> </span><span class="nf">pupil_focal_jacobian</span><span class="p">(</span>
+<a id="danish.factory.pupil_focal_jacobian--source--__codelineno-0-268" name="danish.factory.pupil_focal_jacobian--source--__codelineno-0-268"></a>    <span class="n">u</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span>
+<a id="danish.factory.pupil_focal_jacobian--source--__codelineno-0-269" name="danish.factory.pupil_focal_jacobian--source--__codelineno-0-269"></a>    <span class="n">Z</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">aberrations</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">R_outer</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">R_inner</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span>
+<a id="danish.factory.pupil_focal_jacobian--source--__codelineno-0-270" name="danish.factory.pupil_focal_jacobian--source--__codelineno-0-270"></a>    <span class="n">focal_length</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+<a id="danish.factory.pupil_focal_jacobian--source--__codelineno-0-271" name="danish.factory.pupil_focal_jacobian--source--__codelineno-0-271"></a>    <span class="n">x_offset</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">y_offset</span><span class="o">=</span><span class="kc">None</span>
+<a id="danish.factory.pupil_focal_jacobian--source--__codelineno-0-272" name="danish.factory.pupil_focal_jacobian--source--__codelineno-0-272"></a><span class="p">):</span>
+<a id="danish.factory.pupil_focal_jacobian--source--__codelineno-0-273" name="danish.factory.pupil_focal_jacobian--source--__codelineno-0-273"></a><span class="w">    </span><span class="sd">"""Compute Jacobian of the pupil-to-focal coordinate transform.</span>
+<a id="danish.factory.pupil_focal_jacobian--source--__codelineno-0-274" name="danish.factory.pupil_focal_jacobian--source--__codelineno-0-274"></a>
+<a id="danish.factory.pupil_focal_jacobian--source--__codelineno-0-275" name="danish.factory.pupil_focal_jacobian--source--__codelineno-0-275"></a><span class="sd">    Parameters</span>
+<a id="danish.factory.pupil_focal_jacobian--source--__codelineno-0-276" name="danish.factory.pupil_focal_jacobian--source--__codelineno-0-276"></a><span class="sd">    ----------</span>
+<a id="danish.factory.pupil_focal_jacobian--source--__codelineno-0-277" name="danish.factory.pupil_focal_jacobian--source--__codelineno-0-277"></a><span class="sd">    u, v : array of float</span>
+<a id="danish.factory.pupil_focal_jacobian--source--__codelineno-0-278" name="danish.factory.pupil_focal_jacobian--source--__codelineno-0-278"></a><span class="sd">        Pupil coordinates in meters.</span>
+<a id="danish.factory.pupil_focal_jacobian--source--__codelineno-0-279" name="danish.factory.pupil_focal_jacobian--source--__codelineno-0-279"></a><span class="sd">    Z : galsim.zernike.Zernike, optional</span>
+<a id="danish.factory.pupil_focal_jacobian--source--__codelineno-0-280" name="danish.factory.pupil_focal_jacobian--source--__codelineno-0-280"></a><span class="sd">        Aberrations in meters.</span>
+<a id="danish.factory.pupil_focal_jacobian--source--__codelineno-0-281" name="danish.factory.pupil_focal_jacobian--source--__codelineno-0-281"></a><span class="sd">    aberrations : array of float, optional</span>
+<a id="danish.factory.pupil_focal_jacobian--source--__codelineno-0-282" name="danish.factory.pupil_focal_jacobian--source--__codelineno-0-282"></a><span class="sd">        Aberrations in meters.</span>
+<a id="danish.factory.pupil_focal_jacobian--source--__codelineno-0-283" name="danish.factory.pupil_focal_jacobian--source--__codelineno-0-283"></a><span class="sd">    R_outer, R_inner : float, optional</span>
+<a id="danish.factory.pupil_focal_jacobian--source--__codelineno-0-284" name="danish.factory.pupil_focal_jacobian--source--__codelineno-0-284"></a><span class="sd">        Annulus outer and inner radii in meters.</span>
+<a id="danish.factory.pupil_focal_jacobian--source--__codelineno-0-285" name="danish.factory.pupil_focal_jacobian--source--__codelineno-0-285"></a><span class="sd">    focal_length : float</span>
+<a id="danish.factory.pupil_focal_jacobian--source--__codelineno-0-286" name="danish.factory.pupil_focal_jacobian--source--__codelineno-0-286"></a><span class="sd">        Focal length in meters.</span>
+<a id="danish.factory.pupil_focal_jacobian--source--__codelineno-0-287" name="danish.factory.pupil_focal_jacobian--source--__codelineno-0-287"></a><span class="sd">    x_offset, y_offset : galsim.zernike.Zernike, optional</span>
+<a id="danish.factory.pupil_focal_jacobian--source--__codelineno-0-288" name="danish.factory.pupil_focal_jacobian--source--__codelineno-0-288"></a><span class="sd">        Additional focal plane offsets (in meters) represented as Zernike</span>
+<a id="danish.factory.pupil_focal_jacobian--source--__codelineno-0-289" name="danish.factory.pupil_focal_jacobian--source--__codelineno-0-289"></a><span class="sd">        series.</span>
+<a id="danish.factory.pupil_focal_jacobian--source--__codelineno-0-290" name="danish.factory.pupil_focal_jacobian--source--__codelineno-0-290"></a>
+<a id="danish.factory.pupil_focal_jacobian--source--__codelineno-0-291" name="danish.factory.pupil_focal_jacobian--source--__codelineno-0-291"></a><span class="sd">    Returns</span>
+<a id="danish.factory.pupil_focal_jacobian--source--__codelineno-0-292" name="danish.factory.pupil_focal_jacobian--source--__codelineno-0-292"></a><span class="sd">    -------</span>
+<a id="danish.factory.pupil_focal_jacobian--source--__codelineno-0-293" name="danish.factory.pupil_focal_jacobian--source--__codelineno-0-293"></a><span class="sd">    dxdu, dxdv, dydu, dydv : array of float</span>
+<a id="danish.factory.pupil_focal_jacobian--source--__codelineno-0-294" name="danish.factory.pupil_focal_jacobian--source--__codelineno-0-294"></a><span class="sd">        Jacobian of focal coordinates with respect to pupil coordinates.</span>
+<a id="danish.factory.pupil_focal_jacobian--source--__codelineno-0-295" name="danish.factory.pupil_focal_jacobian--source--__codelineno-0-295"></a><span class="sd">    """</span>
+<a id="danish.factory.pupil_focal_jacobian--source--__codelineno-0-296" name="danish.factory.pupil_focal_jacobian--source--__codelineno-0-296"></a>    <span class="k">if</span> <span class="n">Z</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+<a id="danish.factory.pupil_focal_jacobian--source--__codelineno-0-297" name="danish.factory.pupil_focal_jacobian--source--__codelineno-0-297"></a>        <span class="n">Z</span> <span class="o">=</span> <span class="n">galsim</span><span class="o">.</span><span class="n">zernike</span><span class="o">.</span><span class="n">Zernike</span><span class="p">(</span>
+<a id="danish.factory.pupil_focal_jacobian--source--__codelineno-0-298" name="danish.factory.pupil_focal_jacobian--source--__codelineno-0-298"></a>            <span class="n">aberrations</span><span class="p">,</span> <span class="n">R_outer</span><span class="o">=</span><span class="n">R_outer</span><span class="p">,</span> <span class="n">R_inner</span><span class="o">=</span><span class="n">R_inner</span>
+<a id="danish.factory.pupil_focal_jacobian--source--__codelineno-0-299" name="danish.factory.pupil_focal_jacobian--source--__codelineno-0-299"></a>        <span class="p">)</span>
+<a id="danish.factory.pupil_focal_jacobian--source--__codelineno-0-300" name="danish.factory.pupil_focal_jacobian--source--__codelineno-0-300"></a>    <span class="k">if</span> <span class="n">focal_length</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+<a id="danish.factory.pupil_focal_jacobian--source--__codelineno-0-301" name="danish.factory.pupil_focal_jacobian--source--__codelineno-0-301"></a>        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"Missing focal length"</span><span class="p">)</span>
+<a id="danish.factory.pupil_focal_jacobian--source--__codelineno-0-302" name="danish.factory.pupil_focal_jacobian--source--__codelineno-0-302"></a>
+<a id="danish.factory.pupil_focal_jacobian--source--__codelineno-0-303" name="danish.factory.pupil_focal_jacobian--source--__codelineno-0-303"></a>    <span class="k">return</span> <span class="n">_pupil_focal_jacobian</span><span class="p">(</span>
+<a id="danish.factory.pupil_focal_jacobian--source--__codelineno-0-304" name="danish.factory.pupil_focal_jacobian--source--__codelineno-0-304"></a>        <span class="n">u</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">Z</span><span class="p">,</span>
+<a id="danish.factory.pupil_focal_jacobian--source--__codelineno-0-305" name="danish.factory.pupil_focal_jacobian--source--__codelineno-0-305"></a>        <span class="n">focal_length</span><span class="o">=</span><span class="n">focal_length</span><span class="p">,</span>
+<a id="danish.factory.pupil_focal_jacobian--source--__codelineno-0-306" name="danish.factory.pupil_focal_jacobian--source--__codelineno-0-306"></a>        <span class="n">x_offset</span><span class="o">=</span><span class="n">x_offset</span><span class="p">,</span> <span class="n">y_offset</span><span class="o">=</span><span class="n">y_offset</span>
+<a id="danish.factory.pupil_focal_jacobian--source--__codelineno-0-307" name="danish.factory.pupil_focal_jacobian--source--__codelineno-0-307"></a>    <span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="danish.factory.pupil_focal_coef_jacobian" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">danish.factory.pupil_focal_coef_jacobian</span>
+
+
+<a href="#danish.factory.pupil_focal_coef_jacobian" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="doc-signature highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">pupil_focal_coef_jacobian</span><span class="p">(</span><span class="n">u</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">nterm</span><span class="p">,</span> <span class="n">R_outer</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">R_inner</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">focal_length</span><span class="p">,</span> <span class="n">pixel_scale</span><span class="o">=</span><span class="mf">1.0</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Derivative of projected focal position with respect to each Zernike.</p>
+<p><code>pupil_to_focal</code> evaluates the gradient of a Zernike series, and that
+series is linear in its coefficients, so the projected position of a fixed
+pupil point is linear in the aberrations.  Its derivative is therefore a
+constant matrix: independent of the aberrations, fixed by the pupil points
+alone.  Evaluating it once lets a fitter replace a Zernike evaluation per
+model call with a single matrix product, and gives the exact
+d(position)/d(coefficient) that an analytic Jacobian needs.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>u</code>
+            </td>
+            <td>
+                  <code>array of float</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Pupil coordinates in meters.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>v</code>
+            </td>
+            <td>
+                  <code>array of float</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Pupil coordinates in meters.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>nterm</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Number of leading Zernike coefficients to differentiate with respect
+to.  Only these get a column; the derivative with respect to the rest
+of the series is not returned because a fitter holds them fixed.  See
+<code>pupil_to_focal_basis</code>, which pairs these columns with the position
+those fixed coefficients project to.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>R_outer</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Annulus outer and inner radii in meters.</p>
+              </div>
+            </td>
+            <td>
+                  <code>1.0</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>R_inner</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Annulus outer and inner radii in meters.</p>
+              </div>
+            </td>
+            <td>
+                  <code>1.0</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>focal_length</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Focal length in meters.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>pixel_scale</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Pixel scale in meters.  Defaults to 1.0, i.e. focal coordinates in
+meters rather than pixels.</p>
+              </div>
+            </td>
+            <td>
+                  <code>1.0</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code>dxdz, dydz : array of float, shape (len(u), nterm)</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Derivative of focal x and y with respect to each Zernike coefficient.
+Column 0 is zero: Noll indexing starts at 1, so <code>aberrations[0]</code> is
+unused.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+            <details class="mkdocstrings-source">
+              <summary>Source code in <code>danish/factory.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-368">368</a></span>
+<span class="normal"><a href="#danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-369">369</a></span>
+<span class="normal"><a href="#danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-370">370</a></span>
+<span class="normal"><a href="#danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-371">371</a></span>
+<span class="normal"><a href="#danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-372">372</a></span>
+<span class="normal"><a href="#danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-373">373</a></span>
+<span class="normal"><a href="#danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-374">374</a></span>
+<span class="normal"><a href="#danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-375">375</a></span>
+<span class="normal"><a href="#danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-376">376</a></span>
+<span class="normal"><a href="#danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-377">377</a></span>
+<span class="normal"><a href="#danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-378">378</a></span>
+<span class="normal"><a href="#danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-379">379</a></span>
+<span class="normal"><a href="#danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-380">380</a></span>
+<span class="normal"><a href="#danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-381">381</a></span>
+<span class="normal"><a href="#danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-382">382</a></span>
+<span class="normal"><a href="#danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-383">383</a></span>
+<span class="normal"><a href="#danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-384">384</a></span>
+<span class="normal"><a href="#danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-385">385</a></span>
+<span class="normal"><a href="#danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-386">386</a></span>
+<span class="normal"><a href="#danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-387">387</a></span>
+<span class="normal"><a href="#danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-388">388</a></span>
+<span class="normal"><a href="#danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-389">389</a></span>
+<span class="normal"><a href="#danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-390">390</a></span>
+<span class="normal"><a href="#danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-391">391</a></span>
+<span class="normal"><a href="#danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-392">392</a></span>
+<span class="normal"><a href="#danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-393">393</a></span>
+<span class="normal"><a href="#danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-394">394</a></span>
+<span class="normal"><a href="#danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-395">395</a></span>
+<span class="normal"><a href="#danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-396">396</a></span>
+<span class="normal"><a href="#danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-397">397</a></span>
+<span class="normal"><a href="#danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-398">398</a></span>
+<span class="normal"><a href="#danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-399">399</a></span>
+<span class="normal"><a href="#danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-400">400</a></span>
+<span class="normal"><a href="#danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-401">401</a></span>
+<span class="normal"><a href="#danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-402">402</a></span>
+<span class="normal"><a href="#danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-403">403</a></span>
+<span class="normal"><a href="#danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-404">404</a></span>
+<span class="normal"><a href="#danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-405">405</a></span>
+<span class="normal"><a href="#danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-406">406</a></span>
+<span class="normal"><a href="#danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-407">407</a></span>
+<span class="normal"><a href="#danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-408">408</a></span>
+<span class="normal"><a href="#danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-409">409</a></span>
+<span class="normal"><a href="#danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-410">410</a></span>
+<span class="normal"><a href="#danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-411">411</a></span>
+<span class="normal"><a href="#danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-412">412</a></span>
+<span class="normal"><a href="#danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-413">413</a></span>
+<span class="normal"><a href="#danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-414">414</a></span>
+<span class="normal"><a href="#danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-415">415</a></span>
+<span class="normal"><a href="#danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-416">416</a></span>
+<span class="normal"><a href="#danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-417">417</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-368" name="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-368"></a><span class="k">def</span><span class="w"> </span><span class="nf">pupil_focal_coef_jacobian</span><span class="p">(</span>
+<a id="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-369" name="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-369"></a>    <span class="n">u</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span>
+<a id="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-370" name="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-370"></a>    <span class="n">nterm</span><span class="p">,</span>
+<a id="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-371" name="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-371"></a>    <span class="n">R_outer</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">R_inner</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span>
+<a id="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-372" name="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-372"></a>    <span class="n">focal_length</span><span class="p">,</span>
+<a id="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-373" name="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-373"></a>    <span class="n">pixel_scale</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span>
+<a id="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-374" name="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-374"></a><span class="p">):</span>
+<a id="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-375" name="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-375"></a><span class="w">    </span><span class="sd">"""Derivative of projected focal position with respect to each Zernike.</span>
+<a id="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-376" name="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-376"></a>
+<a id="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-377" name="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-377"></a><span class="sd">    `pupil_to_focal` evaluates the gradient of a Zernike series, and that</span>
+<a id="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-378" name="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-378"></a><span class="sd">    series is linear in its coefficients, so the projected position of a fixed</span>
+<a id="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-379" name="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-379"></a><span class="sd">    pupil point is linear in the aberrations.  Its derivative is therefore a</span>
+<a id="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-380" name="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-380"></a><span class="sd">    constant matrix: independent of the aberrations, fixed by the pupil points</span>
+<a id="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-381" name="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-381"></a><span class="sd">    alone.  Evaluating it once lets a fitter replace a Zernike evaluation per</span>
+<a id="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-382" name="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-382"></a><span class="sd">    model call with a single matrix product, and gives the exact</span>
+<a id="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-383" name="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-383"></a><span class="sd">    d(position)/d(coefficient) that an analytic Jacobian needs.</span>
+<a id="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-384" name="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-384"></a>
+<a id="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-385" name="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-385"></a><span class="sd">    Parameters</span>
+<a id="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-386" name="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-386"></a><span class="sd">    ----------</span>
+<a id="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-387" name="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-387"></a><span class="sd">    u, v : array of float</span>
+<a id="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-388" name="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-388"></a><span class="sd">        Pupil coordinates in meters.</span>
+<a id="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-389" name="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-389"></a><span class="sd">    nterm : int</span>
+<a id="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-390" name="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-390"></a><span class="sd">        Number of leading Zernike coefficients to differentiate with respect</span>
+<a id="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-391" name="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-391"></a><span class="sd">        to.  Only these get a column; the derivative with respect to the rest</span>
+<a id="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-392" name="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-392"></a><span class="sd">        of the series is not returned because a fitter holds them fixed.  See</span>
+<a id="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-393" name="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-393"></a><span class="sd">        `pupil_to_focal_basis`, which pairs these columns with the position</span>
+<a id="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-394" name="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-394"></a><span class="sd">        those fixed coefficients project to.</span>
+<a id="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-395" name="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-395"></a><span class="sd">    R_outer, R_inner : float, optional</span>
+<a id="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-396" name="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-396"></a><span class="sd">        Annulus outer and inner radii in meters.</span>
+<a id="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-397" name="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-397"></a><span class="sd">    focal_length : float</span>
+<a id="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-398" name="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-398"></a><span class="sd">        Focal length in meters.</span>
+<a id="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-399" name="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-399"></a><span class="sd">    pixel_scale : float, optional</span>
+<a id="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-400" name="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-400"></a><span class="sd">        Pixel scale in meters.  Defaults to 1.0, i.e. focal coordinates in</span>
+<a id="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-401" name="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-401"></a><span class="sd">        meters rather than pixels.</span>
+<a id="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-402" name="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-402"></a>
+<a id="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-403" name="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-403"></a><span class="sd">    Returns</span>
+<a id="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-404" name="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-404"></a><span class="sd">    -------</span>
+<a id="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-405" name="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-405"></a><span class="sd">    dxdz, dydz : array of float, shape (len(u), nterm)</span>
+<a id="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-406" name="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-406"></a><span class="sd">        Derivative of focal x and y with respect to each Zernike coefficient.</span>
+<a id="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-407" name="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-407"></a><span class="sd">        Column 0 is zero: Noll indexing starts at 1, so `aberrations[0]` is</span>
+<a id="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-408" name="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-408"></a><span class="sd">        unused.</span>
+<a id="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-409" name="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-409"></a><span class="sd">    """</span>
+<a id="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-410" name="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-410"></a>    <span class="c1"># _pupil_to_focal maps (u, v) through the gradient of the scaled series,</span>
+<a id="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-411" name="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-411"></a>    <span class="c1"># x = -focal_length * dW/du, so the derivative with respect to coefficient</span>
+<a id="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-412" name="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-412"></a>    <span class="c1"># j is just that of the jth basis polynomial.</span>
+<a id="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-413" name="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-413"></a>    <span class="n">gradx</span><span class="p">,</span> <span class="n">grady</span> <span class="o">=</span> <span class="n">galsim</span><span class="o">.</span><span class="n">zernike</span><span class="o">.</span><span class="n">zernikeGradBases</span><span class="p">(</span>
+<a id="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-414" name="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-414"></a>        <span class="n">nterm</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">R_outer</span><span class="o">=</span><span class="n">R_outer</span><span class="p">,</span> <span class="n">R_inner</span><span class="o">=</span><span class="n">R_inner</span>
+<a id="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-415" name="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-415"></a>    <span class="p">)</span>
+<a id="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-416" name="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-416"></a>    <span class="n">scale</span> <span class="o">=</span> <span class="o">-</span><span class="n">focal_length</span><span class="o">/</span><span class="n">pixel_scale</span>
+<a id="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-417" name="danish.factory.pupil_focal_coef_jacobian--source--__codelineno-0-417"></a>    <span class="k">return</span> <span class="n">gradx</span><span class="o">.</span><span class="n">T</span><span class="o">*</span><span class="n">scale</span><span class="p">,</span> <span class="n">grady</span><span class="o">.</span><span class="n">T</span><span class="o">*</span><span class="n">scale</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="danish.factory.pupil_to_focal_basis" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">danish.factory.pupil_to_focal_basis</span>
+
+
+<a href="#danish.factory.pupil_to_focal_basis" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="doc-signature highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">pupil_to_focal_basis</span><span class="p">(</span><span class="n">u</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">aberrations</span><span class="p">,</span> <span class="n">nterm</span><span class="p">,</span> <span class="n">R_outer</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">R_inner</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">focal_length</span><span class="p">,</span> <span class="n">pixel_scale</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">x_offset</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">y_offset</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Split <code>pupil_to_focal</code> into a constant part and a linear map.</p>
+<p>Returns the pieces needed to evaluate</p>
+<div class="highlight"><pre><span></span><code>x, y = x0 + dxdz @ ab[:nterm],  y0 + dydz @ ab[:nterm]
+</code></pre></div>
+<p>for any aberration vector sharing this one's tail.  A fitter varies only
+the leading <code>nterm</code> coefficients, so <code>x0</code>/<code>y0</code> -- which carry the fixed
+remainder of the reference wavefront plus any focal-plane offsets -- stay
+valid for the whole fit and the per-call work collapses to one matrix
+product.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>u</code>
+            </td>
+            <td>
+                  <code>array of float</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Pupil coordinates in meters.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>v</code>
+            </td>
+            <td>
+                  <code>array of float</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Pupil coordinates in meters.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>aberrations</code>
+            </td>
+            <td>
+                  <code>array of float</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Reference aberrations in meters.  May be longer than <code>nterm</code>: entries
+from <code>nterm</code> on are the fixed part and contribute to <code>x0</code>/<code>y0</code>, while
+the leading ones are ignored here and supplied per call instead.  The
+split is exact, not a truncation -- nothing is dropped.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>nterm</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Number of leading coefficients the caller intends to vary.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>R_outer</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Annulus outer and inner radii in meters.</p>
+              </div>
+            </td>
+            <td>
+                  <code>1.0</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>R_inner</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Annulus outer and inner radii in meters.</p>
+              </div>
+            </td>
+            <td>
+                  <code>1.0</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>focal_length</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Focal length in meters.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>pixel_scale</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Pixel scale in meters.  Defaults to 1.0.</p>
+              </div>
+            </td>
+            <td>
+                  <code>1.0</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>x_offset</code>
+            </td>
+            <td>
+                  <code><span title="galsim.zernike.Zernike">Zernike</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Additional focal plane offsets (in meters) represented as Zernike
+series.  Constant in the aberrations, so they land in <code>x0</code>/<code>y0</code>.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>y_offset</code>
+            </td>
+            <td>
+                  <code><span title="galsim.zernike.Zernike">Zernike</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Additional focal plane offsets (in meters) represented as Zernike
+series.  Constant in the aberrations, so they land in <code>x0</code>/<code>y0</code>.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code>x0, y0 : array of float</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Focal coordinates from the fixed part of the wavefront.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code>dxdz, dydz : array of float, shape (len(u), nterm)</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Derivative with respect to each varied coefficient, from
+<code>pupil_focal_coef_jacobian</code>.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+            <details class="mkdocstrings-source">
+              <summary>Source code in <code>danish/factory.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#danish.factory.pupil_to_focal_basis--source--__codelineno-0-420">420</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal_basis--source--__codelineno-0-421">421</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal_basis--source--__codelineno-0-422">422</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal_basis--source--__codelineno-0-423">423</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal_basis--source--__codelineno-0-424">424</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal_basis--source--__codelineno-0-425">425</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal_basis--source--__codelineno-0-426">426</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal_basis--source--__codelineno-0-427">427</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal_basis--source--__codelineno-0-428">428</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal_basis--source--__codelineno-0-429">429</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal_basis--source--__codelineno-0-430">430</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal_basis--source--__codelineno-0-431">431</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal_basis--source--__codelineno-0-432">432</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal_basis--source--__codelineno-0-433">433</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal_basis--source--__codelineno-0-434">434</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal_basis--source--__codelineno-0-435">435</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal_basis--source--__codelineno-0-436">436</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal_basis--source--__codelineno-0-437">437</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal_basis--source--__codelineno-0-438">438</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal_basis--source--__codelineno-0-439">439</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal_basis--source--__codelineno-0-440">440</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal_basis--source--__codelineno-0-441">441</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal_basis--source--__codelineno-0-442">442</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal_basis--source--__codelineno-0-443">443</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal_basis--source--__codelineno-0-444">444</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal_basis--source--__codelineno-0-445">445</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal_basis--source--__codelineno-0-446">446</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal_basis--source--__codelineno-0-447">447</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal_basis--source--__codelineno-0-448">448</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal_basis--source--__codelineno-0-449">449</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal_basis--source--__codelineno-0-450">450</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal_basis--source--__codelineno-0-451">451</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal_basis--source--__codelineno-0-452">452</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal_basis--source--__codelineno-0-453">453</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal_basis--source--__codelineno-0-454">454</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal_basis--source--__codelineno-0-455">455</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal_basis--source--__codelineno-0-456">456</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal_basis--source--__codelineno-0-457">457</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal_basis--source--__codelineno-0-458">458</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal_basis--source--__codelineno-0-459">459</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal_basis--source--__codelineno-0-460">460</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal_basis--source--__codelineno-0-461">461</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal_basis--source--__codelineno-0-462">462</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal_basis--source--__codelineno-0-463">463</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal_basis--source--__codelineno-0-464">464</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal_basis--source--__codelineno-0-465">465</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal_basis--source--__codelineno-0-466">466</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal_basis--source--__codelineno-0-467">467</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal_basis--source--__codelineno-0-468">468</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal_basis--source--__codelineno-0-469">469</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal_basis--source--__codelineno-0-470">470</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal_basis--source--__codelineno-0-471">471</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal_basis--source--__codelineno-0-472">472</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal_basis--source--__codelineno-0-473">473</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal_basis--source--__codelineno-0-474">474</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal_basis--source--__codelineno-0-475">475</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal_basis--source--__codelineno-0-476">476</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal_basis--source--__codelineno-0-477">477</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal_basis--source--__codelineno-0-478">478</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal_basis--source--__codelineno-0-479">479</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal_basis--source--__codelineno-0-480">480</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal_basis--source--__codelineno-0-481">481</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal_basis--source--__codelineno-0-482">482</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal_basis--source--__codelineno-0-483">483</a></span>
+<span class="normal"><a href="#danish.factory.pupil_to_focal_basis--source--__codelineno-0-484">484</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="danish.factory.pupil_to_focal_basis--source--__codelineno-0-420" name="danish.factory.pupil_to_focal_basis--source--__codelineno-0-420"></a><span class="k">def</span><span class="w"> </span><span class="nf">pupil_to_focal_basis</span><span class="p">(</span>
+<a id="danish.factory.pupil_to_focal_basis--source--__codelineno-0-421" name="danish.factory.pupil_to_focal_basis--source--__codelineno-0-421"></a>    <span class="n">u</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span>
+<a id="danish.factory.pupil_to_focal_basis--source--__codelineno-0-422" name="danish.factory.pupil_to_focal_basis--source--__codelineno-0-422"></a>    <span class="n">aberrations</span><span class="p">,</span> <span class="n">nterm</span><span class="p">,</span>
+<a id="danish.factory.pupil_to_focal_basis--source--__codelineno-0-423" name="danish.factory.pupil_to_focal_basis--source--__codelineno-0-423"></a>    <span class="n">R_outer</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">R_inner</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span>
+<a id="danish.factory.pupil_to_focal_basis--source--__codelineno-0-424" name="danish.factory.pupil_to_focal_basis--source--__codelineno-0-424"></a>    <span class="n">focal_length</span><span class="p">,</span>
+<a id="danish.factory.pupil_to_focal_basis--source--__codelineno-0-425" name="danish.factory.pupil_to_focal_basis--source--__codelineno-0-425"></a>    <span class="n">pixel_scale</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span>
+<a id="danish.factory.pupil_to_focal_basis--source--__codelineno-0-426" name="danish.factory.pupil_to_focal_basis--source--__codelineno-0-426"></a>    <span class="n">x_offset</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">y_offset</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+<a id="danish.factory.pupil_to_focal_basis--source--__codelineno-0-427" name="danish.factory.pupil_to_focal_basis--source--__codelineno-0-427"></a><span class="p">):</span>
+<a id="danish.factory.pupil_to_focal_basis--source--__codelineno-0-428" name="danish.factory.pupil_to_focal_basis--source--__codelineno-0-428"></a><span class="w">    </span><span class="sd">"""Split `pupil_to_focal` into a constant part and a linear map.</span>
+<a id="danish.factory.pupil_to_focal_basis--source--__codelineno-0-429" name="danish.factory.pupil_to_focal_basis--source--__codelineno-0-429"></a>
+<a id="danish.factory.pupil_to_focal_basis--source--__codelineno-0-430" name="danish.factory.pupil_to_focal_basis--source--__codelineno-0-430"></a><span class="sd">    Returns the pieces needed to evaluate</span>
+<a id="danish.factory.pupil_to_focal_basis--source--__codelineno-0-431" name="danish.factory.pupil_to_focal_basis--source--__codelineno-0-431"></a>
+<a id="danish.factory.pupil_to_focal_basis--source--__codelineno-0-432" name="danish.factory.pupil_to_focal_basis--source--__codelineno-0-432"></a><span class="sd">        x, y = x0 + dxdz @ ab[:nterm],  y0 + dydz @ ab[:nterm]</span>
+<a id="danish.factory.pupil_to_focal_basis--source--__codelineno-0-433" name="danish.factory.pupil_to_focal_basis--source--__codelineno-0-433"></a>
+<a id="danish.factory.pupil_to_focal_basis--source--__codelineno-0-434" name="danish.factory.pupil_to_focal_basis--source--__codelineno-0-434"></a><span class="sd">    for any aberration vector sharing this one's tail.  A fitter varies only</span>
+<a id="danish.factory.pupil_to_focal_basis--source--__codelineno-0-435" name="danish.factory.pupil_to_focal_basis--source--__codelineno-0-435"></a><span class="sd">    the leading `nterm` coefficients, so `x0`/`y0` -- which carry the fixed</span>
+<a id="danish.factory.pupil_to_focal_basis--source--__codelineno-0-436" name="danish.factory.pupil_to_focal_basis--source--__codelineno-0-436"></a><span class="sd">    remainder of the reference wavefront plus any focal-plane offsets -- stay</span>
+<a id="danish.factory.pupil_to_focal_basis--source--__codelineno-0-437" name="danish.factory.pupil_to_focal_basis--source--__codelineno-0-437"></a><span class="sd">    valid for the whole fit and the per-call work collapses to one matrix</span>
+<a id="danish.factory.pupil_to_focal_basis--source--__codelineno-0-438" name="danish.factory.pupil_to_focal_basis--source--__codelineno-0-438"></a><span class="sd">    product.</span>
+<a id="danish.factory.pupil_to_focal_basis--source--__codelineno-0-439" name="danish.factory.pupil_to_focal_basis--source--__codelineno-0-439"></a>
+<a id="danish.factory.pupil_to_focal_basis--source--__codelineno-0-440" name="danish.factory.pupil_to_focal_basis--source--__codelineno-0-440"></a><span class="sd">    Parameters</span>
+<a id="danish.factory.pupil_to_focal_basis--source--__codelineno-0-441" name="danish.factory.pupil_to_focal_basis--source--__codelineno-0-441"></a><span class="sd">    ----------</span>
+<a id="danish.factory.pupil_to_focal_basis--source--__codelineno-0-442" name="danish.factory.pupil_to_focal_basis--source--__codelineno-0-442"></a><span class="sd">    u, v : array of float</span>
+<a id="danish.factory.pupil_to_focal_basis--source--__codelineno-0-443" name="danish.factory.pupil_to_focal_basis--source--__codelineno-0-443"></a><span class="sd">        Pupil coordinates in meters.</span>
+<a id="danish.factory.pupil_to_focal_basis--source--__codelineno-0-444" name="danish.factory.pupil_to_focal_basis--source--__codelineno-0-444"></a><span class="sd">    aberrations : array of float</span>
+<a id="danish.factory.pupil_to_focal_basis--source--__codelineno-0-445" name="danish.factory.pupil_to_focal_basis--source--__codelineno-0-445"></a><span class="sd">        Reference aberrations in meters.  May be longer than `nterm`: entries</span>
+<a id="danish.factory.pupil_to_focal_basis--source--__codelineno-0-446" name="danish.factory.pupil_to_focal_basis--source--__codelineno-0-446"></a><span class="sd">        from `nterm` on are the fixed part and contribute to `x0`/`y0`, while</span>
+<a id="danish.factory.pupil_to_focal_basis--source--__codelineno-0-447" name="danish.factory.pupil_to_focal_basis--source--__codelineno-0-447"></a><span class="sd">        the leading ones are ignored here and supplied per call instead.  The</span>
+<a id="danish.factory.pupil_to_focal_basis--source--__codelineno-0-448" name="danish.factory.pupil_to_focal_basis--source--__codelineno-0-448"></a><span class="sd">        split is exact, not a truncation -- nothing is dropped.</span>
+<a id="danish.factory.pupil_to_focal_basis--source--__codelineno-0-449" name="danish.factory.pupil_to_focal_basis--source--__codelineno-0-449"></a><span class="sd">    nterm : int</span>
+<a id="danish.factory.pupil_to_focal_basis--source--__codelineno-0-450" name="danish.factory.pupil_to_focal_basis--source--__codelineno-0-450"></a><span class="sd">        Number of leading coefficients the caller intends to vary.</span>
+<a id="danish.factory.pupil_to_focal_basis--source--__codelineno-0-451" name="danish.factory.pupil_to_focal_basis--source--__codelineno-0-451"></a><span class="sd">    R_outer, R_inner : float, optional</span>
+<a id="danish.factory.pupil_to_focal_basis--source--__codelineno-0-452" name="danish.factory.pupil_to_focal_basis--source--__codelineno-0-452"></a><span class="sd">        Annulus outer and inner radii in meters.</span>
+<a id="danish.factory.pupil_to_focal_basis--source--__codelineno-0-453" name="danish.factory.pupil_to_focal_basis--source--__codelineno-0-453"></a><span class="sd">    focal_length : float</span>
+<a id="danish.factory.pupil_to_focal_basis--source--__codelineno-0-454" name="danish.factory.pupil_to_focal_basis--source--__codelineno-0-454"></a><span class="sd">        Focal length in meters.</span>
+<a id="danish.factory.pupil_to_focal_basis--source--__codelineno-0-455" name="danish.factory.pupil_to_focal_basis--source--__codelineno-0-455"></a><span class="sd">    pixel_scale : float, optional</span>
+<a id="danish.factory.pupil_to_focal_basis--source--__codelineno-0-456" name="danish.factory.pupil_to_focal_basis--source--__codelineno-0-456"></a><span class="sd">        Pixel scale in meters.  Defaults to 1.0.</span>
+<a id="danish.factory.pupil_to_focal_basis--source--__codelineno-0-457" name="danish.factory.pupil_to_focal_basis--source--__codelineno-0-457"></a><span class="sd">    x_offset, y_offset : galsim.zernike.Zernike, optional</span>
+<a id="danish.factory.pupil_to_focal_basis--source--__codelineno-0-458" name="danish.factory.pupil_to_focal_basis--source--__codelineno-0-458"></a><span class="sd">        Additional focal plane offsets (in meters) represented as Zernike</span>
+<a id="danish.factory.pupil_to_focal_basis--source--__codelineno-0-459" name="danish.factory.pupil_to_focal_basis--source--__codelineno-0-459"></a><span class="sd">        series.  Constant in the aberrations, so they land in `x0`/`y0`.</span>
+<a id="danish.factory.pupil_to_focal_basis--source--__codelineno-0-460" name="danish.factory.pupil_to_focal_basis--source--__codelineno-0-460"></a>
+<a id="danish.factory.pupil_to_focal_basis--source--__codelineno-0-461" name="danish.factory.pupil_to_focal_basis--source--__codelineno-0-461"></a><span class="sd">    Returns</span>
+<a id="danish.factory.pupil_to_focal_basis--source--__codelineno-0-462" name="danish.factory.pupil_to_focal_basis--source--__codelineno-0-462"></a><span class="sd">    -------</span>
+<a id="danish.factory.pupil_to_focal_basis--source--__codelineno-0-463" name="danish.factory.pupil_to_focal_basis--source--__codelineno-0-463"></a><span class="sd">    x0, y0 : array of float</span>
+<a id="danish.factory.pupil_to_focal_basis--source--__codelineno-0-464" name="danish.factory.pupil_to_focal_basis--source--__codelineno-0-464"></a><span class="sd">        Focal coordinates from the fixed part of the wavefront.</span>
+<a id="danish.factory.pupil_to_focal_basis--source--__codelineno-0-465" name="danish.factory.pupil_to_focal_basis--source--__codelineno-0-465"></a><span class="sd">    dxdz, dydz : array of float, shape (len(u), nterm)</span>
+<a id="danish.factory.pupil_to_focal_basis--source--__codelineno-0-466" name="danish.factory.pupil_to_focal_basis--source--__codelineno-0-466"></a><span class="sd">        Derivative with respect to each varied coefficient, from</span>
+<a id="danish.factory.pupil_to_focal_basis--source--__codelineno-0-467" name="danish.factory.pupil_to_focal_basis--source--__codelineno-0-467"></a><span class="sd">        `pupil_focal_coef_jacobian`.</span>
+<a id="danish.factory.pupil_to_focal_basis--source--__codelineno-0-468" name="danish.factory.pupil_to_focal_basis--source--__codelineno-0-468"></a><span class="sd">    """</span>
+<a id="danish.factory.pupil_to_focal_basis--source--__codelineno-0-469" name="danish.factory.pupil_to_focal_basis--source--__codelineno-0-469"></a>    <span class="n">tail</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">aberrations</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+<a id="danish.factory.pupil_to_focal_basis--source--__codelineno-0-470" name="danish.factory.pupil_to_focal_basis--source--__codelineno-0-470"></a>    <span class="n">tail</span><span class="p">[:</span><span class="n">nterm</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.0</span>
+<a id="danish.factory.pupil_to_focal_basis--source--__codelineno-0-471" name="danish.factory.pupil_to_focal_basis--source--__codelineno-0-471"></a>    <span class="n">x0</span><span class="p">,</span> <span class="n">y0</span> <span class="o">=</span> <span class="n">_pupil_to_focal</span><span class="p">(</span>
+<a id="danish.factory.pupil_to_focal_basis--source--__codelineno-0-472" name="danish.factory.pupil_to_focal_basis--source--__codelineno-0-472"></a>        <span class="n">u</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span>
+<a id="danish.factory.pupil_to_focal_basis--source--__codelineno-0-473" name="danish.factory.pupil_to_focal_basis--source--__codelineno-0-473"></a>        <span class="n">galsim</span><span class="o">.</span><span class="n">zernike</span><span class="o">.</span><span class="n">Zernike</span><span class="p">(</span><span class="n">tail</span><span class="p">,</span> <span class="n">R_outer</span><span class="o">=</span><span class="n">R_outer</span><span class="p">,</span> <span class="n">R_inner</span><span class="o">=</span><span class="n">R_inner</span><span class="p">),</span>
+<a id="danish.factory.pupil_to_focal_basis--source--__codelineno-0-474" name="danish.factory.pupil_to_focal_basis--source--__codelineno-0-474"></a>        <span class="n">focal_length</span><span class="o">=</span><span class="n">focal_length</span><span class="p">,</span>
+<a id="danish.factory.pupil_to_focal_basis--source--__codelineno-0-475" name="danish.factory.pupil_to_focal_basis--source--__codelineno-0-475"></a>        <span class="n">x_offset</span><span class="o">=</span><span class="n">x_offset</span><span class="p">,</span> <span class="n">y_offset</span><span class="o">=</span><span class="n">y_offset</span><span class="p">,</span>
+<a id="danish.factory.pupil_to_focal_basis--source--__codelineno-0-476" name="danish.factory.pupil_to_focal_basis--source--__codelineno-0-476"></a>    <span class="p">)</span>
+<a id="danish.factory.pupil_to_focal_basis--source--__codelineno-0-477" name="danish.factory.pupil_to_focal_basis--source--__codelineno-0-477"></a>    <span class="n">dxdz</span><span class="p">,</span> <span class="n">dydz</span> <span class="o">=</span> <span class="n">pupil_focal_coef_jacobian</span><span class="p">(</span>
+<a id="danish.factory.pupil_to_focal_basis--source--__codelineno-0-478" name="danish.factory.pupil_to_focal_basis--source--__codelineno-0-478"></a>        <span class="n">u</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span>
+<a id="danish.factory.pupil_to_focal_basis--source--__codelineno-0-479" name="danish.factory.pupil_to_focal_basis--source--__codelineno-0-479"></a>        <span class="n">nterm</span><span class="o">=</span><span class="n">nterm</span><span class="p">,</span>
+<a id="danish.factory.pupil_to_focal_basis--source--__codelineno-0-480" name="danish.factory.pupil_to_focal_basis--source--__codelineno-0-480"></a>        <span class="n">R_outer</span><span class="o">=</span><span class="n">R_outer</span><span class="p">,</span> <span class="n">R_inner</span><span class="o">=</span><span class="n">R_inner</span><span class="p">,</span>
+<a id="danish.factory.pupil_to_focal_basis--source--__codelineno-0-481" name="danish.factory.pupil_to_focal_basis--source--__codelineno-0-481"></a>        <span class="n">focal_length</span><span class="o">=</span><span class="n">focal_length</span><span class="p">,</span>
+<a id="danish.factory.pupil_to_focal_basis--source--__codelineno-0-482" name="danish.factory.pupil_to_focal_basis--source--__codelineno-0-482"></a>        <span class="n">pixel_scale</span><span class="o">=</span><span class="n">pixel_scale</span><span class="p">,</span>
+<a id="danish.factory.pupil_to_focal_basis--source--__codelineno-0-483" name="danish.factory.pupil_to_focal_basis--source--__codelineno-0-483"></a>    <span class="p">)</span>
+<a id="danish.factory.pupil_to_focal_basis--source--__codelineno-0-484" name="danish.factory.pupil_to_focal_basis--source--__codelineno-0-484"></a>    <span class="k">return</span> <span class="n">x0</span><span class="o">/</span><span class="n">pixel_scale</span><span class="p">,</span> <span class="n">y0</span><span class="o">/</span><span class="n">pixel_scale</span><span class="p">,</span> <span class="n">dxdz</span><span class="p">,</span> <span class="n">dydz</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div><h2 id="pupil-sampling">Pupil sampling<a class="headerlink" href="#pupil-sampling" title="Permanent link">&para;</a></h2>
+
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="danish.factory.enclosed_fraction" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">danish.factory.enclosed_fraction</span>
+
+
+<a href="#danish.factory.enclosed_fraction" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="doc-signature highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">enclosed_fraction</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">u0</span><span class="p">,</span> <span class="n">v0</span><span class="p">,</span> <span class="n">radius</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">Z</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">aberrations</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">R_outer</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">R_inner</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">focal_length</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">x_offset</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">y_offset</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">pixel_scale</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Compute fraction of pixels enclosed by circles defined on the pupil.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>x</code>
+            </td>
+            <td>
+                  <code>array of float</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Pixel coordinates.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>y</code>
+            </td>
+            <td>
+                  <code>array of float</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Pixel coordinates.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>u</code>
+            </td>
+            <td>
+                  <code>array of float</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Pupil coordinates in meters.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>v</code>
+            </td>
+            <td>
+                  <code>array of float</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Pupil coordinates in meters.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>u0</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Pupil coordinates of circle center in meters.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>v0</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Pupil coordinates of circle center in meters.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>radius</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Circle radius in meters.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>Z</code>
+            </td>
+            <td>
+                  <code><span title="galsim.zernike.Zernike">Zernike</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Aberrations in meters.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>aberrations</code>
+            </td>
+            <td>
+                  <code>array of float</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Aberrations in meters.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>R_outer</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Annulus outer and inner radii in meters.</p>
+              </div>
+            </td>
+            <td>
+                  <code>1.0</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>R_inner</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Annulus outer and inner radii in meters.</p>
+              </div>
+            </td>
+            <td>
+                  <code>1.0</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>focal_length</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Focal length in meters.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>x_offset</code>
+            </td>
+            <td>
+                  <code><span title="galsim.zernike.Zernike">Zernike</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Additional focal plane offsets (in meters) represented as Zernike
+series.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>y_offset</code>
+            </td>
+            <td>
+                  <code><span title="galsim.zernike.Zernike">Zernike</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Additional focal plane offsets (in meters) represented as Zernike
+series.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>pixel_scale</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Pixel scale in meters.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+<th>Name</th>          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+<td><code>enclosed</code></td>            <td>
+                  <code>array of float, congruent to x or y</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Each pixel's enclosed fraction between 0, 1.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+            <details class="mkdocstrings-source">
+              <summary>Source code in <code>danish/factory.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#danish.factory.enclosed_fraction--source--__codelineno-0-866">866</a></span>
+<span class="normal"><a href="#danish.factory.enclosed_fraction--source--__codelineno-0-867">867</a></span>
+<span class="normal"><a href="#danish.factory.enclosed_fraction--source--__codelineno-0-868">868</a></span>
+<span class="normal"><a href="#danish.factory.enclosed_fraction--source--__codelineno-0-869">869</a></span>
+<span class="normal"><a href="#danish.factory.enclosed_fraction--source--__codelineno-0-870">870</a></span>
+<span class="normal"><a href="#danish.factory.enclosed_fraction--source--__codelineno-0-871">871</a></span>
+<span class="normal"><a href="#danish.factory.enclosed_fraction--source--__codelineno-0-872">872</a></span>
+<span class="normal"><a href="#danish.factory.enclosed_fraction--source--__codelineno-0-873">873</a></span>
+<span class="normal"><a href="#danish.factory.enclosed_fraction--source--__codelineno-0-874">874</a></span>
+<span class="normal"><a href="#danish.factory.enclosed_fraction--source--__codelineno-0-875">875</a></span>
+<span class="normal"><a href="#danish.factory.enclosed_fraction--source--__codelineno-0-876">876</a></span>
+<span class="normal"><a href="#danish.factory.enclosed_fraction--source--__codelineno-0-877">877</a></span>
+<span class="normal"><a href="#danish.factory.enclosed_fraction--source--__codelineno-0-878">878</a></span>
+<span class="normal"><a href="#danish.factory.enclosed_fraction--source--__codelineno-0-879">879</a></span>
+<span class="normal"><a href="#danish.factory.enclosed_fraction--source--__codelineno-0-880">880</a></span>
+<span class="normal"><a href="#danish.factory.enclosed_fraction--source--__codelineno-0-881">881</a></span>
+<span class="normal"><a href="#danish.factory.enclosed_fraction--source--__codelineno-0-882">882</a></span>
+<span class="normal"><a href="#danish.factory.enclosed_fraction--source--__codelineno-0-883">883</a></span>
+<span class="normal"><a href="#danish.factory.enclosed_fraction--source--__codelineno-0-884">884</a></span>
+<span class="normal"><a href="#danish.factory.enclosed_fraction--source--__codelineno-0-885">885</a></span>
+<span class="normal"><a href="#danish.factory.enclosed_fraction--source--__codelineno-0-886">886</a></span>
+<span class="normal"><a href="#danish.factory.enclosed_fraction--source--__codelineno-0-887">887</a></span>
+<span class="normal"><a href="#danish.factory.enclosed_fraction--source--__codelineno-0-888">888</a></span>
+<span class="normal"><a href="#danish.factory.enclosed_fraction--source--__codelineno-0-889">889</a></span>
+<span class="normal"><a href="#danish.factory.enclosed_fraction--source--__codelineno-0-890">890</a></span>
+<span class="normal"><a href="#danish.factory.enclosed_fraction--source--__codelineno-0-891">891</a></span>
+<span class="normal"><a href="#danish.factory.enclosed_fraction--source--__codelineno-0-892">892</a></span>
+<span class="normal"><a href="#danish.factory.enclosed_fraction--source--__codelineno-0-893">893</a></span>
+<span class="normal"><a href="#danish.factory.enclosed_fraction--source--__codelineno-0-894">894</a></span>
+<span class="normal"><a href="#danish.factory.enclosed_fraction--source--__codelineno-0-895">895</a></span>
+<span class="normal"><a href="#danish.factory.enclosed_fraction--source--__codelineno-0-896">896</a></span>
+<span class="normal"><a href="#danish.factory.enclosed_fraction--source--__codelineno-0-897">897</a></span>
+<span class="normal"><a href="#danish.factory.enclosed_fraction--source--__codelineno-0-898">898</a></span>
+<span class="normal"><a href="#danish.factory.enclosed_fraction--source--__codelineno-0-899">899</a></span>
+<span class="normal"><a href="#danish.factory.enclosed_fraction--source--__codelineno-0-900">900</a></span>
+<span class="normal"><a href="#danish.factory.enclosed_fraction--source--__codelineno-0-901">901</a></span>
+<span class="normal"><a href="#danish.factory.enclosed_fraction--source--__codelineno-0-902">902</a></span>
+<span class="normal"><a href="#danish.factory.enclosed_fraction--source--__codelineno-0-903">903</a></span>
+<span class="normal"><a href="#danish.factory.enclosed_fraction--source--__codelineno-0-904">904</a></span>
+<span class="normal"><a href="#danish.factory.enclosed_fraction--source--__codelineno-0-905">905</a></span>
+<span class="normal"><a href="#danish.factory.enclosed_fraction--source--__codelineno-0-906">906</a></span>
+<span class="normal"><a href="#danish.factory.enclosed_fraction--source--__codelineno-0-907">907</a></span>
+<span class="normal"><a href="#danish.factory.enclosed_fraction--source--__codelineno-0-908">908</a></span>
+<span class="normal"><a href="#danish.factory.enclosed_fraction--source--__codelineno-0-909">909</a></span>
+<span class="normal"><a href="#danish.factory.enclosed_fraction--source--__codelineno-0-910">910</a></span>
+<span class="normal"><a href="#danish.factory.enclosed_fraction--source--__codelineno-0-911">911</a></span>
+<span class="normal"><a href="#danish.factory.enclosed_fraction--source--__codelineno-0-912">912</a></span>
+<span class="normal"><a href="#danish.factory.enclosed_fraction--source--__codelineno-0-913">913</a></span>
+<span class="normal"><a href="#danish.factory.enclosed_fraction--source--__codelineno-0-914">914</a></span>
+<span class="normal"><a href="#danish.factory.enclosed_fraction--source--__codelineno-0-915">915</a></span>
+<span class="normal"><a href="#danish.factory.enclosed_fraction--source--__codelineno-0-916">916</a></span>
+<span class="normal"><a href="#danish.factory.enclosed_fraction--source--__codelineno-0-917">917</a></span>
+<span class="normal"><a href="#danish.factory.enclosed_fraction--source--__codelineno-0-918">918</a></span>
+<span class="normal"><a href="#danish.factory.enclosed_fraction--source--__codelineno-0-919">919</a></span>
+<span class="normal"><a href="#danish.factory.enclosed_fraction--source--__codelineno-0-920">920</a></span>
+<span class="normal"><a href="#danish.factory.enclosed_fraction--source--__codelineno-0-921">921</a></span>
+<span class="normal"><a href="#danish.factory.enclosed_fraction--source--__codelineno-0-922">922</a></span>
+<span class="normal"><a href="#danish.factory.enclosed_fraction--source--__codelineno-0-923">923</a></span>
+<span class="normal"><a href="#danish.factory.enclosed_fraction--source--__codelineno-0-924">924</a></span>
+<span class="normal"><a href="#danish.factory.enclosed_fraction--source--__codelineno-0-925">925</a></span>
+<span class="normal"><a href="#danish.factory.enclosed_fraction--source--__codelineno-0-926">926</a></span>
+<span class="normal"><a href="#danish.factory.enclosed_fraction--source--__codelineno-0-927">927</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="danish.factory.enclosed_fraction--source--__codelineno-0-866" name="danish.factory.enclosed_fraction--source--__codelineno-0-866"></a><span class="k">def</span><span class="w"> </span><span class="nf">enclosed_fraction</span><span class="p">(</span>
+<a id="danish.factory.enclosed_fraction--source--__codelineno-0-867" name="danish.factory.enclosed_fraction--source--__codelineno-0-867"></a>    <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span>
+<a id="danish.factory.enclosed_fraction--source--__codelineno-0-868" name="danish.factory.enclosed_fraction--source--__codelineno-0-868"></a>    <span class="n">u</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span>
+<a id="danish.factory.enclosed_fraction--source--__codelineno-0-869" name="danish.factory.enclosed_fraction--source--__codelineno-0-869"></a>    <span class="n">u0</span><span class="p">,</span> <span class="n">v0</span><span class="p">,</span> <span class="n">radius</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span>
+<a id="danish.factory.enclosed_fraction--source--__codelineno-0-870" name="danish.factory.enclosed_fraction--source--__codelineno-0-870"></a>    <span class="n">Z</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">aberrations</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">R_outer</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">R_inner</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span>
+<a id="danish.factory.enclosed_fraction--source--__codelineno-0-871" name="danish.factory.enclosed_fraction--source--__codelineno-0-871"></a>    <span class="n">focal_length</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+<a id="danish.factory.enclosed_fraction--source--__codelineno-0-872" name="danish.factory.enclosed_fraction--source--__codelineno-0-872"></a>    <span class="n">x_offset</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">y_offset</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+<a id="danish.factory.enclosed_fraction--source--__codelineno-0-873" name="danish.factory.enclosed_fraction--source--__codelineno-0-873"></a>    <span class="n">pixel_scale</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+<a id="danish.factory.enclosed_fraction--source--__codelineno-0-874" name="danish.factory.enclosed_fraction--source--__codelineno-0-874"></a><span class="p">):</span>
+<a id="danish.factory.enclosed_fraction--source--__codelineno-0-875" name="danish.factory.enclosed_fraction--source--__codelineno-0-875"></a><span class="w">    </span><span class="sd">"""Compute fraction of pixels enclosed by circles defined on the pupil.</span>
+<a id="danish.factory.enclosed_fraction--source--__codelineno-0-876" name="danish.factory.enclosed_fraction--source--__codelineno-0-876"></a>
+<a id="danish.factory.enclosed_fraction--source--__codelineno-0-877" name="danish.factory.enclosed_fraction--source--__codelineno-0-877"></a><span class="sd">    Parameters</span>
+<a id="danish.factory.enclosed_fraction--source--__codelineno-0-878" name="danish.factory.enclosed_fraction--source--__codelineno-0-878"></a><span class="sd">    ----------</span>
+<a id="danish.factory.enclosed_fraction--source--__codelineno-0-879" name="danish.factory.enclosed_fraction--source--__codelineno-0-879"></a><span class="sd">    x, y : array of float</span>
+<a id="danish.factory.enclosed_fraction--source--__codelineno-0-880" name="danish.factory.enclosed_fraction--source--__codelineno-0-880"></a><span class="sd">        Pixel coordinates.</span>
+<a id="danish.factory.enclosed_fraction--source--__codelineno-0-881" name="danish.factory.enclosed_fraction--source--__codelineno-0-881"></a><span class="sd">    u, v : array of float</span>
+<a id="danish.factory.enclosed_fraction--source--__codelineno-0-882" name="danish.factory.enclosed_fraction--source--__codelineno-0-882"></a><span class="sd">        Pupil coordinates in meters.</span>
+<a id="danish.factory.enclosed_fraction--source--__codelineno-0-883" name="danish.factory.enclosed_fraction--source--__codelineno-0-883"></a><span class="sd">    u0, v0 : float</span>
+<a id="danish.factory.enclosed_fraction--source--__codelineno-0-884" name="danish.factory.enclosed_fraction--source--__codelineno-0-884"></a><span class="sd">        Pupil coordinates of circle center in meters.</span>
+<a id="danish.factory.enclosed_fraction--source--__codelineno-0-885" name="danish.factory.enclosed_fraction--source--__codelineno-0-885"></a><span class="sd">    radius : float</span>
+<a id="danish.factory.enclosed_fraction--source--__codelineno-0-886" name="danish.factory.enclosed_fraction--source--__codelineno-0-886"></a><span class="sd">        Circle radius in meters.</span>
+<a id="danish.factory.enclosed_fraction--source--__codelineno-0-887" name="danish.factory.enclosed_fraction--source--__codelineno-0-887"></a><span class="sd">    Z : galsim.zernike.Zernike, optional</span>
+<a id="danish.factory.enclosed_fraction--source--__codelineno-0-888" name="danish.factory.enclosed_fraction--source--__codelineno-0-888"></a><span class="sd">        Aberrations in meters.</span>
+<a id="danish.factory.enclosed_fraction--source--__codelineno-0-889" name="danish.factory.enclosed_fraction--source--__codelineno-0-889"></a><span class="sd">    aberrations : array of float, optional</span>
+<a id="danish.factory.enclosed_fraction--source--__codelineno-0-890" name="danish.factory.enclosed_fraction--source--__codelineno-0-890"></a><span class="sd">        Aberrations in meters.</span>
+<a id="danish.factory.enclosed_fraction--source--__codelineno-0-891" name="danish.factory.enclosed_fraction--source--__codelineno-0-891"></a><span class="sd">    R_outer, R_inner : float, optional</span>
+<a id="danish.factory.enclosed_fraction--source--__codelineno-0-892" name="danish.factory.enclosed_fraction--source--__codelineno-0-892"></a><span class="sd">        Annulus outer and inner radii in meters.</span>
+<a id="danish.factory.enclosed_fraction--source--__codelineno-0-893" name="danish.factory.enclosed_fraction--source--__codelineno-0-893"></a><span class="sd">    focal_length : float</span>
+<a id="danish.factory.enclosed_fraction--source--__codelineno-0-894" name="danish.factory.enclosed_fraction--source--__codelineno-0-894"></a><span class="sd">        Focal length in meters.</span>
+<a id="danish.factory.enclosed_fraction--source--__codelineno-0-895" name="danish.factory.enclosed_fraction--source--__codelineno-0-895"></a><span class="sd">    x_offset, y_offset : galsim.zernike.Zernike, optional</span>
+<a id="danish.factory.enclosed_fraction--source--__codelineno-0-896" name="danish.factory.enclosed_fraction--source--__codelineno-0-896"></a><span class="sd">        Additional focal plane offsets (in meters) represented as Zernike</span>
+<a id="danish.factory.enclosed_fraction--source--__codelineno-0-897" name="danish.factory.enclosed_fraction--source--__codelineno-0-897"></a><span class="sd">        series.</span>
+<a id="danish.factory.enclosed_fraction--source--__codelineno-0-898" name="danish.factory.enclosed_fraction--source--__codelineno-0-898"></a><span class="sd">    pixel_scale : float</span>
+<a id="danish.factory.enclosed_fraction--source--__codelineno-0-899" name="danish.factory.enclosed_fraction--source--__codelineno-0-899"></a><span class="sd">        Pixel scale in meters.</span>
+<a id="danish.factory.enclosed_fraction--source--__codelineno-0-900" name="danish.factory.enclosed_fraction--source--__codelineno-0-900"></a>
+<a id="danish.factory.enclosed_fraction--source--__codelineno-0-901" name="danish.factory.enclosed_fraction--source--__codelineno-0-901"></a><span class="sd">    Returns</span>
+<a id="danish.factory.enclosed_fraction--source--__codelineno-0-902" name="danish.factory.enclosed_fraction--source--__codelineno-0-902"></a><span class="sd">    -------</span>
+<a id="danish.factory.enclosed_fraction--source--__codelineno-0-903" name="danish.factory.enclosed_fraction--source--__codelineno-0-903"></a><span class="sd">    enclosed : array of float, congruent to x or y</span>
+<a id="danish.factory.enclosed_fraction--source--__codelineno-0-904" name="danish.factory.enclosed_fraction--source--__codelineno-0-904"></a><span class="sd">        Each pixel's enclosed fraction between 0, 1.</span>
+<a id="danish.factory.enclosed_fraction--source--__codelineno-0-905" name="danish.factory.enclosed_fraction--source--__codelineno-0-905"></a><span class="sd">    """</span>
+<a id="danish.factory.enclosed_fraction--source--__codelineno-0-906" name="danish.factory.enclosed_fraction--source--__codelineno-0-906"></a>
+<a id="danish.factory.enclosed_fraction--source--__codelineno-0-907" name="danish.factory.enclosed_fraction--source--__codelineno-0-907"></a>    <span class="k">if</span> <span class="n">Z</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+<a id="danish.factory.enclosed_fraction--source--__codelineno-0-908" name="danish.factory.enclosed_fraction--source--__codelineno-0-908"></a>        <span class="n">Z</span> <span class="o">=</span> <span class="n">galsim</span><span class="o">.</span><span class="n">zernike</span><span class="o">.</span><span class="n">Zernike</span><span class="p">(</span>
+<a id="danish.factory.enclosed_fraction--source--__codelineno-0-909" name="danish.factory.enclosed_fraction--source--__codelineno-0-909"></a>            <span class="n">aberrations</span><span class="p">,</span> <span class="n">R_outer</span><span class="o">=</span><span class="n">R_outer</span><span class="p">,</span> <span class="n">R_inner</span><span class="o">=</span><span class="n">R_inner</span>
+<a id="danish.factory.enclosed_fraction--source--__codelineno-0-910" name="danish.factory.enclosed_fraction--source--__codelineno-0-910"></a>        <span class="p">)</span>
+<a id="danish.factory.enclosed_fraction--source--__codelineno-0-911" name="danish.factory.enclosed_fraction--source--__codelineno-0-911"></a>    <span class="k">if</span> <span class="n">focal_length</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+<a id="danish.factory.enclosed_fraction--source--__codelineno-0-912" name="danish.factory.enclosed_fraction--source--__codelineno-0-912"></a>        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"Missing focal length"</span><span class="p">)</span>
+<a id="danish.factory.enclosed_fraction--source--__codelineno-0-913" name="danish.factory.enclosed_fraction--source--__codelineno-0-913"></a>    <span class="k">if</span> <span class="n">pixel_scale</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+<a id="danish.factory.enclosed_fraction--source--__codelineno-0-914" name="danish.factory.enclosed_fraction--source--__codelineno-0-914"></a>        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"Missing pixel scale"</span><span class="p">)</span>
+<a id="danish.factory.enclosed_fraction--source--__codelineno-0-915" name="danish.factory.enclosed_fraction--source--__codelineno-0-915"></a>
+<a id="danish.factory.enclosed_fraction--source--__codelineno-0-916" name="danish.factory.enclosed_fraction--source--__codelineno-0-916"></a>    <span class="n">Z1</span> <span class="o">=</span> <span class="n">Z</span> <span class="o">*</span> <span class="n">focal_length</span> <span class="k">if</span> <span class="n">focal_length</span> <span class="k">else</span> <span class="n">Z</span>
+<a id="danish.factory.enclosed_fraction--source--__codelineno-0-917" name="danish.factory.enclosed_fraction--source--__codelineno-0-917"></a>
+<a id="danish.factory.enclosed_fraction--source--__codelineno-0-918" name="danish.factory.enclosed_fraction--source--__codelineno-0-918"></a>    <span class="n">dudx</span><span class="p">,</span> <span class="n">dudy</span><span class="p">,</span> <span class="n">dvdx</span><span class="p">,</span> <span class="n">dvdy</span> <span class="o">=</span> <span class="n">_pixel_pupil_jacobian</span><span class="p">(</span>
+<a id="danish.factory.enclosed_fraction--source--__codelineno-0-919" name="danish.factory.enclosed_fraction--source--__codelineno-0-919"></a>        <span class="n">u</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">Z1</span><span class="p">,</span>
+<a id="danish.factory.enclosed_fraction--source--__codelineno-0-920" name="danish.factory.enclosed_fraction--source--__codelineno-0-920"></a>        <span class="n">pixel_scale</span><span class="o">=</span><span class="n">pixel_scale</span><span class="p">,</span>
+<a id="danish.factory.enclosed_fraction--source--__codelineno-0-921" name="danish.factory.enclosed_fraction--source--__codelineno-0-921"></a>        <span class="n">x_offset</span><span class="o">=</span><span class="n">x_offset</span><span class="p">,</span> <span class="n">y_offset</span><span class="o">=</span><span class="n">y_offset</span>
+<a id="danish.factory.enclosed_fraction--source--__codelineno-0-922" name="danish.factory.enclosed_fraction--source--__codelineno-0-922"></a>    <span class="p">)</span>
+<a id="danish.factory.enclosed_fraction--source--__codelineno-0-923" name="danish.factory.enclosed_fraction--source--__codelineno-0-923"></a>
+<a id="danish.factory.enclosed_fraction--source--__codelineno-0-924" name="danish.factory.enclosed_fraction--source--__codelineno-0-924"></a>    <span class="k">return</span> <span class="n">_enclosed_fraction</span><span class="p">(</span>
+<a id="danish.factory.enclosed_fraction--source--__codelineno-0-925" name="danish.factory.enclosed_fraction--source--__codelineno-0-925"></a>        <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">u0</span><span class="p">,</span> <span class="n">v0</span><span class="p">,</span> <span class="n">radius</span><span class="p">,</span>
+<a id="danish.factory.enclosed_fraction--source--__codelineno-0-926" name="danish.factory.enclosed_fraction--source--__codelineno-0-926"></a>        <span class="n">dudx</span><span class="o">=</span><span class="n">dudx</span><span class="p">,</span> <span class="n">dudy</span><span class="o">=</span><span class="n">dudy</span><span class="p">,</span> <span class="n">dvdx</span><span class="o">=</span><span class="n">dvdx</span><span class="p">,</span> <span class="n">dvdy</span><span class="o">=</span><span class="n">dvdy</span>
+<a id="danish.factory.enclosed_fraction--source--__codelineno-0-927" name="danish.factory.enclosed_fraction--source--__codelineno-0-927"></a>    <span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.sections", "navigation.expand", "navigation.top", "search.highlight", "content.code.copy"], "search": "../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"default": "latest", "provider": "mike"}}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.c21346df.min.js"></script>
+      
+        <script src="../../javascripts/mathjax.js"></script>
+      
+        <script src="https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js"></script>
+      
+    
+  </body>
+</html>
