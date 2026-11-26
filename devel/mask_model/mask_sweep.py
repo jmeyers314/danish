@@ -9,6 +9,8 @@ Parameter grid (mirrors run_v3_14_sweep.sh):
                     ocs_az = ccs_az(45) + rtp
   - Piston study  : band=r, rtp=0, az=45; piston in {-1.5, +1.5} mm
   - Band study    : rtp=0, az=45, piston=0; all bands
+  - Giant donuts  : band=r, rtp=0, az=45; camera and M2 pistoned together by
+                    +4 mm (extra) and -4 mm (intra)
 
 Usage (from repo root):
     python devel/mask_model/mask_sweep.py [--outdir PATH] [--dry-run]
@@ -26,11 +28,18 @@ from tqdm import tqdm
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
 
-def stem(version, band, rtp, az, piston):
+def stem(version, band, rtp, az, piston, m2_piston=0.0):
     rtp_str    = f"{rtp:+d}".replace("+", "p").replace("-", "m")
     az_str     = f"{int(az):+d}".replace("+", "p").replace("-", "m")
     piston_str = f"{piston:+.1f}".replace("+", "p").replace("-", "m").replace(".", "d")
-    return f"v{version}_{band}_rtp{rtp_str}_az{az_str}_p{piston_str}"
+    base = f"v{version}_{band}_rtp{rtp_str}_az{az_str}_p{piston_str}"
+    if m2_piston == 0.0:
+        # No suffix when M2 is parked, so the pre-existing filenames of every
+        # earlier sweep stay exactly as they were.
+        return base
+    m2_str = (f"{m2_piston:+.1f}".replace("+", "p").replace("-", "m")
+                                 .replace(".", "d"))
+    return f"{base}_m2{m2_str}"
 
 
 def build_runs():
@@ -52,6 +61,15 @@ def build_runs():
     for band in ["u", "g", "i", "z", "y"]:   # r already in azimuth study
         runs.append(dict(band=band, rtp=0, az=45, piston=0.0))
 
+    # Giant-donut study: camera and M2 pistoned together, 4 mm each, as used
+    # for the occasional giant-donut images.  Positive is extra-focal for
+    # both knobs, so these are 4+4 extra and 4+4 intra.
+    for p in [4.0, -4.0]:
+        runs.append(dict(band="r", rtp=0, az=45, piston=p, m2_piston=p))
+
+    for r in runs:
+        r.setdefault("m2_piston", 0.0)
+
     return runs
 
 
@@ -71,7 +89,8 @@ def _run_cmd(cmd, logfile=None):
 
 def run_one(run, outdir, yamldir, args):
     band, rtp, az, piston = run["band"], run["rtp"], run["az"], run["piston"]
-    s = stem(args.version, band, rtp, az, piston)
+    m2_piston = run.get("m2_piston", 0.0)
+    s = stem(args.version, band, rtp, az, piston, m2_piston)
     edges_out = outdir / f"{s}.asdf"
     movie_out = outdir / f"{s}.mp4"
     yaml_out  = yamldir / f"RubinObsc_{s}.yaml"
@@ -99,6 +118,7 @@ def run_one(run, outdir, yamldir, args):
             "--band", band,
             "--rtp-deg", str(rtp),
             "--camera-piston-mm", str(piston),
+            "--m2-piston-mm", str(m2_piston),
             "--azimuth-deg", str(az),
             "--theta-max-deg", str(args.theta_max_deg),
             "--dtheta-deg", str(args.dtheta_deg),
@@ -122,6 +142,8 @@ def run_one(run, outdir, yamldir, args):
         "--deg", str(args.deg),
         "--diagnostics", str(yamldir / f"RubinObsc_{s}.pdf"),
     ]
+    if args.spider:
+        cmd += ["--spider", str(args.spider)]
     if _run_cmd(cmd, logfile=log_out) != 0:
         return s, "FAIL (fit)"
 
@@ -146,6 +168,11 @@ def main():
     parser.add_argument("--nrad", type=int, default=100)
     parser.add_argument("--deg", type=int, default=3,
                         help="Polynomial degree for fit_mask_edges (default: 3)")
+    parser.add_argument("--spider", type=Path, default=None,
+                        help="Spider_3D yaml from spider_from_batoid.py to "
+                             "append to every fitted yaml (default: copy the "
+                             "section from danish's reference RubinObsc.yaml, "
+                             "which only matches v1000-era optics)")
     parser.add_argument("--no-movie", action="store_true",
                         help="Skip writing the mp4 (faster)")
     parser.add_argument("--overwrite", action="store_true",
@@ -161,7 +188,8 @@ def main():
 
     if args.dry_run:
         for run in runs:
-            s = stem(args.version, run["band"], run["rtp"], run["az"], run["piston"])
+            s = stem(args.version, run["band"], run["rtp"], run["az"],
+                     run["piston"], run.get("m2_piston", 0.0))
             print(f"  {args.outdir}/{s}.asdf")
             print(f"  {args.yamldir}/RubinObsc_{s}.yaml")
         return
@@ -171,7 +199,8 @@ def main():
 
     with tqdm(runs, position=0, leave=True, unit="run") as pbar:
         for run in pbar:
-            s = stem(args.version, run["band"], run["rtp"], run["az"], run["piston"])
+            s = stem(args.version, run["band"], run["rtp"], run["az"],
+                     run["piston"], run.get("m2_piston", 0.0))
             pbar.set_description(s)
             try:
                 _, status = run_one(run, args.outdir, args.yamldir, args)

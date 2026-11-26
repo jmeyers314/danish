@@ -1,6 +1,8 @@
 edges/
 yaml/
+yaml_*/
 study_animate/
+compare/
 *.asdf
 *.mp4
 *.pdf

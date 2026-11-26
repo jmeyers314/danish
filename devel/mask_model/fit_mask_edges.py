@@ -6,6 +6,7 @@ least-squares pass.  Output is a YAML file in RubinObsc.yaml format
 compatible with danish.load_mask_params().
 """
 
+import os
 import sys
 
 import asdf
@@ -16,11 +17,29 @@ from scipy.optimize import least_squares
 
 # Rubin raytrace surface order — used to sort output YAML sections.
 # Surfaces not listed here are appended at the end in their natural order.
+# Covers every version through v4_cadaper; a version that lacks some of these
+# surfaces simply skips them.  Spider vanes are absent on purpose: they carry
+# no circular edges and are modeled by the Spider_3D section instead.
 _SURFACE_ORDER = [
-    "M1", "M2", "CameraBody", "M3",
+    # Telescope structure (v4 and later)
+    "UpperTopEnd", "LowerTopEnd",
+    *[f"M2BaffleRing{i:02d}" for i in range(1, 21)], "M2BaffleLip",
+    "UpperMidLevel", "M2Baffle", "LowerMidLevel", "CenterSection",
+    # Mirrors and camera body
+    "M1Baffle1", "M1", "M1Baffle2", "M2", "CameraBody", "M3",
+    # Camera
+    "L1ApertureRing",
     "L1_entrance", "L1_exit",
+    "L1OpticsRing",
+    *[f"AssyLightBaffle{i}" for i in range(1, 10)],
+    "L2CompositeTopRing",
+    *[f"L2LightBaffle{i}" for i in range(1, 5)],
+    "L2OpticsRing",
     "L2_entrance", "L2_exit",
+    "FilterFrontRetainer",
     "Filter_entrance", "Filter_exit",
+    "FilterRearRetainer",
+    "L3Baffle",
     "L3_entrance", "L3_exit",
 ]
 
@@ -309,14 +328,27 @@ def main(args):
             lines.append(f"    center: {_fmt_coeffs(d['center'])}")
             lines.append(f"    radius: {_fmt_coeffs(d['radius'])}")
 
-    # Append Spider_3D section from the reference RubinObsc.yaml
-    import danish
-    ref_path = danish.datadir + "/RubinObsc.yaml"
-    with open(ref_path) as f:
+    # Append the Spider_3D section.  Vanes don't come from the edge fits —
+    # both batoid and danish model them as 3D rectangles, so they're
+    # translated directly from the batoid optic by spider_from_batoid.py.
+    # Without --spider the section is copied from the reference
+    # RubinObsc.yaml, which is only correct when the traced optic's spider
+    # matches that model's.
+    if args.spider:
+        spider_path = args.spider
+    else:
+        import danish
+        spider_path = os.path.join(danish.datadir, "RubinObsc.yaml")
+    with open(spider_path) as f:
         ref = yaml.safe_load(f)
     if "Spider_3D" in ref:
         lines.append(yaml.dump({"Spider_3D": ref["Spider_3D"]},
                                default_flow_style=None).rstrip())
+        print(f"  Spider_3D: {len(ref['Spider_3D'])} vanes from "
+              f"{spider_path}", file=sys.stderr)
+    else:
+        print(f"  WARNING: no Spider_3D section in {spider_path}; output has "
+              f"no spider vanes", file=sys.stderr)
 
     yaml_text = "\n".join(lines) + "\n"
     with open(args.output, "w") as f:
@@ -354,6 +386,12 @@ if __name__ == "__main__":
     parser.add_argument(
         "--diagnostics", type=str, default=None,
         help="Save center/radius polynomial diagnostic plots to this PDF",
+    )
+    parser.add_argument(
+        "--spider", type=str, default=None,
+        help="YAML file holding the Spider_3D section to append, as written "
+             "by spider_from_batoid.py (default: copy it from danish's "
+             "reference RubinObsc.yaml)",
     )
     args = parser.parse_args()
     main(args)

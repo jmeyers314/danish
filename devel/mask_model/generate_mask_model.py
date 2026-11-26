@@ -26,7 +26,8 @@ _wavelength = None
 
 
 def build_telescope(
-    version: str, band: str, rtp_deg: float, camera_piston_mm: float = 0.0
+    version: str, band: str, rtp_deg: float, camera_piston_mm: float = 0.0,
+    m2_piston_mm: float = 0.0,
 ) -> Tuple[batoid.CompoundOptic, float]:
     """Load v3.14 optic with RTP lookup corrections and CameraBody baffle.
 
@@ -40,36 +41,70 @@ def build_telescope(
         band=band,
         rtp=Angle(rtp_deg, unit=u.deg),
     )
+    # camera_piston and m2_piston are intentional-defocus knobs on the
+    # builder, kept out of the 50-dof AOS state, so they compose with the
+    # rtp_lookup perturbations rather than overwriting them.  Positive is
+    # extra-focal for both.
     piston = camera_piston_mm * u.mm if camera_piston_mm != 0.0 else None
-    tel = model.build_telescope(camera_piston=piston)
+    m2_piston = m2_piston_mm * u.mm if m2_piston_mm != 0.0 else None
+    tel = model.build_telescope(camera_piston=piston, m2_piston=m2_piston)
 
-    # Insert CameraBody baffle — same as batoid/vignetting_sources.py
-    l1_z = tel["L1_entrance"].coordSys.origin[2]
-    camera_body = batoid.Baffle(
-        batoid.Plane(),
-        name="CameraBody",
-        obscuration=batoid.ObscCircle(0.80469),
-        coordSys=batoid.CoordSys(origin=[0, 0, l1_z + 0.1045]),
-        parent="LSSTCamera",
-    )
-    tel = tel.withInsertedOptic(before="M3", item=camera_body)
+    # Insert CameraBody baffle — same as batoid/vignetting_sources.py.
+    # v1000 and later define CameraBody in the batoid yaml itself, at the
+    # perturbed camera coordSys rather than the idealized l1_z + 0.1045, so
+    # only insert the baffle when the optic doesn't already have one.
+    if not any(k.split(".")[-1] == "CameraBody" for k in tel.itemDict):
+        l1_z = tel["L1_entrance"].coordSys.origin[2]
+        camera_body = batoid.Baffle(
+            batoid.Plane(),
+            name="CameraBody",
+            obscuration=batoid.ObscCircle(0.80469),
+            coordSys=batoid.CoordSys(origin=[0, 0, l1_z + 0.1045]),
+            parent="LSSTCamera",
+        )
+        tel = tel.withInsertedOptic(before="M3", item=camera_body)
     return tel, model.wavelength.to_value(u.m)
 
 
-def _init_worker(version, band, rtp_deg, camera_piston_mm):
+def _init_worker(version, band, rtp_deg, camera_piston_mm, m2_piston_mm):
     """Build the telescope once per worker process."""
     global _telescope, _wavelength
-    _telescope, _wavelength = build_telescope(version, band, rtp_deg, camera_piston_mm)
+    _telescope, _wavelength = build_telescope(
+        version, band, rtp_deg, camera_piston_mm, m2_piston_mm)
 
 
-def _process_theta(theta, azimuth_deg, nrad, retrace_tol, write_movie):
+def _footprint_exceeds(rays, keep, radius):
+    """True if any kept ray lands beyond *radius* on this surface.
+
+    Used to check the assumption behind the single-edge treatment of opaque
+    annuli: light outside the annulus outer radius is unobscured, so if the
+    traced footprint reaches past it the "keep inside inner" edge is no
+    longer the whole story.
+    """
+    if not np.any(keep):
+        return False
+    r = np.hypot(rays.x[keep], rays.y[keep])
+    return bool(np.nanmax(r) > radius)
+
+
+def _process_theta(theta, azimuth_deg, nrad, retrace_tol, write_movie,
+                   movie_surfaces=None, collapse_spider=False):
     """Process one field angle.  Runs in a worker process.
 
     Returns a dict with:
       'theta'        : float
-      'edge_data'    : {(surf, irad): {'r', 'clear', 'xPupil', 'yPupil'}}
-      'retrace_data' : {(surf, irad): np.ndarray of passing retrace errors}
-      'frame_surfs'  : list of per-surface dicts for movie rendering, or None
+      'edge_data'    : {(surf, edge): {'r', 'clear', 'xPupil', 'yPupil'}}
+      'retrace_data' : {(surf, edge): np.ndarray of passing retrace errors}
+      'frame_surfs'  : list of per-surface dicts for movie rendering, or None.
+                       Restricted to *movie_surfaces* if given; if
+                       *collapse_spider* is set, every surface named Spider*
+                       is replaced by one leading panel showing the rays whose
+                       first obscuration is a vane.
+      'unhandled'    : {surf: obscuration type name} for surfaces whose
+                       obscuration isn't a (possibly negated) circle or
+                       annulus, and so contributes no edges
+      'footprint'    : {surf: outer radius} for opaque annuli whose traced
+                       footprint reaches past the annulus outer radius
     """
     telescope = _telescope
     wavelength = _wavelength
@@ -90,9 +125,18 @@ def _process_theta(theta, azimuth_deg, nrad, retrace_tol, write_movie):
     epRays = rays.toCoordSys(telescope.stopSurface.coordSys)
     telescope.stopSurface.surface.intersect(epRays)
 
-    edge_data = {}    # (surf, irad) -> {r, clear, xPupil, yPupil}
-    retrace_data = {} # (surf, irad) -> ndarray of passing retrace errors
+    # Rays that survive the whole trace.  Used for the opaque-annulus
+    # footprint check: a ray passing outside an annulus only matters if it
+    # goes on to reach the detector rather than dying at, say, M1's rim.
+    _det = tf.get("Detector")
+    final_ok = None if _det is None else ~_det["out"].vignetted
+
+    edge_data = {}    # (surf, edge) -> {r, clear, xPupil, yPupil}
+    retrace_data = {} # (surf, edge) -> ndarray of passing retrace errors
     frame_surfs = [] if write_movie else None
+    unhandled = {}            # surf -> obscuration type name
+    footprint_warnings = {}   # surf -> annulus outer radius
+    spider_vig = np.zeros(len(rays), dtype=bool)  # for the collapsed panel
 
     was_vignetted = np.zeros(len(rays), dtype=bool)
     for surf, out in tf.items():
@@ -107,28 +151,51 @@ def _process_theta(theta, azimuth_deg, nrad, retrace_tol, write_movie):
         negated = isinstance(obsc, batoid.ObscNegation)
         if negated:
             obsc = obsc.original
-        radii = []
-        clears = []
+        # Each entry is (edge_name, radius, clear).  "clear" means the
+        # interior of the circle passes light; the mask evaluator ANDs every
+        # edge of every surface together, so each edge must be a constraint
+        # that holds on its own.
+        edges = []
         if isinstance(obsc, batoid.ObscCircle):
-            radii.append(obsc.radius)
-            clears.append(negated)  # negated circle → clear outer
+            # ClearCircle (negated) → keep inside; ObscCircle → remove inside.
+            edges.append(("outer", obsc.radius, negated))
         elif isinstance(obsc, batoid.ObscAnnulus):
-            radii.append(obsc.inner)
-            radii.append(obsc.outer)
-            clears.append(not negated)   # inner: False for negated (M1/M2/M3)
-            clears.append(negated)       # outer: True for negated (M1/M2/M3)
+            if negated:
+                # ClearAnnulus (M1/M2/M3): central obscuration plus clear rim.
+                edges.append(("inner", obsc.inner, False))
+                edges.append(("outer", obsc.outer, True))
+            else:
+                # Opaque annulus (the v4 structure baffles, M1Baffle1/2).
+                # Blocked iff inner < r < outer, i.e. clear iff r < inner OR
+                # r > outer — a disjunction, which a conjunction of circular
+                # edges cannot express.  Only the inner edge can clip the
+                # pupil, so emit "keep inside inner" alone; emitting the outer
+                # edge too would read as "remove inside outer" and blank the
+                # whole pupil.  Valid only while the footprint stays inside
+                # obsc.outer, which _footprint_exceeds checks.
+                edges.append(("inner", obsc.inner, True))
+                keep = not_vignetted if final_ok is None else final_ok
+                if _footprint_exceeds(out_rays, keep, obsc.outer):
+                    footprint_warnings[surf] = obsc.outer
+        else:
+            unhandled[surf] = (
+                type(obsc).__name__ if obsc is not None else "no obscuration"
+            )
 
         # Build interpolator: optic-surface coords → pupil coords.
         # out_rays are in global frame; xOptic/yOptic are in local surface
         # frame, but for Rubin surfaces (z-translated only) x,y are the same.
-        valid = np.isfinite(out_rays.x) & np.isfinite(out_rays.y)
-        src = np.stack([out_rays.x[valid], out_rays.y[valid]], axis=1)
-        tree = cKDTree(src)
-        ep_src = np.stack([epRays.x[valid], epRays.y[valid]], axis=1)
-        ep_tree = cKDTree(ep_src)
+        # Skipped for surfaces that contribute no edges (e.g. the v4 spider
+        # vanes), whose obscurations are handled outside this pipeline.
+        if edges:
+            valid = np.isfinite(out_rays.x) & np.isfinite(out_rays.y)
+            src = np.stack([out_rays.x[valid], out_rays.y[valid]], axis=1)
+            tree = cKDTree(src)
+            ep_src = np.stack([epRays.x[valid], epRays.y[valid]], axis=1)
+            ep_tree = cKDTree(ep_src)
 
         surf_edges = []
-        for irad, (r, clear) in enumerate(zip(radii, clears)):
+        for edge_name, r, clear in edges:
             xOptic = r * np.cos(np.linspace(0, 2 * np.pi, 1000))
             yOptic = r * np.sin(np.linspace(0, 2 * np.pi, 1000))
             query = np.stack([xOptic, yOptic], axis=1)
@@ -201,30 +268,55 @@ def _process_theta(theta, azimuth_deg, nrad, retrace_tol, write_movie):
                 yPupil[valid_j[bad]] = np.nan
                 passing_err = retrace_err[~bad]
                 if passing_err.size > 0:
-                    retrace_data[(surf, irad)] = passing_err
+                    retrace_data[(surf, edge_name)] = passing_err
 
-            edge_data[(surf, irad)] = {
+            edge_data[(surf, edge_name)] = {
                 "r": r, "clear": clear,
                 "xPupil": xPupil, "yPupil": yPupil,
             }
             surf_edges.append((xPupil, yPupil))
 
         if write_movie:
-            frame_surfs.append({
-                "name": surf,
-                "was_vig": (epRays.x[was_vignetted].copy(), epRays.y[was_vignetted].copy()),
-                "new_vig": (epRays.x[newly_vignetted].copy(), epRays.y[newly_vignetted].copy()),
-                "not_vig": (epRays.x[not_vignetted].copy(),  epRays.y[not_vignetted].copy()),
-                "edges": surf_edges,
-            })
+            if collapse_spider and surf.startswith("Spider"):
+                spider_vig |= newly_vignetted
+            elif movie_surfaces is None or surf in movie_surfaces:
+                # float32 for the scatter coordinates: visually identical at
+                # any plottable dpi, and halves the frame buffers that the
+                # parent holds for every theta at once.
+                f32 = lambda m: (epRays.x[m].astype(np.float32),
+                                 epRays.y[m].astype(np.float32))
+                frame_surfs.append({
+                    "name": surf,
+                    "was_vig": f32(was_vignetted),
+                    "new_vig": f32(newly_vignetted),
+                    "not_vig": f32(not_vignetted),
+                    "edges": surf_edges,
+                })
 
         was_vignetted |= now_vignetted
+
+    if write_movie and collapse_spider:
+        # Spider-only panel: red marks rays whose first obscuration is a vane,
+        # blue the rays that clear every vane.  Deliberately not cumulative
+        # through the trace, so the vane shadow reads in isolation.
+        empty = np.array([], dtype=np.float32)
+        frame_surfs.insert(0, {
+            "name": "Spider (all vanes)",
+            "was_vig": (empty, empty),
+            "new_vig": (epRays.x[spider_vig].astype(np.float32),
+                        epRays.y[spider_vig].astype(np.float32)),
+            "not_vig": (epRays.x[~spider_vig].astype(np.float32),
+                        epRays.y[~spider_vig].astype(np.float32)),
+            "edges": [],
+        })
 
     return {
         "theta":        theta,
         "edge_data":    edge_data,
         "retrace_data": retrace_data,
         "frame_surfs":  frame_surfs,
+        "unhandled":    unhandled,
+        "footprint":    footprint_warnings,
     }
 
 
@@ -234,14 +326,20 @@ def main(args):
     )
     write_movie = args.output != "/dev/null"
 
+    movie_surfaces = (
+        set(args.movie_surfaces.split(",")) if args.movie_surfaces else None
+    )
     worker_fn = functools.partial(
         _process_theta,
         azimuth_deg=args.azimuth_deg,
         nrad=args.nrad,
         retrace_tol=args.retrace_tol,
         write_movie=write_movie,
+        movie_surfaces=movie_surfaces,
+        collapse_spider=args.collapse_spider,
     )
-    init_args = (args.version, args.band, args.rtp_deg, args.camera_piston_mm)
+    init_args = (args.version, args.band, args.rtp_deg,
+                 args.camera_piston_mm, args.m2_piston_mm)
     n_jobs = min(args.jobs, len(thetas))
 
     with ProcessPoolExecutor(
@@ -258,8 +356,10 @@ def main(args):
         ))
 
     # Merge per-theta results into edge_accum and retrace_stats.
-    edge_accum = {}   # (surf, irad) -> {"r", "clear", "xPupil": [...], "yPupil": [...]}
-    retrace_stats = {}  # (surf, irad) -> list of per-point error arrays
+    edge_accum = {}   # (surf, edge) -> {"r", "clear", "xPupil": [...], "yPupil": [...]}
+    retrace_stats = {}  # (surf, edge) -> list of per-point error arrays
+    unhandled = {}    # surf -> obscuration type name
+    footprint_warnings = {}  # surf -> annulus outer radius
     for result in results:
         for key, edata in result["edge_data"].items():
             if key not in edge_accum:
@@ -269,25 +369,48 @@ def main(args):
             edge_accum[key]["yPupil"].append(edata["yPupil"])
         for key, errs in result["retrace_data"].items():
             retrace_stats.setdefault(key, []).append(errs)
+        unhandled.update(result["unhandled"])
+        footprint_warnings.update(result["footprint"])
 
     # Render movie sequentially from stored frame data.
     if write_movie:
-        # Grid sized to the number of traced surfaces (varies by optic
-        # version, e.g. v1000 adds M1/M2/M3 baffles).
+        # Grid sized to the number of rendered panels, which varies with the
+        # optic version and with --movie-surfaces/--collapse-spider.  Squarer
+        # than 4 columns once the panel count is small.
         nsurf = len(results[0]["frame_surfs"]) if results else 0
-        ncols = 4
+        ncols = max(1, min(4, int(np.ceil(np.sqrt(nsurf)))))
         nrows = max(1, -(-nsurf // ncols))  # ceil division
+        # Marker size.  scatter's s is an area in pt², so its pixel size grows
+        # with dpi; pinning it to a fraction of the ray spacing keeps panels
+        # solid without smearing thin features (a vane shadow is only 0.05 m
+        # wide).  0.7 was chosen by eye: at 1.0 the vane shadows break up into
+        # dots, below ~0.4 the filled regions go moiré.
+        if args.marker_size is not None:
+            msize = args.marker_size
+        else:
+            px_per_m = 4 * args.dpi / 9.0          # panels are 4 in over 9 m
+            spacing_px = (4.18 * 1.02 / args.nrad) * px_per_m  # outer/nrad
+            msize = (0.7 * spacing_px * 72 / args.dpi) ** 2
+            print(f"Marker size (auto): s={msize:.3f}  "
+                  f"(ray spacing {spacing_px:.2f} px, marker "
+                  f"{np.sqrt(msize) * args.dpi / 72:.2f} px)", file=sys.stderr)
+
         fig = Figure(figsize=(4 * ncols, 4 * nrows), constrained_layout=True)
         FigureCanvasAgg(fig)
-        axs = fig.subplots(nrows, ncols)
+        axs = np.atleast_2d(fig.subplots(nrows, ncols, squeeze=False))
+        for ax in axs.ravel()[nsurf:]:
+            ax.set_axis_off()
         writer = FFMpegWriter(fps=args.fps)
-        with writer.saving(fig, args.output, dpi=100):
+        with writer.saving(fig, args.output, dpi=args.dpi):
             for result in tqdm(results, desc="movie",
                            position=args.tqdm_position,
                            leave=args.tqdm_position == 0):
                 theta = result["theta"]
-                for ax in axs.ravel():
-                    ax.cla()
+                for iax, ax in enumerate(axs.ravel()):
+                    ax.cla()   # also restores axis visibility, so re-hide
+                    if iax >= len(result["frame_surfs"]):
+                        ax.set_axis_off()
+                        continue
                     ax.set_facecolor("#333333")
                     ax.set_aspect("equal")
                     ax.set_xticks([])
@@ -299,28 +422,44 @@ def main(args):
                     ax.set_title(sd["name"], fontsize=8)
                     for xp, yp in sd["edges"]:
                         ax.plot(xp, yp, "y-", lw=1)
-                    ax.scatter(*sd["was_vig"], color="k", s=1)
-                    ax.scatter(*sd["new_vig"], color="r", s=1)
-                    ax.scatter(*sd["not_vig"], color="b", s=1)
+                    # Surviving rays first, vignetted ones on top: features
+                    # like the vane shadows are only a ray or two wide, so if
+                    # blue is drawn last its markers paint over them and the
+                    # shadows break up into dots.
+                    ax.scatter(*sd["not_vig"], color="b", s=msize)
+                    ax.scatter(*sd["was_vig"], color="k", s=msize)
+                    ax.scatter(*sd["new_vig"], color="r", s=msize)
                 fig.suptitle(
                     f"v{args.version}  band={args.band}  rtp={args.rtp_deg:.1f}°"
                     f"  piston={args.camera_piston_mm:.2f} mm"
+                    f"  m2={args.m2_piston_mm:.2f} mm"
                     f"  az={args.azimuth_deg:.1f}°  θ={theta:.3f}°",
                     fontsize=10,
                 )
                 writer.grab_frame()
 
-    # Report per-edge retrace RMS for passing points.
-    if retrace_stats:
+    # Report per-edge retrace RMS for passing points, plus anything the edge
+    # extractor couldn't represent as a circle.
+    if retrace_stats or unhandled or footprint_warnings:
         _px = 4.18 / 65  # metres per pixel at donut scale
         lines = ["Retrace RMS (passing points):"]
-        for (surf, irad), errs_list in sorted(retrace_stats.items()):
+        for (surf, edge_name), errs_list in sorted(retrace_stats.items()):
             all_errs = np.concatenate(errs_list)
             rms_m = float(np.sqrt(np.mean(all_errs**2)))
-            n_edges = sum(1 for (s, _) in retrace_stats if s == surf)
-            ename = ("inner" if irad == 0 else "outer") if n_edges == 2 else "outer"
-            lines.append(f"  {surf}/{ename:<22}  rms={rms_m*1e3:6.2f} mm  "
+            label = f"{surf}/{edge_name}"
+            lines.append(f"  {label:<30}  rms={rms_m*1e3:6.2f} mm  "
                          f"({rms_m/_px:.3f} px)")
+        if unhandled:
+            lines.append("Surfaces contributing no edges "
+                         "(obscuration isn't a circle or annulus):")
+            for surf, typename in sorted(unhandled.items()):
+                lines.append(f"  {surf:<24}  {typename}")
+        if footprint_warnings:
+            lines.append("WARNING: opaque annuli whose footprint reaches past "
+                         "the annulus outer radius — the single inner edge "
+                         "under-obscures these:")
+            for surf, outer in sorted(footprint_warnings.items()):
+                lines.append(f"  {surf:<24}  outer={outer:.5f} m")
         text = "\n".join(lines)
         if args.retrace_log:
             with open(args.retrace_log, "w") as fh:
@@ -328,17 +467,13 @@ def main(args):
         else:
             print(text, file=sys.stderr)
 
-    # Build and write the intermediate edge-points ASDF file.
-    # Name edges "inner"/"outer" for two-edge surfaces (mirrors), "outer" for one-edge.
-    n_edges_per_surf = {}
-    for (surf, irad) in edge_accum:
-        n_edges_per_surf[surf] = max(n_edges_per_surf.get(surf, 0), irad + 1)
-
+    # Build and write the intermediate edge-points ASDF file.  Edge names
+    # ("inner"/"outer") name the radius they came from and are assigned by the
+    # extractor, so a surface can contribute just an inner edge.
     edges_tree = {}
-    for (surf, irad), data in edge_accum.items():
+    for (surf, edge_name), data in edge_accum.items():
         if surf not in edges_tree:
             edges_tree[surf] = {}
-        edge_name = ("inner" if irad == 0 else "outer") if n_edges_per_surf[surf] == 2 else "outer"
         edges_tree[surf][edge_name] = {
             "r": float(data["r"]),
             "clear": bool(data["clear"]),
@@ -382,6 +517,15 @@ if __name__ == "__main__":
         help="Camera piston in mm (default: 0.0)",
     )
     parser.add_argument(
+        "--m2-piston-mm",
+        type=float,
+        default=0.0,
+        dest="m2_piston_mm",
+        help="M2 piston in mm, positive extra-focal (default: 0.0).  Applied "
+             "via StarSharp's m2_piston knob, so it stays out of the AOS "
+             "state just like camera piston.",
+    )
+    parser.add_argument(
         "--azimuth-deg",
         type=float,
         default=0.0,
@@ -413,6 +557,26 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--fps", type=int, default=10, help="Frames per second (default: 10)"
+    )
+    parser.add_argument(
+        "--marker-size", type=float, default=None, dest="marker_size",
+        help="scatter marker area in pt² for the ray points (default: auto, "
+             "scaled to the ray spacing so it tracks --nrad and --dpi)",
+    )
+    parser.add_argument(
+        "--dpi", type=int, default=100,
+        help="Movie resolution in dpi; each panel is 4 inches square, so "
+             "dpi=200 gives 800 px per panel (default: 100)",
+    )
+    parser.add_argument(
+        "--movie-surfaces", type=str, default=None, dest="movie_surfaces",
+        help="Comma-separated surfaces to render panels for (default: all). "
+             "Use to drop apertures that never bind the pupil.",
+    )
+    parser.add_argument(
+        "--collapse-spider", action="store_true", dest="collapse_spider",
+        help="Replace the individual Spider* surface panels with a single "
+             "panel showing the rays first obscured by any vane",
     )
     parser.add_argument(
         "--edges-output", type=str, default="edges.asdf",
